@@ -318,3 +318,51 @@ flowchart LR
 3. **Graceful Shutdown**: `signal.NotifyContext` を使用した適切なシャットダウン処理
 4. **Health Check**: `/health` エンドポイントの追加
 5. **同時実行制限**: セマフォによる並列実行数の制御
+
+---
+
+## コードレビュー修正レポート (2026-01-24)
+
+### レビュー実施
+
+go-reviewer エージェントによるコードレビューを実施。
+
+### 修正内容
+
+| 修正項目 | ファイル | 内容 |
+|---------|---------|------|
+| SSE write エラー処理 | `handler/plan.go` | `w.Write()` のエラーを検出してログ出力、ストリーム終了 |
+| Scanner エラー伝播 | `service/claude.go` | Scanner エラー時にエラーイベントをチャンネルに送信 |
+| 未使用型の削除 | `service/types.go` | `ClaudeStreamMessage` 型を削除 |
+| ログの切り詰め | `service/claude.go` | `args`, `answer` のログ出力を `truncateLog()` で100文字に制限 |
+| ドキュメント更新 | `service/doc.go`, `handler/doc.go` | ストリーミング/セッション継続機能の説明を追加 |
+
+### 設計判断の維持（修正しなかった項目）
+
+以下は計画書で意図的に決定された設計であり、修正しない:
+
+| 項目 | 理由 |
+|------|------|
+| 認証なし | Tailscale 閉域網前提で信頼 |
+| プロジェクトパス制限なし | Tailscale 閉域網前提で信頼 |
+| `bypassPermissions` モード | /plan コマンド実行に必要 |
+
+### 検証結果
+
+| 項目 | 結果 |
+|------|------|
+| `go build ./...` | OK |
+| `go vet ./...` | OK |
+| `gofmt` | OK |
+
+### 現在の実装状況
+
+計画書の Phase 1 を超える機能が実装済み:
+
+| 機能 | 状態 | 備考 |
+|------|------|------|
+| `/api/plan` | 完了 | Phase 1 計画通り |
+| `/api/plan/stream` | 完了 | SSE ストリーミング（追加機能） |
+| `/api/plan/continue` | 完了 | セッション継続（追加機能） |
+| `/api/plan/continue/stream` | 完了 | セッション継続 + SSE（追加機能） |
+| シンプル UI | 完了 | Phase 1 計画通り + 拡張 |

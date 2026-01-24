@@ -39,7 +39,7 @@ func NewClaudeService() ClaudeService {
 
 // ExecutePlan はClaude CLIの/planコマンドを実行します
 func (s *claudeServiceImpl) ExecutePlan(ctx context.Context, project, args string) (*PlanResult, error) {
-	log.Printf("[ClaudeService] ExecutePlan started: project=%s, args=%s", project, args)
+	log.Printf("[ClaudeService] ExecutePlan started: project=%s, args=%s", project, truncateLog(args, 100))
 
 	// /plan コマンドを構築
 	prompt := fmt.Sprintf("/plan %s", args)
@@ -49,14 +49,14 @@ func (s *claudeServiceImpl) ExecutePlan(ctx context.Context, project, args strin
 
 // ContinueSession はセッションを継続して回答を送信します
 func (s *claudeServiceImpl) ContinueSession(ctx context.Context, project, sessionID, answer string) (*PlanResult, error) {
-	log.Printf("[ClaudeService] ContinueSession started: project=%s, sessionID=%s, answer=%s", project, sessionID, answer)
+	log.Printf("[ClaudeService] ContinueSession started: project=%s, sessionID=%s, answer=%s", project, sessionID, truncateLog(answer, 100))
 
 	return s.executeCommand(ctx, project, answer, sessionID)
 }
 
 // ExecutePlanStream は/planコマンドをストリーミングで実行します
 func (s *claudeServiceImpl) ExecutePlanStream(ctx context.Context, project, args string, eventCh chan<- StreamEvent) error {
-	log.Printf("[ClaudeService] ExecutePlanStream started: project=%s, args=%s", project, args)
+	log.Printf("[ClaudeService] ExecutePlanStream started: project=%s, args=%s", project, truncateLog(args, 100))
 
 	prompt := fmt.Sprintf("/plan %s", args)
 	return s.executeCommandStream(ctx, project, prompt, "", eventCh)
@@ -142,6 +142,7 @@ func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, p
 
 	if err := scanner.Err(); err != nil {
 		log.Printf("[ClaudeService] Scanner error: %v", err)
+		eventCh <- StreamEvent{Type: EventTypeError, Message: "Stream read error: " + err.Error()}
 	}
 
 	// コマンド終了を待つ

@@ -177,7 +177,10 @@ func (h *PlanHandler) HandleStream(c *gin.Context) {
 		log.Printf("[PlanHandler] SSE sending: type=%s, tool=%s", event.Type, event.ToolName)
 		// c.SSEventは "event: message\ndata: ..." 形式で出力するが、
 		// フロントエンドは "data: ..." のみを期待しているため直接書き込む
-		_, _ = w.Write([]byte("data: " + string(data) + "\n\n"))
+		if _, err := w.Write([]byte("data: " + string(data) + "\n\n")); err != nil {
+			log.Printf("[PlanHandler] SSE write error: %v", err)
+			return false
+		}
 		c.Writer.Flush()
 		return true
 	})
@@ -332,7 +335,10 @@ func (h *PlanHandler) HandleContinueStream(c *gin.Context) {
 		log.Printf("[PlanHandler] SSE sending: type=%s, tool=%s", event.Type, event.ToolName)
 		// c.SSEventは "event: message\ndata: ..." 形式で出力するが、
 		// フロントエンドは "data: ..." のみを期待しているため直接書き込む
-		_, _ = w.Write([]byte("data: " + string(data) + "\n\n"))
+		if _, err := w.Write([]byte("data: " + string(data) + "\n\n")); err != nil {
+			log.Printf("[PlanHandler] SSE write error: %v", err)
+			return false
+		}
 		c.Writer.Flush()
 		return true
 	})
