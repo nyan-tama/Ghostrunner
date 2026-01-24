@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ghostrunner</title>
+    <title>Ghost Runner</title>
     <style>
         * {
             box-sizing: border-box;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
             padding: 20px;
             background-color: #f5f5f5;
@@ -44,7 +44,7 @@
             box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
         }
         textarea {
-            min-height: 100px;
+            min-height: 80px;
             resize: vertical;
         }
         button {
@@ -66,73 +66,295 @@
             background-color: #6c757d;
             cursor: not-allowed;
         }
-        .result {
+
+        /* Progress container */
+        .progress-container {
             margin-top: 24px;
-            padding: 16px;
-            border-radius: 8px;
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
             display: none;
         }
-        .result.success {
-            background-color: #d4edda;
-            border: 1px solid #c3e6cb;
+        .progress-container.show {
             display: block;
         }
-        .result.error {
-            background-color: #f8d7da;
-            border: 1px solid #f5c6cb;
-            display: block;
+
+        /* Header with prompt */
+        .progress-header {
+            padding: 16px 20px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
         }
-        .result-title {
+        .prompt-text {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+            color: #333;
+            background-color: #fff;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+
+        /* Event list */
+        .event-list {
+            padding: 0;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .event-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            animation: slideIn 0.2s ease-out;
+        }
+        .event-item:last-child {
+            border-bottom: none;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .event-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 12px;
+            margin-top: 6px;
+            flex-shrink: 0;
+        }
+        .event-dot.tool { background-color: #007bff; }
+        .event-dot.task { background-color: #6f42c1; }
+        .event-dot.text { background-color: #28a745; }
+        .event-dot.info { background-color: #17a2b8; }
+        .event-dot.error { background-color: #dc3545; }
+        .event-dot.question { background-color: #ffc107; }
+
+        .event-content {
+            flex: 1;
+            min-width: 0;
+        }
+        .event-title {
             font-weight: 600;
-            margin-bottom: 12px;
+            color: #333;
+            font-size: 14px;
         }
-        .result.success .result-title {
-            color: #155724;
+        .event-detail {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            color: #666;
+            margin-top: 4px;
+            word-break: break-all;
         }
-        .result.error .result-title {
-            color: #721c24;
+        .event-meta {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        /* Task block (sub-agent) */
+        .task-block {
+            background-color: #f8f5ff;
+            border: 1px solid #e0d6f5;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0 8px 20px;
+        }
+        .task-title {
+            font-weight: 600;
+            color: #6f42c1;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        .task-content {
+            font-size: 13px;
+            color: #555;
+            background-color: #fff;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+
+        /* Result section */
+        .result-section {
+            padding: 16px 20px;
+            background-color: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+        .result-section.success {
+            background-color: #d4edda;
+        }
+        .result-section.error {
+            background-color: #f8d7da;
         }
         .result-output {
             background-color: #fff;
             padding: 12px;
-            border-radius: 4px;
-            overflow-x: auto;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
             white-space: pre-wrap;
             word-wrap: break-word;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 14px;
-            line-height: 1.5;
-            max-height: 500px;
+            max-height: 400px;
             overflow-y: auto;
         }
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 20px;
-            color: #666;
+
+        /* Question UI */
+        .question-section {
+            padding: 16px 20px;
+            background-color: #fff3cd;
+            border-top: 1px solid #ffc107;
         }
-        .loading.show {
+        .question-title {
+            font-weight: 600;
+            color: #856404;
+            margin-bottom: 12px;
+        }
+        .question-text {
+            font-size: 15px;
+            color: #333;
+            margin-bottom: 12px;
+        }
+        .options-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .option-btn {
+            width: 100%;
+            padding: 12px 16px;
+            background-color: #fff;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .option-btn:hover {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+        .option-label {
+            font-weight: 600;
+            color: #333;
             display: block;
         }
+        .option-description {
+            font-size: 13px;
+            color: #666;
+            margin-top: 4px;
+        }
+        .custom-answer {
+            margin-top: 12px;
+        }
+        .custom-answer input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .submit-answer-btn {
+            margin-top: 12px;
+            background-color: #28a745;
+        }
+
+        /* Plan approval */
+        .plan-approval {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+            padding: 0 20px 16px;
+        }
+        .approve-btn {
+            flex: 1;
+            background-color: #28a745;
+        }
+        .approve-btn:hover {
+            background-color: #218838;
+        }
+        .reject-btn {
+            flex: 1;
+            background-color: #dc3545;
+        }
+        .reject-btn:hover {
+            background-color: #c82333;
+        }
+
+        /* Footer info */
+        .progress-footer {
+            padding: 12px 20px;
+            background-color: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Loading indicator */
+        .loading-indicator {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            background-color: #e7f3ff;
+        }
         .loading-spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 2px solid #f3f3f3;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #b3d9ff;
             border-top: 2px solid #007bff;
             border-radius: 50%;
             animation: spin 1s linear infinite;
-            margin-right: 8px;
-            vertical-align: middle;
+            margin-right: 12px;
         }
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .loading-text {
+            font-size: 14px;
+            color: #004085;
+            font-weight: 500;
+        }
+
+        /* Expandable text */
+        .text-length {
+            font-weight: normal;
+            color: #999;
+            font-size: 12px;
+        }
+        .full-text {
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 4px;
+        }
+        .expand-btn {
+            background: none;
+            border: none;
+            color: #007bff;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 4px 0;
+            width: auto;
+        }
+        .expand-btn:hover {
+            text-decoration: underline;
+            background: none;
+        }
     </style>
 </head>
 <body>
-    <h1>Ghostrunner</h1>
+    <h1>Ghost Runner</h1>
 
     <form id="planForm">
         <div class="form-group">
@@ -148,86 +370,528 @@
         <button type="submit" id="submitBtn">Execute /plan</button>
     </form>
 
-    <div class="loading" id="loading">
-        <span class="loading-spinner"></span>
-        Executing Claude CLI... (this may take a while)
-    </div>
+    <div class="progress-container" id="progressContainer">
+        <!-- Header with prompt -->
+        <div class="progress-header">
+            <div class="prompt-text" id="promptText"></div>
+        </div>
 
-    <div class="result" id="result">
-        <div class="result-title" id="resultTitle"></div>
-        <div class="result-output" id="resultOutput"></div>
+        <!-- Loading indicator -->
+        <div class="loading-indicator hidden" id="loadingIndicator">
+            <span class="loading-spinner"></span>
+            <span class="loading-text" id="loadingText">Processing...</span>
+        </div>
+
+        <!-- Event list -->
+        <div class="event-list" id="eventList"></div>
+
+        <!-- Question section -->
+        <div class="question-section hidden" id="questionSection"></div>
+
+        <!-- Plan approval -->
+        <div class="plan-approval hidden" id="planApproval">
+            <button type="button" class="approve-btn" id="approveBtn">Approve Plan</button>
+            <button type="button" class="reject-btn" id="rejectBtn">Reject</button>
+        </div>
+
+        <!-- Result section -->
+        <div class="result-section hidden" id="resultSection">
+            <div class="result-output" id="resultOutput"></div>
+        </div>
+
+        <!-- Footer -->
+        <div class="progress-footer">
+            <span id="sessionInfo">-</span>
+            <span id="costInfo">-</span>
+        </div>
     </div>
 
     <script>
         const form = document.getElementById('planForm');
         const submitBtn = document.getElementById('submitBtn');
-        const loading = document.getElementById('loading');
-        const result = document.getElementById('result');
-        const resultTitle = document.getElementById('resultTitle');
+        const progressContainer = document.getElementById('progressContainer');
+        const promptText = document.getElementById('promptText');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const loadingText = document.getElementById('loadingText');
+        const eventList = document.getElementById('eventList');
+        const questionSection = document.getElementById('questionSection');
+        const planApproval = document.getElementById('planApproval');
+        const resultSection = document.getElementById('resultSection');
         const resultOutput = document.getElementById('resultOutput');
+        const sessionInfo = document.getElementById('sessionInfo');
+        const costInfo = document.getElementById('costInfo');
+        const approveBtn = document.getElementById('approveBtn');
+        const rejectBtn = document.getElementById('rejectBtn');
 
-        // Load saved project path from localStorage
+        // Session state
+        let currentSessionId = null;
+        let totalCost = 0;
+
+        // Load saved project path or use default
         const savedProject = localStorage.getItem('ghostrunner_project');
         if (savedProject) {
             document.getElementById('project').value = savedProject;
+        } else {
+            document.getElementById('project').value = '/Users/user/auto-daysupport-cloudrun/';
         }
+
+        // Plan approval handlers
+        approveBtn.addEventListener('click', () => {
+            continueSessionStream('yes, proceed with the plan');
+        });
+        rejectBtn.addEventListener('click', () => {
+            continueSessionStream('no, cancel the plan');
+        });
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-
             const project = document.getElementById('project').value.trim();
             const args = document.getElementById('args').value.trim();
+            if (!project || !args) return;
 
-            if (!project || !args) {
-                return;
-            }
-
-            // Save project path to localStorage
             localStorage.setItem('ghostrunner_project', project);
+            currentSessionId = null;
+            totalCost = 0;
 
-            // UI state: loading
-            submitBtn.disabled = true;
-            loading.classList.add('show');
-            result.classList.remove('success', 'error');
-            result.style.display = 'none';
+            await executePlanStream(project, args);
+        });
+
+        async function executePlanStream(project, args) {
+            showProgress(`/plan ${args}`);
 
             try {
-                const response = await fetch('/api/plan', {
+                const response = await fetch('/api/plan/stream', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ project, args }),
                 });
 
-                const data = await response.json();
-
-                // UI state: result
-                loading.classList.remove('show');
-                submitBtn.disabled = false;
-
-                if (data.success) {
-                    result.classList.add('success');
-                    resultTitle.textContent = 'Success';
-                    resultOutput.textContent = data.output || '(no output)';
-                } else {
-                    result.classList.add('error');
-                    resultTitle.textContent = 'Error';
-                    let errorText = data.error || 'Unknown error';
-                    if (data.output) {
-                        errorText += '\n\n--- Output ---\n' + data.output;
-                    }
-                    resultOutput.textContent = errorText;
+                if (!response.ok) {
+                    const data = await response.json();
+                    showError(data.error || 'Request failed');
+                    return;
                 }
+
+                await handleSSEResponse(response);
             } catch (error) {
-                // UI state: error
-                loading.classList.remove('show');
-                submitBtn.disabled = false;
-                result.classList.add('error');
-                resultTitle.textContent = 'Error';
-                resultOutput.textContent = 'Failed to connect to server: ' + error.message;
+                showError('Failed to connect: ' + error.message);
             }
-        });
+        }
+
+        async function continueSessionStream(answer) {
+            const project = document.getElementById('project').value.trim();
+            if (!currentSessionId) {
+                showError('No active session');
+                return;
+            }
+
+            hideQuestionAndApproval();
+            showLoading('Continuing...');
+
+            try {
+                const response = await fetch('/api/plan/continue/stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        project: project,
+                        session_id: currentSessionId,
+                        answer: answer,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    showError(data.error || 'Request failed');
+                    return;
+                }
+
+                await handleSSEResponse(response);
+            } catch (error) {
+                showError('Failed to connect: ' + error.message);
+            }
+        }
+
+        async function handleSSEResponse(response) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data) {
+                            try {
+                                handleStreamEvent(JSON.parse(data));
+                            } catch (e) {
+                                console.error('Parse error:', e);
+                            }
+                        }
+                    }
+                }
+            }
+            hideLoading();
+        }
+
+        function handleStreamEvent(event) {
+            console.log('Event:', event);
+
+            if (event.session_id) {
+                currentSessionId = event.session_id;
+                sessionInfo.textContent = 'Session: ' + currentSessionId.substring(0, 8) + '...';
+            }
+
+            switch (event.type) {
+                case 'init':
+                    addEvent('info', 'Session started', null);
+                    showLoading('Starting...');
+                    break;
+
+                case 'thinking':
+                    showLoading('Thinking...');
+                    addEvent('info', 'Thinking...', null);
+                    break;
+
+                case 'tool_use':
+                    console.log('Tool use event:', event.tool_name, event.tool_input);
+                    handleToolUse(event);
+                    break;
+
+                case 'text':
+                    if (event.message) {
+                        // Show text with truncation for long messages
+                        const text = event.message;
+                        if (text.length > 200) {
+                            addExpandableEvent('text', 'Output', text);
+                        } else {
+                            addEvent('text', text, null);
+                        }
+                    }
+                    break;
+
+                case 'question':
+                    hideLoading();
+                    if (event.result && event.result.questions) {
+                        showQuestion(event.result.questions);
+                    }
+                    break;
+
+                case 'complete':
+                    hideLoading();
+                    if (event.result) {
+                        if (event.result.cost_usd) {
+                            totalCost += event.result.cost_usd;
+                            costInfo.textContent = 'Cost: $' + totalCost.toFixed(4);
+                        }
+                        if (event.result.questions && event.result.questions.length > 0) {
+                            showQuestion(event.result.questions);
+                        } else {
+                            showResult(event.result.output);
+                        }
+                    }
+                    break;
+
+                case 'error':
+                    hideLoading();
+                    addEvent('error', event.message || 'Error occurred', null);
+                    break;
+            }
+
+            // Auto-scroll
+            eventList.scrollTop = eventList.scrollHeight;
+        }
+
+        function handleToolUse(event) {
+            const toolName = event.tool_name;
+            const toolInput = event.tool_input || {};
+
+            showLoading(event.message || `Using ${toolName}...`);
+
+            switch (toolName) {
+                case 'Task':
+                    // Sub-agent task
+                    const taskPrompt = toolInput.prompt || '';
+                    const taskType = toolInput.subagent_type || toolInput.description || 'Task';
+                    addTaskEvent(taskType, taskPrompt);
+                    break;
+
+                case 'Read':
+                    const readPath = toolInput.file_path || '';
+                    const readOffset = toolInput.offset ? ` (offset: ${toolInput.offset})` : '';
+                    const readLimit = toolInput.limit ? ` (limit: ${toolInput.limit})` : '';
+                    addEvent('tool', 'Read', `${shortenPath(readPath)}${readOffset}${readLimit}`);
+                    break;
+
+                case 'Write':
+                    const writePath = toolInput.file_path || '';
+                    const contentLen = toolInput.content ? toolInput.content.length : 0;
+                    addEvent('tool', 'Write', `${shortenPath(writePath)} (${contentLen} chars)`);
+                    break;
+
+                case 'Edit':
+                    const editPath = toolInput.file_path || '';
+                    const oldLen = toolInput.old_string ? toolInput.old_string.length : 0;
+                    const newLen = toolInput.new_string ? toolInput.new_string.length : 0;
+                    addEvent('tool', 'Edit', `${shortenPath(editPath)} (${oldLen} -> ${newLen} chars)`);
+                    break;
+
+                case 'Glob':
+                    const globPattern = toolInput.pattern || '';
+                    const globPath = toolInput.path ? ` in ${shortenPath(toolInput.path)}` : '';
+                    addEvent('tool', 'Glob', `"${globPattern}"${globPath}`);
+                    break;
+
+                case 'Grep':
+                    const grepPattern = toolInput.pattern || '';
+                    const grepPath = toolInput.path ? ` in ${shortenPath(toolInput.path)}` : '';
+                    const grepGlob = toolInput.glob ? ` (${toolInput.glob})` : '';
+                    addEvent('tool', 'Grep', `"${truncate(grepPattern, 50)}"${grepPath}${grepGlob}`);
+                    break;
+
+                case 'Bash':
+                    const cmd = toolInput.command || '';
+                    const desc = toolInput.description ? `[${toolInput.description}] ` : '';
+                    addEvent('tool', 'Bash', `${desc}${truncate(cmd, 80)}`);
+                    break;
+
+                case 'TodoWrite':
+                    const todoCount = toolInput.todos ? toolInput.todos.length : 0;
+                    addEvent('tool', 'TodoWrite', `${todoCount} items`);
+                    break;
+
+                case 'WebFetch':
+                    const fetchUrl = toolInput.url || '';
+                    addEvent('tool', 'WebFetch', truncate(fetchUrl, 60));
+                    break;
+
+                case 'WebSearch':
+                    const searchQuery = toolInput.query || '';
+                    addEvent('tool', 'WebSearch', `"${truncate(searchQuery, 50)}"`);
+                    break;
+
+                case 'ExitPlanMode':
+                    addEvent('tool', 'ExitPlanMode', 'Requesting plan approval');
+                    break;
+
+                case 'EnterPlanMode':
+                    addEvent('tool', 'EnterPlanMode', 'Starting plan mode');
+                    break;
+
+                case 'AskUserQuestion':
+                    // Question handled separately
+                    break;
+
+                default:
+                    // Show raw tool input for unknown tools
+                    const inputStr = JSON.stringify(toolInput);
+                    addEvent('tool', toolName, truncate(inputStr, 100));
+            }
+        }
+
+        // Shorten path for display (keep last 3 parts)
+        function shortenPath(path) {
+            if (!path) return '';
+            const parts = path.split('/');
+            if (parts.length <= 4) return path;
+            return '.../' + parts.slice(-3).join('/');
+        }
+
+        function addEvent(type, title, detail) {
+            const item = document.createElement('div');
+            item.className = 'event-item';
+            item.innerHTML = `
+                <div class="event-dot ${type}"></div>
+                <div class="event-content">
+                    <div class="event-title">${escapeHtml(title)}</div>
+                    ${detail ? `<div class="event-detail">${escapeHtml(detail)}</div>` : ''}
+                </div>
+            `;
+            eventList.appendChild(item);
+        }
+
+        function addExpandableEvent(type, title, fullText) {
+            const item = document.createElement('div');
+            item.className = 'event-item';
+            const preview = truncate(fullText, 150);
+            const id = 'expand-' + Date.now();
+            item.innerHTML = `
+                <div class="event-dot ${type}"></div>
+                <div class="event-content">
+                    <div class="event-title">${escapeHtml(title)} <span class="text-length">(${fullText.length} chars)</span></div>
+                    <div class="event-detail expandable" id="${id}-preview">${escapeHtml(preview)}</div>
+                    <div class="event-detail full-text hidden" id="${id}-full">${escapeHtml(fullText)}</div>
+                    <button class="expand-btn" onclick="toggleExpand('${id}')">[Show more]</button>
+                </div>
+            `;
+            eventList.appendChild(item);
+        }
+
+        function toggleExpand(id) {
+            const preview = document.getElementById(id + '-preview');
+            const full = document.getElementById(id + '-full');
+            const btn = preview.parentElement.querySelector('.expand-btn');
+            if (full.classList.contains('hidden')) {
+                preview.classList.add('hidden');
+                full.classList.remove('hidden');
+                btn.textContent = '[Show less]';
+            } else {
+                preview.classList.remove('hidden');
+                full.classList.add('hidden');
+                btn.textContent = '[Show more]';
+            }
+        }
+
+        function addTaskEvent(taskType, prompt) {
+            const item = document.createElement('div');
+            item.className = 'event-item';
+            item.innerHTML = `
+                <div class="event-dot task"></div>
+                <div class="event-content">
+                    <div class="event-title">Task: ${escapeHtml(taskType)}</div>
+                    <div class="task-block">
+                        <div class="task-content">${escapeHtml(truncate(prompt, 200))}</div>
+                    </div>
+                </div>
+            `;
+            eventList.appendChild(item);
+        }
+
+        function showProgress(prompt) {
+            submitBtn.disabled = true;
+            progressContainer.classList.add('show');
+            promptText.textContent = prompt;
+            eventList.innerHTML = '';
+            questionSection.classList.add('hidden');
+            planApproval.classList.add('hidden');
+            resultSection.classList.add('hidden');
+            showLoading('Starting...');
+        }
+
+        function showLoading(text) {
+            loadingText.textContent = text;
+            loadingIndicator.classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            loadingIndicator.classList.add('hidden');
+            submitBtn.disabled = false;
+        }
+
+        function hideQuestionAndApproval() {
+            questionSection.classList.add('hidden');
+            planApproval.classList.add('hidden');
+        }
+
+        function showResult(output) {
+            resultSection.classList.remove('hidden');
+            resultSection.classList.remove('error');
+            resultSection.classList.add('success');
+            resultOutput.textContent = output || '(completed)';
+
+            // Check for plan approval
+            const needsApproval = output && (
+                output.includes('承認をお待ち') ||
+                output.includes('waiting for approval') ||
+                output.includes('Ready for approval')
+            );
+
+            if (needsApproval && currentSessionId) {
+                planApproval.classList.remove('hidden');
+            }
+        }
+
+        function showError(message) {
+            hideLoading();
+            addEvent('error', 'Error', message);
+            resultSection.classList.remove('hidden');
+            resultSection.classList.remove('success');
+            resultSection.classList.add('error');
+            resultOutput.textContent = message;
+        }
+
+        function showQuestion(questions) {
+            questionSection.innerHTML = '';
+            questionSection.classList.remove('hidden');
+
+            questions.forEach((q, idx) => {
+                const qDiv = document.createElement('div');
+                qDiv.innerHTML = `
+                    <div class="question-title">${escapeHtml(q.header || 'Question')}</div>
+                    <div class="question-text">${escapeHtml(q.question)}</div>
+                `;
+
+                const optionsList = document.createElement('div');
+                optionsList.className = 'options-list';
+
+                let selected = [];
+
+                q.options.forEach(opt => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'option-btn';
+                    btn.innerHTML = `
+                        <span class="option-label">${escapeHtml(opt.label)}</span>
+                        ${opt.description ? `<span class="option-description">${escapeHtml(opt.description)}</span>` : ''}
+                    `;
+                    btn.onclick = () => {
+                        if (q.multiSelect) {
+                            btn.classList.toggle('selected');
+                            if (btn.classList.contains('selected')) {
+                                selected.push(opt.label);
+                            } else {
+                                selected = selected.filter(l => l !== opt.label);
+                            }
+                        } else {
+                            continueSessionStream(opt.label);
+                        }
+                    };
+                    optionsList.appendChild(btn);
+                });
+
+                qDiv.appendChild(optionsList);
+
+                // Custom input
+                const customDiv = document.createElement('div');
+                customDiv.className = 'custom-answer';
+                customDiv.innerHTML = `<input type="text" id="customAnswer${idx}" placeholder="Or type custom answer...">`;
+                qDiv.appendChild(customDiv);
+
+                const submitBtn = document.createElement('button');
+                submitBtn.type = 'button';
+                submitBtn.className = 'submit-answer-btn';
+                submitBtn.textContent = q.multiSelect ? 'Submit Selected' : 'Submit';
+                submitBtn.onclick = () => {
+                    const input = document.getElementById('customAnswer' + idx);
+                    if (input.value.trim()) {
+                        continueSessionStream(input.value.trim());
+                    } else if (q.multiSelect && selected.length > 0) {
+                        continueSessionStream(selected.join(', '));
+                    }
+                };
+                qDiv.appendChild(submitBtn);
+
+                questionSection.appendChild(qDiv);
+            });
+        }
+
+        function truncate(str, len) {
+            if (!str) return '';
+            return str.length > len ? str.substring(0, len) + '...' : str;
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
     </script>
 </body>
 </html>

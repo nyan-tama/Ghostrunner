@@ -24,15 +24,18 @@ func main() {
 	api := r.Group("/api")
 	{
 		api.POST("/plan", planHandler.Handle)
+		api.POST("/plan/stream", planHandler.HandleStream)
+		api.POST("/plan/continue", planHandler.HandleContinue)
+		api.POST("/plan/continue/stream", planHandler.HandleContinueStream)
 	}
 
 	// 静的ファイル配信
 	r.StaticFile("/", "./web/index.html")
 	r.Static("/web", "./web")
 
-	// サーバー起動
-	log.Println("[Server] Listening on :8080")
-	if err := r.Run(":8080"); err != nil {
+	// サーバー起動（0.0.0.0で全インターフェースからアクセス可能に）
+	log.Println("[Server] Listening on 0.0.0.0:8080")
+	if err := r.Run("0.0.0.0:8080"); err != nil {
 		log.Fatalf("[Server] Failed to start server: %v", err)
 	}
 }
