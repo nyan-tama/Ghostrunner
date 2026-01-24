@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghostrunner</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 24px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        input[type="text"],
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+        }
+        input[type="text"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+        }
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        button {
+            width: 100%;
+            padding: 14px 24px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 24px;
+            padding: 16px;
+            border-radius: 8px;
+            display: none;
+        }
+        .result.success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+        .result.error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+        .result-title {
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        .result.success .result-title {
+            color: #155724;
+        }
+        .result.error .result-title {
+            color: #721c24;
+        }
+        .result-output {
+            background-color: #fff;
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .loading.show {
+            display: block;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Ghostrunner</h1>
+
+    <form id="planForm">
+        <div class="form-group">
+            <label for="project">Project Path</label>
+            <input type="text" id="project" name="project" placeholder="/Users/user/myproject" required>
+        </div>
+
+        <div class="form-group">
+            <label for="args">Plan Arguments</label>
+            <textarea id="args" name="args" placeholder="Describe what you want to implement..." required></textarea>
+        </div>
+
+        <button type="submit" id="submitBtn">Execute /plan</button>
+    </form>
+
+    <div class="loading" id="loading">
+        <span class="loading-spinner"></span>
+        Executing Claude CLI... (this may take a while)
+    </div>
+
+    <div class="result" id="result">
+        <div class="result-title" id="resultTitle"></div>
+        <div class="result-output" id="resultOutput"></div>
+    </div>
+
+    <script>
+        const form = document.getElementById('planForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const loading = document.getElementById('loading');
+        const result = document.getElementById('result');
+        const resultTitle = document.getElementById('resultTitle');
+        const resultOutput = document.getElementById('resultOutput');
+
+        // Load saved project path from localStorage
+        const savedProject = localStorage.getItem('ghostrunner_project');
+        if (savedProject) {
+            document.getElementById('project').value = savedProject;
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const project = document.getElementById('project').value.trim();
+            const args = document.getElementById('args').value.trim();
+
+            if (!project || !args) {
+                return;
+            }
+
+            // Save project path to localStorage
+            localStorage.setItem('ghostrunner_project', project);
+
+            // UI state: loading
+            submitBtn.disabled = true;
+            loading.classList.add('show');
+            result.classList.remove('success', 'error');
+            result.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/plan', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ project, args }),
+                });
+
+                const data = await response.json();
+
+                // UI state: result
+                loading.classList.remove('show');
+                submitBtn.disabled = false;
+
+                if (data.success) {
+                    result.classList.add('success');
+                    resultTitle.textContent = 'Success';
+                    resultOutput.textContent = data.output || '(no output)';
+                } else {
+                    result.classList.add('error');
+                    resultTitle.textContent = 'Error';
+                    let errorText = data.error || 'Unknown error';
+                    if (data.output) {
+                        errorText += '\n\n--- Output ---\n' + data.output;
+                    }
+                    resultOutput.textContent = errorText;
+                }
+            } catch (error) {
+                // UI state: error
+                loading.classList.remove('show');
+                submitBtn.disabled = false;
+                result.classList.add('error');
+                resultTitle.textContent = 'Error';
+                resultOutput.textContent = 'Failed to connect to server: ' + error.message;
+            }
+        });
+    </script>
+</body>
+</html>
