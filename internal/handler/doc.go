@@ -8,14 +8,63 @@
 //
 // # 主要なコンポーネント
 //
-// PlanHandler が /api/plan 関連のエンドポイントを処理する。
+//   - PlanHandler: /api/plan 関連のエンドポイントを処理（後方互換性維持）
+//   - CommandHandler: /api/command 関連のエンドポイントを処理（汎用コマンド実行）
+//
 // ClaudeServiceへの依存性注入によりテスタビリティを確保する。
+//
+// # CommandHandler
+//
+// Claude CLIの任意のスラッシュコマンドを実行するエンドポイント群。
+// 許可されたコマンドのみ実行可能。
+//
+// 許可コマンド:
+//   - plan: 実装計画の作成
+//   - fullstack: バックエンド + フロントエンドの実装
+//   - go: Go バックエンドのみの実装
+//   - nextjs: Next.js フロントエンドのみの実装
 //
 // # PlanHandler
 //
 // Claude CLIの /plan コマンドを実行するエンドポイント群。
+// 内部的にCommandHandlerと同じサービスを使用する。
+// 後方互換性のために維持している。
 //
 // # エンドポイント一覧
+//
+// ## Command API (汎用コマンド実行)
+//
+// POST /api/command - コマンドの同期実行
+//
+// リクエスト:
+//
+//	{
+//	    "project": "/path/to/project",  // 対象プロジェクトの絶対パス (必須)
+//	    "command": "fullstack",         // 実行するコマンド (必須)
+//	    "args": "implement feature X"   // コマンドの引数 (必須)
+//	}
+//
+// POST /api/command/stream - コマンドのストリーミング実行 (SSE)
+//
+// リクエスト: /api/command と同じ
+// レスポンス: Server-Sent Events形式でStreamEventを送信
+//
+// POST /api/command/continue - セッション継続
+//
+// リクエスト:
+//
+//	{
+//	    "project": "/path/to/project",  // 対象プロジェクトの絶対パス (必須)
+//	    "session_id": "session-xxx",    // セッションID (必須)
+//	    "answer": "yes"                 // ユーザーの回答 (必須)
+//	}
+//
+// POST /api/command/continue/stream - セッション継続のストリーミング実行 (SSE)
+//
+// リクエスト: /api/command/continue と同じ
+// レスポンス: Server-Sent Events形式でStreamEventを送信
+//
+// ## Plan API (後方互換性)
 //
 // POST /api/plan - /planコマンドの同期実行
 //
@@ -28,23 +77,9 @@
 //
 // POST /api/plan/stream - /planコマンドのストリーミング実行 (SSE)
 //
-// リクエスト: /api/plan と同じ
-// レスポンス: Server-Sent Events形式でStreamEventを送信
-//
 // POST /api/plan/continue - セッション継続
 //
-// リクエスト:
-//
-//	{
-//	    "project": "/path/to/project",  // 対象プロジェクトの絶対パス (必須)
-//	    "session_id": "session-xxx",    // セッションID (必須)
-//	    "answer": "yes"                 // ユーザーの回答 (必須)
-//	}
-//
 // POST /api/plan/continue/stream - セッション継続のストリーミング実行 (SSE)
-//
-// リクエスト: /api/plan/continue と同じ
-// レスポンス: Server-Sent Events形式でStreamEventを送信
 //
 // # レスポンス形式
 //
@@ -75,17 +110,32 @@
 //   - 絶対パスであること
 //   - 存在するディレクトリであること
 //
+// CommandHandler はさらにコマンドのバリデーションを行う。
+//
+// コマンド検証項目:
+//   - 空でないこと
+//   - AllowedCommands に含まれること
+//
 // # HTTPステータスコード
 //
 //   - 200 OK: 正常完了
-//   - 400 Bad Request: リクエスト不正、バリデーションエラー
+//   - 400 Bad Request: リクエスト不正、バリデーションエラー、許可されていないコマンド
 //   - 500 Internal Server Error: Claude CLI実行エラー
 //
 // # 使用例
 //
 //	claudeService := service.NewClaudeService()
-//	planHandler := handler.NewPlanHandler(claudeService)
+//
+//	// CommandHandler
+//	commandHandler := handler.NewCommandHandler(claudeService)
 //	api := router.Group("/api")
+//	api.POST("/command", commandHandler.Handle)
+//	api.POST("/command/stream", commandHandler.HandleStream)
+//	api.POST("/command/continue", commandHandler.HandleContinue)
+//	api.POST("/command/continue/stream", commandHandler.HandleContinueStream)
+//
+//	// PlanHandler (後方互換性)
+//	planHandler := handler.NewPlanHandler(claudeService)
 //	api.POST("/plan", planHandler.Handle)
 //	api.POST("/plan/stream", planHandler.HandleStream)
 //	api.POST("/plan/continue", planHandler.HandleContinue)

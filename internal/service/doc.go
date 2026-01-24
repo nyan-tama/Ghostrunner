@@ -15,10 +15,23 @@
 // Claude CLIの実行を担当するサービス。
 //
 // 主なメソッド:
-//   - ExecutePlan: /plan コマンドを同期実行
-//   - ExecutePlanStream: /plan コマンドをストリーミング実行（SSE用）
+//   - ExecuteCommand: 任意のスラッシュコマンドを同期実行
+//   - ExecuteCommandStream: 任意のスラッシュコマンドをストリーミング実行（SSE用）
+//   - ExecutePlan: /plan コマンドを同期実行（後方互換性）
+//   - ExecutePlanStream: /plan コマンドをストリーミング実行（後方互換性）
 //   - ContinueSession: セッションを継続して回答を送信
 //   - ContinueSessionStream: セッション継続をストリーミング実行
+//
+// # AllowedCommands
+//
+// 実行可能なスラッシュコマンドのホワイトリスト。
+// types.go で定義されている。
+//
+// 許可コマンド:
+//   - plan: 実装計画の作成
+//   - fullstack: バックエンド + フロントエンドの実装
+//   - go: Go バックエンドのみの実装
+//   - nextjs: Next.js フロントエンドのみの実装
 //
 // # 機能
 //
@@ -27,10 +40,11 @@
 //   - コンテキストによるキャンセル対応
 //   - JSON形式およびstream-json形式の出力パース
 //   - AskUserQuestionの質問抽出とセッション継続
+//   - コマンドホワイトリストによるバリデーション
 //
 // # ストリーミング
 //
-// ExecutePlanStreamとContinueSessionStreamはチャンネル経由で
+// ExecuteCommandStreamとContinueSessionStreamはチャンネル経由で
 // StreamEventを送信する。イベントタイプ:
 //   - init: セッション開始
 //   - thinking: 思考中
@@ -44,10 +58,20 @@
 //
 // シェル経由ではなく直接exec.Commandを使用することで、
 // コマンドインジェクション攻撃を防止する。
+// AllowedCommandsによりホワイトリスト方式で実行可能なコマンドを制限する。
 //
 // # 使用例
 //
-// 同期実行:
+// 同期実行（汎用コマンド）:
+//
+//	svc := service.NewClaudeService()
+//	result, err := svc.ExecuteCommand(ctx, "/path/to/project", "fullstack", "implement feature X")
+//	if err != nil {
+//	    // エラーハンドリング
+//	}
+//	fmt.Println(result.Output)
+//
+// 同期実行（後方互換性）:
 //
 //	svc := service.NewClaudeService()
 //	result, err := svc.ExecutePlan(ctx, "/path/to/project", "implement feature X")
@@ -60,7 +84,7 @@
 //
 //	eventCh := make(chan service.StreamEvent, 100)
 //	go func() {
-//	    err := svc.ExecutePlanStream(ctx, project, args, eventCh)
+//	    err := svc.ExecuteCommandStream(ctx, project, "go", args, eventCh)
 //	    if err != nil {
 //	        log.Printf("Error: %v", err)
 //	    }

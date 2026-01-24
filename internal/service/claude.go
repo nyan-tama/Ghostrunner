@@ -15,12 +15,16 @@ import (
 
 // ClaudeService はClaude CLI操作のインターフェースを定義します
 type ClaudeService interface {
-	// ExecutePlan は/planコマンドを実行します
-	ExecutePlan(ctx context.Context, project, args string) (*PlanResult, error)
-	// ContinueSession はセッションを継続して回答を送信します
-	ContinueSession(ctx context.Context, project, sessionID, answer string) (*PlanResult, error)
-	// ExecutePlanStream は/planコマンドをストリーミングで実行します
+	// ExecuteCommand はカスタムコマンドを実行します
+	ExecuteCommand(ctx context.Context, project, command, args string) (*CommandResult, error)
+	// ExecuteCommandStream はカスタムコマンドをストリーミングで実行します
+	ExecuteCommandStream(ctx context.Context, project, command, args string, eventCh chan<- StreamEvent) error
+	// ExecutePlan は/planコマンドを実行します（互換性維持）
+	ExecutePlan(ctx context.Context, project, args string) (*CommandResult, error)
+	// ExecutePlanStream は/planコマンドをストリーミングで実行します（互換性維持）
 	ExecutePlanStream(ctx context.Context, project, args string, eventCh chan<- StreamEvent) error
+	// ContinueSession はセッションを継続して回答を送信します
+	ContinueSession(ctx context.Context, project, sessionID, answer string) (*CommandResult, error)
 	// ContinueSessionStream はセッションをストリーミングで継続します
 	ContinueSessionStream(ctx context.Context, project, sessionID, answer string, eventCh chan<- StreamEvent) error
 }
@@ -37,29 +41,54 @@ func NewClaudeService() ClaudeService {
 	}
 }
 
-// ExecutePlan はClaude CLIの/planコマンドを実行します
-func (s *claudeServiceImpl) ExecutePlan(ctx context.Context, project, args string) (*PlanResult, error) {
-	log.Printf("[ClaudeService] ExecutePlan started: project=%s, args=%s", project, truncateLog(args, 100))
+// ExecuteCommand はカスタムコマンドを実行します
+func (s *claudeServiceImpl) ExecuteCommand(ctx context.Context, project, command, args string) (*CommandResult, error) {
+	log.Printf("[ClaudeService] ExecuteCommand started: project=%s, command=%s, args=%s", project, command, truncateLog(args, 100))
 
-	// /plan コマンドを構築
-	prompt := fmt.Sprintf("/plan %s", args)
+	// コマンドバリデーション
+	if !AllowedCommands[command] {
+		return nil, fmt.Errorf("command not allowed: %s", command)
+	}
 
+	// プロンプト構築: "/<command> <args>"
+	prompt := fmt.Sprintf("/%s %s", command, args)
 	return s.executeCommand(ctx, project, prompt, "")
 }
 
+// ExecuteCommandStream はカスタムコマンドをストリーミングで実行します
+func (s *claudeServiceImpl) ExecuteCommandStream(ctx context.Context, project, command, args string, eventCh chan<- StreamEvent) error {
+	log.Printf("[ClaudeService] ExecuteCommandStream started: project=%s, command=%s, args=%s", project, command, truncateLog(args, 100))
+
+	// コマンドバリデーション
+	if !AllowedCommands[command] {
+		close(eventCh)
+		return fmt.Errorf("command not allowed: %s", command)
+	}
+
+	// プロンプト構築: "/<command> <args>"
+	prompt := fmt.Sprintf("/%s %s", command, args)
+	return s.executeCommandStream(ctx, project, prompt, "", eventCh)
+}
+
+// ExecutePlan は/planコマンドを実行します（互換性維持）
+func (s *claudeServiceImpl) ExecutePlan(ctx context.Context, project, args string) (*CommandResult, error) {
+	log.Printf("[ClaudeService] ExecutePlan started: project=%s, args=%s", project, truncateLog(args, 100))
+
+	return s.ExecuteCommand(ctx, project, "plan", args)
+}
+
 // ContinueSession はセッションを継続して回答を送信します
-func (s *claudeServiceImpl) ContinueSession(ctx context.Context, project, sessionID, answer string) (*PlanResult, error) {
+func (s *claudeServiceImpl) ContinueSession(ctx context.Context, project, sessionID, answer string) (*CommandResult, error) {
 	log.Printf("[ClaudeService] ContinueSession started: project=%s, sessionID=%s, answer=%s", project, sessionID, truncateLog(answer, 100))
 
 	return s.executeCommand(ctx, project, answer, sessionID)
 }
 
-// ExecutePlanStream は/planコマンドをストリーミングで実行します
+// ExecutePlanStream は/planコマンドをストリーミングで実行します（互換性維持）
 func (s *claudeServiceImpl) ExecutePlanStream(ctx context.Context, project, args string, eventCh chan<- StreamEvent) error {
 	log.Printf("[ClaudeService] ExecutePlanStream started: project=%s, args=%s", project, truncateLog(args, 100))
 
-	prompt := fmt.Sprintf("/plan %s", args)
-	return s.executeCommandStream(ctx, project, prompt, "", eventCh)
+	return s.ExecuteCommandStream(ctx, project, "plan", args, eventCh)
 }
 
 // ContinueSessionStream はセッションをストリーミングで継続します
@@ -114,7 +143,7 @@ func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, p
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB buffer
 
-	var finalResult *PlanResult
+	var finalResult *CommandResult
 	var currentSessionID string
 
 	for scanner.Scan() {
@@ -174,7 +203,7 @@ func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, p
 		eventCh <- StreamEvent{
 			Type:      EventTypeComplete,
 			SessionID: currentSessionID,
-			Result: &PlanResult{
+			Result: &CommandResult{
 				SessionID: currentSessionID,
 				Completed: true,
 			},
@@ -229,7 +258,7 @@ func (s *claudeServiceImpl) parseStreamLine(line string) []StreamEvent {
 											Type:      EventTypeQuestion,
 											ToolName:  toolName,
 											ToolInput: toolInput,
-											Result: &PlanResult{
+											Result: &CommandResult{
 												Questions: questions,
 												Completed: false,
 											},
@@ -277,7 +306,7 @@ func (s *claudeServiceImpl) parseStreamLine(line string) []StreamEvent {
 				sessionID = getStringValue(resultMap, "session_id")
 			}
 
-			result := &PlanResult{
+			result := &CommandResult{
 				SessionID: sessionID,
 				Output:    getStringValue(resultMap, "result"),
 				Completed: true,
@@ -423,7 +452,7 @@ func formatToolMessage(toolName string, toolInput interface{}) string {
 }
 
 // executeCommand はCLIコマンドを実行し、結果をパースします
-func (s *claudeServiceImpl) executeCommand(ctx context.Context, project, prompt, sessionID string) (*PlanResult, error) {
+func (s *claudeServiceImpl) executeCommand(ctx context.Context, project, prompt, sessionID string) (*CommandResult, error) {
 	// タイムアウト付きコンテキストを作成
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
@@ -483,7 +512,7 @@ func (s *claudeServiceImpl) executeCommand(ctx context.Context, project, prompt,
 	if err != nil {
 		log.Printf("[ClaudeService] Failed to parse response: error=%v, stdout=%s", err, stdoutStr)
 		// パースできない場合はテキストとして返す
-		return &PlanResult{
+		return &CommandResult{
 			Output:    stdoutStr,
 			Completed: true,
 		}, nil
@@ -494,13 +523,13 @@ func (s *claudeServiceImpl) executeCommand(ctx context.Context, project, prompt,
 }
 
 // parseResponse はCLIのJSON出力をパースします
-func (s *claudeServiceImpl) parseResponse(output string) (*PlanResult, error) {
+func (s *claudeServiceImpl) parseResponse(output string) (*CommandResult, error) {
 	var resp ClaudeResponse
 	if err := json.Unmarshal([]byte(output), &resp); err != nil {
 		return nil, fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
-	result := &PlanResult{
+	result := &CommandResult{
 		SessionID: resp.SessionID,
 		Output:    resp.Result,
 		Completed: true,
