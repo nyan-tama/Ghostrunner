@@ -1,0 +1,249 @@
+# Backend API 仕様書
+
+Ghostrunner API サーバーのエンドポイント仕様。
+
+## 概要
+
+Claude CLI のスラッシュコマンドをHTTP API経由で実行するためのサーバー。
+Server-Sent Events (SSE) によるストリーミング出力とセッション継続をサポートする。
+
+---
+
+## エンドポイント一覧
+
+| エンドポイント | メソッド | 説明 |
+|---------------|---------|------|
+| `/api/command` | POST | コマンドの同期実行 |
+| `/api/command/stream` | POST | コマンドのストリーミング実行 (SSE) |
+| `/api/command/continue` | POST | セッション継続 |
+| `/api/command/continue/stream` | POST | セッション継続のストリーミング実行 (SSE) |
+| `/api/plan` | POST | /planコマンドの同期実行（後方互換性） |
+| `/api/plan/stream` | POST | /planコマンドのストリーミング実行（後方互換性） |
+| `/api/plan/continue` | POST | セッション継続（後方互換性） |
+| `/api/plan/continue/stream` | POST | セッション継続のストリーミング実行（後方互換性） |
+
+---
+
+## 許可コマンド
+
+| コマンド | 説明 |
+|----------|------|
+| `plan` | 実装計画の作成 |
+| `fullstack` | バックエンド + フロントエンドの実装 |
+| `go` | Go バックエンドのみの実装 |
+| `nextjs` | Next.js フロントエンドのみの実装 |
+
+---
+
+## Command API
+
+### POST /api/command
+
+コマンドを同期実行する。
+
+#### リクエスト
+
+```json
+{
+    "project": "/path/to/project",
+    "command": "fullstack",
+    "args": "implement feature X"
+}
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `project` | string | Yes | 対象プロジェクトの絶対パス |
+| `command` | string | Yes | 実行するコマンド（plan, fullstack, go, nextjs） |
+| `args` | string | Yes | コマンドの引数 |
+
+#### レスポンス（成功）
+
+```json
+{
+    "success": true,
+    "session_id": "abc123-def456",
+    "output": "実行結果のテキスト",
+    "questions": [],
+    "completed": true,
+    "cost_usd": 0.01
+}
+```
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `success` | boolean | 成功フラグ |
+| `session_id` | string | セッションID（継続用） |
+| `output` | string | 実行結果のテキスト |
+| `questions` | array | 質問がある場合の配列 |
+| `completed` | boolean | 実行が完了したかどうか |
+| `cost_usd` | number | 実行コスト（USD） |
+
+#### レスポンス（エラー）
+
+```json
+{
+    "success": false,
+    "error": "エラーメッセージ"
+}
+```
+
+---
+
+### POST /api/command/stream
+
+コマンドをストリーミング実行する（Server-Sent Events）。
+
+#### リクエスト
+
+`POST /api/command` と同じ。
+
+#### レスポンス
+
+`Content-Type: text/event-stream` 形式で StreamEvent を送信する。
+
+```
+data: {"type":"init","session_id":"abc123","message":"Claude CLI started"}
+
+data: {"type":"tool_use","tool_name":"Read","message":"Reading: .../path/to/file.go"}
+
+data: {"type":"complete","session_id":"abc123","result":{...}}
+```
+
+#### StreamEvent タイプ
+
+| タイプ | 説明 |
+|--------|------|
+| `init` | セッション開始 |
+| `thinking` | 思考中 |
+| `tool_use` | ツール使用（Read, Write, Edit, Bash等） |
+| `text` | テキスト出力 |
+| `question` | 質問（ユーザー入力待ち） |
+| `complete` | 完了 |
+| `error` | エラー |
+
+---
+
+### POST /api/command/continue
+
+セッションを継続してユーザーの回答を送信する。
+
+#### リクエスト
+
+```json
+{
+    "project": "/path/to/project",
+    "session_id": "abc123-def456",
+    "answer": "yes"
+}
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `project` | string | Yes | 対象プロジェクトの絶対パス |
+| `session_id` | string | Yes | 継続するセッションのID |
+| `answer` | string | Yes | ユーザーの回答 |
+
+#### レスポンス
+
+`POST /api/command` と同じ形式。
+
+---
+
+### POST /api/command/continue/stream
+
+セッション継続をストリーミング実行する（Server-Sent Events）。
+
+#### リクエスト
+
+`POST /api/command/continue` と同じ。
+
+#### レスポンス
+
+`POST /api/command/stream` と同じ形式。
+
+---
+
+## Plan API（後方互換性）
+
+`/api/plan` エンドポイントは `/api/command` の登場以前から存在する。
+内部的に `command: "plan"` として `/api/command` と同じサービスを使用する。
+
+### POST /api/plan
+
+```json
+{
+    "project": "/path/to/project",
+    "args": "implement feature X"
+}
+```
+
+`/api/command` で `command: "plan"` を指定した場合と同等。
+
+### POST /api/plan/stream
+
+`/api/command/stream` で `command: "plan"` を指定した場合と同等。
+
+### POST /api/plan/continue
+
+`/api/command/continue` と同じ。
+
+### POST /api/plan/continue/stream
+
+`/api/command/continue/stream` と同じ。
+
+---
+
+## HTTPステータスコード
+
+| コード | 説明 |
+|--------|------|
+| 200 | 正常完了 |
+| 400 | リクエスト不正、バリデーションエラー、許可されていないコマンド |
+| 500 | Claude CLI実行エラー |
+
+---
+
+## バリデーション
+
+### プロジェクトパス
+
+- 空でないこと
+- 絶対パスであること（`/` で始まる）
+- 存在するディレクトリであること
+
+### コマンド（/api/command のみ）
+
+- 空でないこと
+- 許可コマンドリスト（plan, fullstack, go, nextjs）に含まれること
+
+### 引数
+
+- 空でないこと
+
+---
+
+## Question オブジェクト
+
+質問がある場合、`questions` 配列に以下の形式で格納される。
+
+```json
+{
+    "question": "質問文",
+    "header": "ヘッダー",
+    "options": [
+        {
+            "label": "選択肢1",
+            "description": "説明"
+        }
+    ],
+    "multiSelect": false
+}
+```
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `question` | string | 質問文 |
+| `header` | string | ヘッダーテキスト |
+| `options` | array | 選択肢の配列 |
+| `multiSelect` | boolean | 複数選択可能かどうか |

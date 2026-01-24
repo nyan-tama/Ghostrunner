@@ -29,16 +29,19 @@
             color: #333;
         }
         input[type="text"],
-        textarea {
+        textarea,
+        select {
             width: 100%;
             padding: 12px;
             border: 1px solid #ddd;
             border-radius: 8px;
             font-size: 16px;
             font-family: inherit;
+            background-color: #fff;
         }
         input[type="text"]:focus,
-        textarea:focus {
+        textarea:focus,
+        select:focus {
             outline: none;
             border-color: #007bff;
             box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
@@ -363,11 +366,21 @@
         </div>
 
         <div class="form-group">
-            <label for="args">Plan Arguments</label>
+            <label for="command">Command</label>
+            <select id="command" name="command">
+                <option value="plan">/plan - 実装計画作成</option>
+                <option value="fullstack">/fullstack - フルスタック実装</option>
+                <option value="go">/go - Go バックエンド実装</option>
+                <option value="nextjs">/nextjs - Next.js フロントエンド実装</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="args">Arguments</label>
             <textarea id="args" name="args" placeholder="Describe what you want to implement..." required></textarea>
         </div>
 
-        <button type="submit" id="submitBtn">Execute /plan</button>
+        <button type="submit" id="submitBtn">Execute Command</button>
     </form>
 
     <div class="progress-container" id="progressContainer">
@@ -446,6 +459,7 @@
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const project = document.getElementById('project').value.trim();
+            const command = document.getElementById('command').value;
             const args = document.getElementById('args').value.trim();
             if (!project || !args) return;
 
@@ -453,17 +467,17 @@
             currentSessionId = null;
             totalCost = 0;
 
-            await executePlanStream(project, args);
+            await executeCommandStream(project, command, args);
         });
 
-        async function executePlanStream(project, args) {
-            showProgress(`/plan ${args}`);
+        async function executeCommandStream(project, command, args) {
+            showProgress(`/${command} ${args}`);
 
             try {
-                const response = await fetch('/api/plan/stream', {
+                const response = await fetch('/api/command/stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ project, args }),
+                    body: JSON.stringify({ project, command, args }),
                 });
 
                 if (!response.ok) {
@@ -489,7 +503,7 @@
             showLoading('Continuing...');
 
             try {
-                const response = await fetch('/api/plan/continue/stream', {
+                const response = await fetch('/api/command/continue/stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

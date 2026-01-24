@@ -16,6 +16,7 @@ func main() {
 	// 依存性の組み立て
 	claudeService := service.NewClaudeService()
 	planHandler := handler.NewPlanHandler(claudeService)
+	commandHandler := handler.NewCommandHandler(claudeService)
 
 	// Ginエンジン初期化
 	r := gin.Default()
@@ -23,6 +24,13 @@ func main() {
 	// APIルーティング
 	api := r.Group("/api")
 	{
+		// 汎用コマンドAPI（推奨）
+		api.POST("/command", commandHandler.Handle)
+		api.POST("/command/stream", commandHandler.HandleStream)
+		api.POST("/command/continue", commandHandler.HandleContinue)
+		api.POST("/command/continue/stream", commandHandler.HandleContinueStream)
+
+		// 旧API（互換性維持）
 		api.POST("/plan", planHandler.Handle)
 		api.POST("/plan/stream", planHandler.HandleStream)
 		api.POST("/plan/continue", planHandler.HandleContinue)

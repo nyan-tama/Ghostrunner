@@ -1,6 +1,14 @@
 // Package service はビジネスロジックを提供します
 package service
 
+// AllowedCommands は許可されたスラッシュコマンドのリストです
+var AllowedCommands = map[string]bool{
+	"plan":      true,
+	"fullstack": true,
+	"go":        true,
+	"nextjs":    true,
+}
+
 // ClaudeResponse はClaude CLIのJSON出力を表します
 type ClaudeResponse struct {
 	SessionID         string             `json:"session_id"`
@@ -34,8 +42,8 @@ type Option struct {
 	Description string `json:"description"`
 }
 
-// PlanResult はExecutePlanの結果を表します
-type PlanResult struct {
+// CommandResult はExecuteCommandの結果を表します
+type CommandResult struct {
 	SessionID string     `json:"session_id"`          // セッションID（継続用）
 	Output    string     `json:"output"`              // 出力テキスト
 	Questions []Question `json:"questions,omitempty"` // 質問がある場合
@@ -45,12 +53,12 @@ type PlanResult struct {
 
 // StreamEvent はストリーミングイベントを表します
 type StreamEvent struct {
-	Type      string      `json:"type"`                 // イベントタイプ
-	SessionID string      `json:"session_id,omitempty"` // セッションID
-	Message   string      `json:"message,omitempty"`    // メッセージ
-	ToolName  string      `json:"tool_name,omitempty"`  // ツール名
-	ToolInput interface{} `json:"tool_input,omitempty"` // ツール入力
-	Result    *PlanResult `json:"result,omitempty"`     // 最終結果
+	Type      string         `json:"type"`                 // イベントタイプ
+	SessionID string         `json:"session_id,omitempty"` // セッションID
+	Message   string         `json:"message,omitempty"`    // メッセージ
+	ToolName  string         `json:"tool_name,omitempty"`  // ツール名
+	ToolInput interface{}    `json:"tool_input,omitempty"` // ツール入力
+	Result    *CommandResult `json:"result,omitempty"`     // 最終結果
 }
 
 // StreamEventType はストリーミングイベントのタイプを定義します
