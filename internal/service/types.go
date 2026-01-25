@@ -7,6 +7,7 @@ var AllowedCommands = map[string]bool{
 	"fullstack": true,
 	"go":        true,
 	"nextjs":    true,
+	"discuss":   true,
 }
 
 // ClaudeResponse はClaude CLIのJSON出力を表します

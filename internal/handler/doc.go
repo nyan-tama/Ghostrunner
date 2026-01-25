@@ -23,6 +23,7 @@
 //   - fullstack: バックエンド + フロントエンドの実装
 //   - go: Go バックエンドのみの実装
 //   - nextjs: Next.js フロントエンドのみの実装
+//   - discuss: アイデアや構想の対話形式での深掘り
 //
 // # PlanHandler
 //
