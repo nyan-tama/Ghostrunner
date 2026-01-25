@@ -274,3 +274,82 @@ curl "http://localhost:8080/api/files?project=/Users/user/Ghostrunner"
 | `web/index.html` | 499-517行 | `updateFileDropdown` から `command` 引数削除 |
 | `web/index.html` | 520-535行 | `onCommandChange` の条件分岐削除 |
 | `web/index.html` | 529行 | `updateFileDropdown` 呼び出しから `command` 引数削除 |
+
+---
+
+## バックエンド実装完了レポート
+
+### 実装サマリー
+- **実装日**: 2026-01-25
+- **変更ファイル数**: 3 files
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `internal/handler/files.go` | `DevFolders` 変数に「アーカイブ」フォルダを追加（1行追加） |
+| `docs/BACKEND_API.md` | スキャン対象フォルダ一覧とレスポンス例に「アーカイブ」を追加 |
+| `internal/handler/doc.go` | スキャン対象フォルダ一覧とレスポンス例に「アーカイブ」を追加 |
+
+### 実装内容の詳細
+
+#### 1. `internal/handler/files.go` (15-21行)
+
+```go
+var DevFolders = []string{
+    "実装/実装待ち",
+    "実装/完了",
+    "検討中",
+    "資料",
+    "アーカイブ",  // 追加
+}
+```
+
+計画書通り、`DevFolders` スライスに「アーカイブ」を追加。
+
+#### 2. `docs/BACKEND_API.md`
+
+Files API のスキャン対象フォルダ一覧とレスポンス例に「アーカイブ」を追加。
+
+#### 3. `internal/handler/doc.go`
+
+パッケージドキュメントのスキャン対象フォルダ一覧とレスポンス例に「アーカイブ」を追加。
+
+### 計画からの変更点
+
+特になし。計画書通りの実装。
+
+### 実装時の課題
+
+特になし。
+
+### レビュー結果
+
+| 項目 | 結果 |
+|------|------|
+| Critical | なし |
+| Warning | なし |
+| `go build` | PASS |
+| `go vet` | PASS |
+| `go fmt` | PASS |
+
+### 動作確認フロー
+
+```
+1. バックエンドサーバーを起動
+   cd /Users/user/Ghostrunner && go run ./cmd/server
+
+2. Files API を呼び出し
+   curl "http://localhost:8080/api/files?project=/Users/user/Ghostrunner"
+
+3. レスポンスに「アーカイブ」フォルダが含まれることを確認
+   - "アーカイブ": [...] がレスポンスJSONに存在すること
+```
+
+### 残存する懸念点
+
+特になし。
+
+### 次のステップ
+
+フロントエンド実装（`web/index.html` の変更）を実施する。

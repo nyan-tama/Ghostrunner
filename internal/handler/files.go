@@ -17,6 +17,7 @@ var DevFolders = []string{
 	"実装/完了",
 	"検討中",
 	"資料",
+	"アーカイブ",
 }
 
 // FileInfo はファイル情報を表します
