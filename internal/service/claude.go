@@ -165,6 +165,21 @@ func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, p
 				finalResult = event.Result
 			}
 
+			// AskUserQuestion検出時はプロセスを停止してユーザー入力を待つ
+			if event.Type == EventTypeQuestion {
+				// セッションIDを設定
+				if event.SessionID == "" {
+					event.SessionID = currentSessionID
+				}
+				if event.Result != nil {
+					event.Result.SessionID = currentSessionID
+				}
+				eventCh <- event
+				log.Printf("[ClaudeService] AskUserQuestion detected, killing process to wait for user input: sessionID=%s", currentSessionID)
+				cmd.Process.Kill()
+				return nil
+			}
+
 			eventCh <- event
 		}
 	}
