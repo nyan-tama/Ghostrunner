@@ -394,3 +394,108 @@ frontend/
 ## 次のステップ
 
 承認後、`/nextjs` コマンドで実装を開始。
+
+---
+
+## 実装完了レポート
+
+### 実装サマリー
+
+- **実装日**: 2026-01-25
+- **変更ファイル数**: 19 files
+- **技術スタック**: Next.js 16.1.4 + React 19.2.3 + TypeScript 5.x + Tailwind CSS 4.x
+
+既存の `web/index.html`（バニラJS、約1005行）を Next.js 15 + React 19 + TypeScript に完全移植完了。全6コマンド（plan, fullstack, go, nextjs, discuss, research）の実行、SSEストリーミング、質問UI、計画承認UI、ファイルセレクター、セッション継続機能を実装。
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `frontend/package.json` | Next.js 16.1.4, React 19.2.3, Tailwind CSS 4 等の依存関係定義 |
+| `frontend/tsconfig.json` | TypeScript strict mode 設定 |
+| `frontend/tailwind.config.ts` | Tailwind CSS 設定 |
+| `frontend/next.config.ts` | APIプロキシ設定（localhost:8080へのrewrites） |
+| `frontend/src/app/layout.tsx` | ルートレイアウト（メタデータ、フォント設定） |
+| `frontend/src/app/page.tsx` | メインページ（状態管理の中心、372行） |
+| `frontend/src/app/globals.css` | グローバルスタイル（Tailwind directives） |
+| `frontend/src/types/index.ts` | 型定義（StreamEvent, Question, ToolInput等） |
+| `frontend/src/lib/constants.ts` | 定数定義（COMMANDS, DEV_FOLDERS, PLAN_APPROVAL_KEYWORDS） |
+| `frontend/src/lib/api.ts` | API呼び出し関数（fetchFiles, executeCommandStream, continueSessionStream） |
+| `frontend/src/hooks/useSSEStream.ts` | SSEストリーム処理フック（TextDecoder stream:true、不完全行バッファリング） |
+| `frontend/src/hooks/useSessionManagement.ts` | セッション・コスト・プロジェクトパス管理フック |
+| `frontend/src/hooks/useFileSelector.ts` | ファイル選択フック（5フォルダ対応） |
+| `frontend/src/components/CommandForm.tsx` | コマンド入力フォーム（プロジェクトパス、コマンド選択、ファイル選択、引数入力） |
+| `frontend/src/components/ProgressContainer.tsx` | 進捗表示コンテナ（イベントリスト、質問、結果を統括） |
+| `frontend/src/components/EventList.tsx` | イベントリスト表示（自動スクロール対応） |
+| `frontend/src/components/EventItem.tsx` | 個別イベント表示（ツール別アイコン、展開可能テキスト） |
+| `frontend/src/components/QuestionSection.tsx` | 質問UI（単一選択/複数選択、カスタム入力対応） |
+| `frontend/src/components/PlanApproval.tsx` | 計画承認UI（Approve/Rejectボタン、isLoading対応） |
+| `frontend/src/components/LoadingIndicator.tsx` | ローディングスピナー表示 |
+| `frontend/docs/screens.md` | 画面一覧ドキュメント |
+| `frontend/docs/screen-flow.md` | 画面遷移フロードキュメント |
+
+### 計画からの変更点
+
+実装計画に記載がなかった判断・選択:
+
+- **Next.js バージョン**: 計画では Next.js 15 としていたが、create-next-app@latest により Next.js 16.1.4 が採用された
+- **React バージョン**: 計画では React 19 としていたが、React 19.2.3 が採用された
+- **ドキュメント追加**: `frontend/docs/screens.md` と `frontend/docs/screen-flow.md` を追加作成（計画外）
+- **DisplayEvent型の追加**: イベント表示用の内部型として `DisplayEvent` インターフェースを追加
+- **EventDotType型の追加**: イベントドットの色分け用に `EventDotType` 型を追加
+
+### 実装時の課題
+
+#### ビルド・テストで苦戦した点
+
+- **substr の非推奨警告**: レビューで `substr` が非推奨であることを指摘され、`substring` に変更
+- **未使用コードの検出**: useSSEStream の初期実装で未使用のインポートがあり、リンターで検出・削除
+
+#### 技術的に難しかった点
+
+- **SSEバッファ処理**: マルチバイト文字（日本語）が途中で切れた場合の処理。TextDecoderの`stream: true`オプションで解決
+- **ツール使用イベントの表示フォーマット**: 各ツール（Read, Write, Edit, Glob, Grep, Bash, Task等）に応じた適切な情報表示の設計
+
+### 残存する懸念点
+
+今後注意が必要な点:
+
+- **環境変数によるAPIエンドポイント切り替え**: 現在はnext.config.tsで固定的にlocalhost:8080へプロキシしているが、本番環境では`NEXT_PUBLIC_API_URL`環境変数による切り替えが必要
+- **認証機能**: 現在は認証なしで動作しており、本番運用にはNextAuth.js等の認証実装が必要
+- **E2Eテスト**: 計画のMVP外として記載されているが、品質保証のため将来的に必要
+- **web/index.html の削除**: A案の方針により、Next.js完成後は既存の `web/index.html` を削除する予定だが、まだ未実施
+
+### 動作確認フロー
+
+```
+1. バックエンドを起動
+   cd /Users/user/Ghostrunner/backend
+   go run ./cmd/server
+
+2. フロントエンドを起動
+   cd /Users/user/Ghostrunner/frontend
+   npm run dev
+
+3. ブラウザで http://localhost:3000 にアクセス
+
+4. 以下の機能を確認:
+   a. プロジェクトパスを入力（例: /Users/user/Ghostrunner）
+   b. コマンドを選択（plan, fullstack, go, nextjs, discuss, research）
+   c. ファイルセレクターでファイルを選択（任意）
+   d. 引数を入力
+   e. "Execute Command" ボタンをクリック
+   f. イベントリストにツール使用状況が表示されることを確認
+   g. 質問が来た場合、選択肢をクリックまたはカスタム入力で回答
+   h. 計画承認が必要な場合、Approve/Rejectボタンが表示されることを確認
+   i. 完了後、結果出力とセッションID、累計コストが表示されることを確認
+```
+
+### デプロイ後の確認事項
+
+- [ ] 本番環境のAPIエンドポイント設定（環境変数）
+- [ ] CORSの設定確認
+- [ ] SSEストリーミングの動作確認（プロキシ経由）
+- [ ] 全6コマンドの動作確認
+- [ ] 日本語を含む長いテキストの表示確認
+- [ ] モバイル端末での表示確認
+- [ ] web/index.html の削除（Next.js版への完全移行後）
