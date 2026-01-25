@@ -530,11 +530,9 @@
             }
         }
 
-        // Handler for file select change
+        // Handler for file select change - no longer overwrites args
         function onFileSelect() {
-            if (fileSelect.value) {
-                document.getElementById('args').value = fileSelect.value;
-            }
+            // File selection is handled at submit time
         }
 
         // Initialize file selector on page load
@@ -544,7 +542,19 @@
             e.preventDefault();
             const project = document.getElementById('project').value.trim();
             const command = document.getElementById('command').value;
-            const args = document.getElementById('args').value.trim();
+            const selectedFile = fileSelect.value;
+            const userArgs = document.getElementById('args').value.trim();
+
+            // Combine file path and user args
+            let args = '';
+            if (selectedFile && userArgs) {
+                args = selectedFile + ' ' + userArgs;
+            } else if (selectedFile) {
+                args = selectedFile;
+            } else {
+                args = userArgs;
+            }
+
             if (!project || !args) return;
 
             localStorage.setItem('ghostrunner_project', project);
