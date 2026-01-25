@@ -454,13 +454,15 @@
         const fileSelect = document.getElementById('fileSelect');
         const commandSelect = document.getElementById('command');
 
-        // Command-folder priority mapping
-        // Note: Folder names must match backend DevFolders in internal/handler/files.go
-        const COMMAND_FOLDER_PRIORITY = {
-            'plan': ['実装/実装待ち', '実装/完了'],
-            'discuss': ['検討中', '資料'],
-            'research': ['検討中', '実装/実装待ち']
-        };
+        // All development folders (display order)
+        // Must be synchronized with backend DevFolders in internal/handler/files.go
+        const ALL_DEV_FOLDERS = [
+            '実装/実装待ち',
+            '実装/完了',
+            '検討中',
+            '資料',
+            'アーカイブ'
+        ];
 
         // Load saved project path or use default
         const savedProject = localStorage.getItem('ghostrunner_project');
@@ -496,11 +498,10 @@
         }
 
         // Update file dropdown with fetched files
-        function updateFileDropdown(files, command) {
+        function updateFileDropdown(files) {
             fileSelect.innerHTML = '<option value="">-- Select a file or type below --</option>';
 
-            const priorities = COMMAND_FOLDER_PRIORITY[command] || [];
-            for (const folder of priorities) {
+            for (const folder of ALL_DEV_FOLDERS) {
                 const folderFiles = files[folder] || [];
                 if (folderFiles.length === 0) continue;
 
@@ -518,19 +519,14 @@
 
         // Handler for command select change
         async function onCommandChange() {
-            const command = commandSelect.value;
-
-            if (COMMAND_FOLDER_PRIORITY[command]) {
-                fileSelectGroup.style.display = 'block';
-                const project = document.getElementById('project').value.trim();
-                if (project) {
-                    const data = await fetchDevFiles(project);
-                    if (data.success) {
-                        updateFileDropdown(data.files, command);
-                    }
+            // Always show file selector
+            fileSelectGroup.style.display = 'block';
+            const project = document.getElementById('project').value.trim();
+            if (project) {
+                const data = await fetchDevFiles(project);
+                if (data.success) {
+                    updateFileDropdown(data.files);
                 }
-            } else {
-                fileSelectGroup.style.display = 'none';
             }
         }
 

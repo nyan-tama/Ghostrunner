@@ -353,3 +353,102 @@ Files API のスキャン対象フォルダ一覧とレスポンス例に「ア�
 ### 次のステップ
 
 フロントエンド実装（`web/index.html` の変更）を実施する。
+
+---
+
+## フロントエンド実装完了レポート
+
+### 実装サマリー
+- **実装日**: 2026-01-25
+- **変更ファイル数**: 1 file
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `web/index.html` | ファイルセレクター表示ロジックの変更（全フォルダ対応） |
+
+### 実装内容の詳細
+
+#### 1. `COMMAND_FOLDER_PRIORITY` を `ALL_DEV_FOLDERS` に変更 (457-465行)
+
+**変更前:**
+```javascript
+const COMMAND_FOLDER_PRIORITY = {
+    'plan': ['実装/実装待ち', '実装/完了'],
+    'discuss': ['検討中', '資料'],
+    'research': ['検討中', '実装/実装待ち']
+};
+```
+
+**変更後:**
+```javascript
+// All development folders (display order)
+// Must be synchronized with backend DevFolders in internal/handler/files.go
+const ALL_DEV_FOLDERS = [
+    '実装/実装待ち',
+    '実装/完了',
+    '検討中',
+    '資料',
+    'アーカイブ'
+];
+```
+
+#### 2. `updateFileDropdown` 関数の変更 (500-518行)
+
+- `command` 引数を削除
+- `COMMAND_FOLDER_PRIORITY[command]` の参照を `ALL_DEV_FOLDERS` に変更
+- 全フォルダを固定順序で表示するように変更
+
+#### 3. `onCommandChange` 関数の変更 (520-531行)
+
+- `if (COMMAND_FOLDER_PRIORITY[command])` の条件分岐を削除
+- 常に `fileSelectGroup.style.display = 'block'` を実行
+- `updateFileDropdown` 呼び出しから `command` 引数を削除
+
+### 計画からの変更点
+
+特になし。計画書通りの実装。
+
+### 実装時の課題
+
+特になし。
+
+### レビュー結果
+
+| 項目 | 結果 |
+|------|------|
+| Critical | なし |
+| Warning | なし |
+
+### 動作確認フロー
+
+```
+1. Ghost Runner Web UI を開く
+   http://localhost:8080/
+
+2. 任意のコマンドを選択（/plan, /fullstack, /go など）
+
+3. 「File (optional)」ドロップダウンが表示されることを確認
+
+4. ドロップダウン内に以下の5フォルダが全て表示されることを確認：
+   - 実装/実装待ち
+   - 実装/完了
+   - 検討中
+   - 資料
+   - アーカイブ
+
+5. 別のコマンドに切り替えても同じ5フォルダが表示されることを確認
+
+6. アーカイブフォルダ内のファイルを選択し、
+   Arguments に正しくパスが設定されることを確認
+```
+
+### 残存する懸念点
+
+特になし。
+
+### デプロイ後の確認事項
+
+- [ ] 本番環境で全コマンドでファイルセレクターが表示されること
+- [ ] アーカイブフォルダのファイルが選択・参照できること
