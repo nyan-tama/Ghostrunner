@@ -377,6 +377,13 @@
             </select>
         </div>
 
+        <div class="form-group" id="fileSelectGroup" style="display: none;">
+            <label for="fileSelect">File (optional)</label>
+            <select id="fileSelect" name="fileSelect">
+                <option value="">-- Select a file or type below --</option>
+            </select>
+        </div>
+
         <div class="form-group">
             <label for="args">Arguments</label>
             <textarea id="args" name="args" placeholder="Describe what you want to implement..." required></textarea>
@@ -442,6 +449,19 @@
         let currentSessionId = null;
         let totalCost = 0;
 
+        // File selection elements
+        const fileSelectGroup = document.getElementById('fileSelectGroup');
+        const fileSelect = document.getElementById('fileSelect');
+        const commandSelect = document.getElementById('command');
+
+        // Command-folder priority mapping
+        // Note: Folder names must match backend DevFolders in internal/handler/files.go
+        const COMMAND_FOLDER_PRIORITY = {
+            'plan': ['実装/実装待ち', '実装/完了'],
+            'discuss': ['検討中', '資料'],
+            'research': ['検討中', '実装/実装待ち']
+        };
+
         // Load saved project path or use default
         const savedProject = localStorage.getItem('ghostrunner_project');
         if (savedProject) {
@@ -457,6 +477,72 @@
         rejectBtn.addEventListener('click', () => {
             continueSessionStream('no, cancel the plan');
         });
+
+        // Command change handler - show/hide file selector
+        commandSelect.addEventListener('change', onCommandChange);
+
+        // File select handler - set args textarea
+        fileSelect.addEventListener('change', onFileSelect);
+
+        // Fetch development folder files from API
+        async function fetchDevFiles(project) {
+            try {
+                const response = await fetch(`/api/files?project=${encodeURIComponent(project)}`);
+                return await response.json();
+            } catch (error) {
+                console.error('Failed to fetch files:', error);
+                return { success: false, files: {} };
+            }
+        }
+
+        // Update file dropdown with fetched files
+        function updateFileDropdown(files, command) {
+            fileSelect.innerHTML = '<option value="">-- Select a file or type below --</option>';
+
+            const priorities = COMMAND_FOLDER_PRIORITY[command] || [];
+            for (const folder of priorities) {
+                const folderFiles = files[folder] || [];
+                if (folderFiles.length === 0) continue;
+
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = folder;
+                for (const file of folderFiles) {
+                    const option = document.createElement('option');
+                    option.value = file.path;
+                    option.textContent = file.name;
+                    optgroup.appendChild(option);
+                }
+                fileSelect.appendChild(optgroup);
+            }
+        }
+
+        // Handler for command select change
+        async function onCommandChange() {
+            const command = commandSelect.value;
+
+            if (COMMAND_FOLDER_PRIORITY[command]) {
+                fileSelectGroup.style.display = 'block';
+                const project = document.getElementById('project').value.trim();
+                if (project) {
+                    const data = await fetchDevFiles(project);
+                    if (data.success) {
+                        updateFileDropdown(data.files, command);
+                    }
+                }
+            } else {
+                fileSelectGroup.style.display = 'none';
+            }
+        }
+
+        // Handler for file select change
+        function onFileSelect() {
+            if (fileSelect.value) {
+                document.getElementById('args').value = fileSelect.value;
+            }
+        }
+
+        // Initialize file selector on page load
+        onCommandChange();
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();

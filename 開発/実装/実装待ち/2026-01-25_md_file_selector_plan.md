@@ -417,3 +417,112 @@ api.GET("/files", filesHandler.Handle)
 ### 残存する懸念点
 
 - フロントエンド実装が未完了のため、統合テストは後続の実装完了後に実施が必要
+
+---
+
+## フロントエンド実装レポート
+
+### 実装サマリー
+
+- **実装日**: 2026-01-25
+- **変更ファイル数**: 1 file
+
+`web/index.html` にファイル選択ドロップダウンUIとJavaScriptロジックを追加した。
+計画通りの実装を完了。
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `web/index.html` | ファイル選択ドロップダウンUI追加、JavaScript処理追加 |
+
+### 実装内容
+
+#### HTML追加（380-385行目付近）
+
+```html
+<div class="form-group" id="fileSelectGroup" style="display: none;">
+    <label for="fileSelect">File (optional)</label>
+    <select id="fileSelect" name="fileSelect">
+        <option value="">-- Select a file or type below --</option>
+    </select>
+</div>
+```
+
+- `#fileSelectGroup` - フォームグループ（初期状態は非表示）
+- `#fileSelect` - ファイル選択ドロップダウン
+
+#### JavaScript追加（453-545行目付近）
+
+**1. 要素参照の取得**
+```javascript
+const fileSelectGroup = document.getElementById('fileSelectGroup');
+const fileSelect = document.getElementById('fileSelect');
+const commandSelect = document.getElementById('command');
+```
+
+**2. コマンド別フォルダ優先順位の定義**
+```javascript
+const COMMAND_FOLDER_PRIORITY = {
+    'plan': ['実装/実装待ち', '実装/完了'],
+    'discuss': ['検討中', '資料'],
+    'research': ['検討中', '実装/実装待ち']
+};
+```
+
+**3. ファイル一覧取得関数**
+```javascript
+async function fetchDevFiles(project) {
+    const response = await fetch(`/api/files?project=${encodeURIComponent(project)}`);
+    return await response.json();
+}
+```
+
+**4. ドロップダウン更新関数**
+- `<optgroup>` でフォルダ別にグループ化
+- 優先順位の高いフォルダから順に表示
+
+**5. イベントハンドラ**
+- `onCommandChange()` - コマンド変更時にドロップダウン表示/非表示を切り替え
+- `onFileSelect()` - ファイル選択時にArgumentsテキストエリアにパスを設定
+
+**6. 初期化処理**
+- ページロード時に `onCommandChange()` を呼び出して初期状態を設定
+
+### 動作確認手順
+
+1. バックエンドとフロントエンドを起動
+   ```bash
+   cd backend && go run ./cmd/server
+   ```
+
+2. ブラウザで `http://localhost:8080` にアクセス
+
+3. `/plan` コマンドを選択
+   - File ドロップダウンが表示されることを確認
+   - `実装/実装待ち` と `実装/完了` のフォルダがグループ表示されることを確認
+
+4. `/discuss` コマンドを選択
+   - `検討中` と `資料` のフォルダがグループ表示されることを確認
+
+5. `/research` コマンドを選択
+   - `検討中` と `実装/実装待ち` のフォルダがグループ表示されることを確認
+
+6. `/fullstack` または `/go` コマンドを選択
+   - File ドロップダウンが非表示になることを確認
+
+7. ファイルを選択
+   - Arguments テキストエリアにファイルパスが設定されることを確認
+
+### 計画からの変更点
+
+特になし。計画通りに実装を完了した。
+
+### 課題・注意点
+
+特になし。
+
+### 残存する懸念点
+
+- プロジェクトパス変更時の自動リロードは未実装（ユーザーがコマンドを再選択すれば更新される）
+- ファイル数が多い場合の検索/フィルタ機能は未実装（将来的に必要になれば追加）
