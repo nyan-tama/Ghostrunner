@@ -64,6 +64,10 @@
 //
 // # 使用例
 //
+// インポート:
+//
+//	import "ghostrunner/backend/internal/service"
+//
 // 同期実行（汎用コマンド）:
 //
 //	svc := service.NewClaudeService()

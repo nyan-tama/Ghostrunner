@@ -160,6 +160,15 @@
 //
 // # 使用例
 //
+// インポート:
+//
+//	import (
+//	    "ghostrunner/backend/internal/handler"
+//	    "ghostrunner/backend/internal/service"
+//	)
+//
+// ハンドラーの初期化とルーティング:
+//
 //	claudeService := service.NewClaudeService()
 //
 //	// CommandHandler

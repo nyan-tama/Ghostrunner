@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 
-	"ghostrunner/internal/service"
+	"ghostrunner/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

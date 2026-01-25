@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"ghostrunner/internal/service"
+	"ghostrunner/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

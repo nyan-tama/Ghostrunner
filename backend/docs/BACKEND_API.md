@@ -7,6 +7,13 @@ Ghostrunner API サーバーのエンドポイント仕様。
 Claude CLI のスラッシュコマンドをHTTP API経由で実行するためのサーバー。
 Server-Sent Events (SSE) によるストリーミング出力とセッション継続をサポートする。
 
+## モジュール構成
+
+- **モジュール名**: `ghostrunner/backend`
+- **エントリーポイント**: `backend/cmd/server/main.go`
+- **ビルド**: `cd backend && go build -o server ./cmd/server`
+- **実行**: `cd backend && go run ./cmd/server`
+
 ---
 
 ## エンドポイント一覧

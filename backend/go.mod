@@ -1,4 +1,4 @@
-module ghostrunner
+module ghostrunner/backend
 
 go 1.24
 
