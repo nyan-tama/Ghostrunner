@@ -21,7 +21,6 @@ description: >
   具体的な実装ではなく課題整理なので discuss エージェントが適切。
   </commentary>
   </example>
-tools: Read, Grep, Glob, WebSearch, Write
 model: opus
 ---
 
