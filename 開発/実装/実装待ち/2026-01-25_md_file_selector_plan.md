@@ -318,3 +318,102 @@ function onFileSelect() {
 **懸念**: `開発/アーカイブ/`フォルダは表示するか
 
 **対応**: コマンド別優先順位に含まれていないため非表示。必要なら後で追加可能
+
+---
+
+## バックエンド実装レポート
+
+### 実装サマリー
+
+- **実装日**: 2026-01-25
+- **変更ファイル数**: 4 files
+
+`GET /api/files` APIを新規作成し、開発フォルダ内のmdファイル一覧を取得する機能を実装した。
+計画通りの実装を完了。
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `internal/handler/files.go` | 新規作成: FilesHandler実装（163行）- ファイル一覧取得API |
+| `cmd/server/main.go` | ルーティング追加: `GET /api/files` エンドポイント登録 |
+| `docs/BACKEND_API.md` | Files API仕様の追加（GET /api/files のドキュメント） |
+| `internal/handler/doc.go` | パッケージドキュメント更新: FilesHandlerの説明追加 |
+
+### 実装内容
+
+#### FilesHandler (`internal/handler/files.go`)
+
+- `FilesHandler` 構造体と `NewFilesHandler()` コンストラクタ
+- `Handle(c *gin.Context)` メソッド: GETリクエスト処理
+- `DevFolders` 変数: スキャン対象フォルダ一覧（4フォルダ）
+- `FileInfo` / `FilesResponse` 構造体: レスポンス用の型定義
+
+**処理フロー:**
+1. `c.Query("project")` でプロジェクトパス取得
+2. `validateProjectPath()` で入力検証（既存関数を再利用）
+3. `開発/` ディレクトリの存在確認
+4. 各フォルダをスキャンして `.md` ファイルを収集
+5. フォルダ別にグループ化したレスポンスを返却
+
+**対応するHTTPステータスコード:**
+- 200: 成功
+- 400: projectパラメータ未指定、無効なパス
+- 404: 開発ディレクトリが存在しない
+- 500: フォルダ読み取りエラー
+
+#### ルーティング (`cmd/server/main.go`)
+
+```go
+filesHandler := handler.NewFilesHandler()
+api.GET("/files", filesHandler.Handle)
+```
+
+### 動作確認手順
+
+1. バックエンドサーバー起動
+   ```bash
+   cd backend
+   go run ./cmd/server
+   ```
+
+2. APIリクエスト送信
+   ```bash
+   curl "http://localhost:8080/api/files?project=/Users/user/Ghostrunner"
+   ```
+
+3. 期待されるレスポンス
+   ```json
+   {
+     "success": true,
+     "files": {
+       "実装/実装待ち": [
+         {"name": "2026-01-25_md_file_selector_plan.md", "path": "開発/実装/実装待ち/2026-01-25_md_file_selector_plan.md"}
+       ],
+       "実装/完了": [...],
+       "検討中": [...],
+       "資料": [...]
+     }
+   }
+   ```
+
+4. エラーケースの確認
+   ```bash
+   # projectパラメータなし -> 400
+   curl "http://localhost:8080/api/files"
+
+   # 存在しないプロジェクト -> 400
+   curl "http://localhost:8080/api/files?project=/nonexistent"
+   ```
+
+### 計画からの変更点
+
+特になし。計画通りに実装を完了した。
+
+### 課題・注意点
+
+特になし。
+
+### 残存する懸念点
+
+- フロントエンド実装が未完了のため、統合テストは後続の実装完了後に実施が必要

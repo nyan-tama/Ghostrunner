@@ -17,6 +17,7 @@ func main() {
 	claudeService := service.NewClaudeService()
 	planHandler := handler.NewPlanHandler(claudeService)
 	commandHandler := handler.NewCommandHandler(claudeService)
+	filesHandler := handler.NewFilesHandler()
 
 	// Ginエンジン初期化
 	r := gin.Default()
@@ -24,6 +25,9 @@ func main() {
 	// APIルーティング
 	api := r.Group("/api")
 	{
+		// ファイル一覧API
+		api.GET("/files", filesHandler.Handle)
+
 		// 汎用コマンドAPI（推奨）
 		api.POST("/command", commandHandler.Handle)
 		api.POST("/command/stream", commandHandler.HandleStream)

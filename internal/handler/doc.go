@@ -10,6 +10,7 @@
 //
 //   - PlanHandler: /api/plan 関連のエンドポイントを処理（後方互換性維持）
 //   - CommandHandler: /api/command 関連のエンドポイントを処理（汎用コマンド実行）
+//   - FilesHandler: /api/files 関連のエンドポイントを処理（ファイル一覧取得）
 //
 // ClaudeServiceへの依存性注入によりテスタビリティを確保する。
 //
@@ -25,6 +26,17 @@
 //   - nextjs: Next.js フロントエンドのみの実装
 //   - discuss: アイデアや構想の対話形式での深掘り
 //
+// # FilesHandler
+//
+// プロジェクトの開発フォルダ内のmdファイル一覧を取得するエンドポイント。
+// 外部サービスへの依存がなく、ローカルファイルシステムのみを参照する。
+//
+// スキャン対象フォルダ:
+//   - 実装/実装待ち
+//   - 実装/完了
+//   - 検討中
+//   - 資料
+//
 // # PlanHandler
 //
 // Claude CLIの /plan コマンドを実行するエンドポイント群。
@@ -32,6 +44,26 @@
 // 後方互換性のために維持している。
 //
 // # エンドポイント一覧
+//
+// ## Files API (ファイル一覧取得)
+//
+// GET /api/files - 開発フォルダ内のmdファイル一覧取得
+//
+// リクエスト:
+//
+//	GET /api/files?project=/path/to/project
+//
+// レスポンス:
+//
+//	{
+//	    "success": true,
+//	    "files": {
+//	        "実装/実装待ち": [{"name": "plan.md", "path": "開発/実装/実装待ち/plan.md"}],
+//	        "実装/完了": [],
+//	        "検討中": [],
+//	        "資料": []
+//	    }
+//	}
 //
 // ## Command API (汎用コマンド実行)
 //
@@ -121,7 +153,8 @@
 //
 //   - 200 OK: 正常完了
 //   - 400 Bad Request: リクエスト不正、バリデーションエラー、許可されていないコマンド
-//   - 500 Internal Server Error: Claude CLI実行エラー
+//   - 404 Not Found: リソースが存在しない（/api/filesで開発ディレクトリが存在しない場合）
+//   - 500 Internal Server Error: Claude CLI実行エラー、ファイルシステムエラー
 //
 // # 使用例
 //
@@ -141,4 +174,8 @@
 //	api.POST("/plan/stream", planHandler.HandleStream)
 //	api.POST("/plan/continue", planHandler.HandleContinue)
 //	api.POST("/plan/continue/stream", planHandler.HandleContinueStream)
+//
+//	// FilesHandler
+//	filesHandler := handler.NewFilesHandler()
+//	api.GET("/files", filesHandler.Handle)
 package handler
