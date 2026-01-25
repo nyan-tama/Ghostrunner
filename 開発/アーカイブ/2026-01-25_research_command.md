@@ -253,3 +253,76 @@ model: opus
 ### 備考
 
 本実装はバックエンド側のコマンド許可設定のみ。フロントエンド側の `/research` コマンド UI 統合は別途実装が必要。
+
+---
+
+## フロントエンド実装レポート
+
+### 実装サマリー
+
+- **実装日**: 2026-01-25
+- **実装内容**: `/research` コマンドを Web UI のコマンドセレクターに追加
+- **変更ファイル数**: 1 file
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `web/index.html` | select 要素に `/research` オプションを追加（372行目） |
+
+### 変更詳細
+
+#### `web/index.html`
+
+`/plan` オプションの直後に以下を追加:
+
+```html
+<option value="research">/research - 外部情報調査</option>
+```
+
+#### 配置順序
+
+ワークフローの順序（計画 → 調査 → 議論 → 実装）に従い配置:
+
+```html
+<option value="plan">/plan - 実装計画作成</option>
+<option value="research">/research - 外部情報調査</option>
+<option value="discuss">/discuss - アイデア深掘り</option>
+<option value="fullstack">/fullstack - フルスタック実装</option>
+<option value="go">/go - Go バックエンド実装</option>
+<option value="nextjs">/nextjs - Next.js フロントエンド実装</option>
+```
+
+### 計画からの変更点
+
+特になし
+
+### 実装時の課題
+
+なし
+
+### 検証結果
+
+| 検証項目 | 結果 |
+|---------|------|
+| HTML 構文 | 正常（既存オプションと同じ形式） |
+| 配置位置 | ワークフロー順序に従った適切な位置 |
+| value 属性 | バックエンドの許可コマンドリストと一致 |
+
+### 動作確認フロー
+
+```
+1. ブラウザで web/index.html を開く
+2. Command セレクターをクリック
+3. "/research - 外部情報調査" オプションが表示されることを確認
+4. /research を選択し、Arguments に調査テーマを入力
+5. Submit して正常に処理されることを確認
+```
+
+### 残存する懸念点
+
+特になし
+
+### 備考
+
+これでバックエンド（コマンド許可）とフロントエンド（UI）の両方の実装が完了し、`/research` コマンドが利用可能な状態となった。
