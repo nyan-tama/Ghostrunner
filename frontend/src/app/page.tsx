@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import type { StreamEvent, DisplayEvent, Question, ToolInput } from "@/types";
 import { PLAN_APPROVAL_KEYWORDS } from "@/lib/constants";
 import { executeCommandStream, continueSessionStream } from "@/lib/api";
@@ -26,6 +26,8 @@ export default function Home() {
   const {
     projectPath,
     setProjectPath,
+    projectHistory,
+    addToHistory,
     sessionId,
     setSessionId,
     totalCost,
@@ -42,6 +44,8 @@ export default function Home() {
 
   const [command, setCommand] = useState("plan");
   const [args, setArgs] = useState("");
+
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const [showProgress, setShowProgress] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -266,7 +270,15 @@ export default function Home() {
 
     if (!projectPath || !combinedArgs) return;
 
+    // 既存のAbortControllerがあればキャンセル
+    abortControllerRef.current?.abort();
+
+    // 新しいAbortControllerを作成
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setProjectPath(projectPath);
+    addToHistory(projectPath);
     resetSession();
     resetProgress();
     setShowProgress(true);
@@ -274,14 +286,26 @@ export default function Home() {
     setIsSubmitting(true);
 
     try {
-      const response = await executeCommandStream({
-        project: projectPath,
-        command,
-        args: combinedArgs,
-      });
+      const response = await executeCommandStream(
+        {
+          project: projectPath,
+          command,
+          args: combinedArgs,
+        },
+        controller.signal
+      );
       await processStream(response);
     } catch (error) {
+      // AbortError は handleAbort で処理済みなので無視
+      if (error instanceof Error && error.name === "AbortError") {
+        return;
+      }
       handleError("Failed to connect: " + (error as Error).message);
+    } finally {
+      // 完了後にAbortControllerをクリア
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
     }
   }, [
     projectPath,
@@ -289,6 +313,7 @@ export default function Home() {
     args,
     selectedFile,
     setProjectPath,
+    addToHistory,
     resetSession,
     resetProgress,
     processStream,
@@ -302,6 +327,13 @@ export default function Home() {
         return;
       }
 
+      // 既存のAbortControllerがあればキャンセル
+      abortControllerRef.current?.abort();
+
+      // 新しいAbortControllerを作成
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       setShowQuestions(false);
       setShowPlanApproval(false);
       setLoadingText("Continuing...");
@@ -309,14 +341,26 @@ export default function Home() {
       setIsSubmitting(true);
 
       try {
-        const response = await continueSessionStream({
-          project: projectPath,
-          session_id: sessionId,
-          answer,
-        });
+        const response = await continueSessionStream(
+          {
+            project: projectPath,
+            session_id: sessionId,
+            answer,
+          },
+          controller.signal
+        );
         await processStream(response);
       } catch (error) {
+        // AbortError は handleAbort で処理済みなので無視
+        if (error instanceof Error && error.name === "AbortError") {
+          return;
+        }
         handleError("Failed to connect: " + (error as Error).message);
+      } finally {
+        // 完了後にAbortControllerをクリア
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null;
+        }
       }
     },
     [sessionId, projectPath, processStream, handleError]
@@ -330,6 +374,29 @@ export default function Home() {
     handleAnswer("no, cancel the plan");
   }, [handleAnswer]);
 
+  const handleAbort = useCallback(() => {
+    // AbortController で接続を切断
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+
+    // 状態をリセット
+    setIsLoading(false);
+    setIsSubmitting(false);
+    setLoadingText("");
+
+    // 実行ログ（events）は保持し、中断イベントを追加
+    addEvent("info", "Execution aborted");
+
+    // 結果表示
+    setResultOutput("Execution aborted by user");
+    setResultType("error");
+
+    // 質問・承認UIは非表示
+    setShowQuestions(false);
+    setShowPlanApproval(false);
+    setQuestions([]);
+  }, [addEvent]);
+
   return (
     <div className="max-w-[900px] mx-auto px-5 py-5 bg-gray-100 min-h-screen">
       <h1 className="text-gray-800 mb-6 text-2xl font-bold">Ghost Runner</h1>
@@ -337,6 +404,7 @@ export default function Home() {
       <CommandForm
         projectPath={projectPath}
         onProjectChange={setProjectPath}
+        projectHistory={projectHistory}
         command={command}
         onCommandChange={setCommand}
         selectedFile={selectedFile}
@@ -365,6 +433,8 @@ export default function Home() {
         onAnswer={handleAnswer}
         onApprove={handleApprove}
         onReject={handleReject}
+        onAbort={handleAbort}
+        canAbort={isLoading && !showQuestions && !showPlanApproval}
       />
     </div>
   );

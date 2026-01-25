@@ -13,10 +13,12 @@ flowchart TD
     C -->|complete + 計画承認キーワード| E[計画承認待ち<br>PlanApproval表示]
     C -->|complete| F[完了<br>結果表示]
     C -->|error| G[エラー<br>エラー表示]
+    B -->|Abort ボタン| H[中断<br>結果表示]
     D -->|回答送信| B
     E -->|Approve/Reject| B
     F -->|新しいコマンド入力| A
     G -->|新しいコマンド入力| A
+    H -->|新しいコマンド入力| A
 ```
 
 ## 状態遷移詳細
@@ -81,6 +83,23 @@ flowchart TD
 | complete イベント（質問なし、承認不要） | resultOutput を設定、resultType を "success" に |
 | error イベント | resultOutput を設定、resultType を "error" に |
 
+### 7. 実行中 -> 中断
+
+| トリガー | 処理 |
+|---------|------|
+| Abort ボタンクリック | AbortController.abort() で SSE 接続を切断 |
+
+**表示条件**:
+- ローディング中（`isLoading === true`）
+- 質問待ちでない（`showQuestions === false`）
+- 計画承認待ちでない（`showPlanApproval === false`）
+
+**中断時の処理**:
+- SSE ストリーム接続を切断
+- イベントリストに "Execution aborted" を追加
+- 結果表示に "Execution aborted by user" を表示（エラー扱い）
+- ローディング状態を解除
+
 ## API通信フロー
 
 ```mermaid
@@ -102,6 +121,25 @@ sequenceDiagram
     Backend-->>Frontend: SSE tool_use (複数回)
     Backend-->>Frontend: SSE complete
     Frontend->>User: 結果表示
+```
+
+### 中断時の通信フロー
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Backend
+
+    User->>Frontend: Execute Command
+    Frontend->>Backend: POST /api/command/stream
+    Backend-->>Frontend: SSE init
+    Backend-->>Frontend: SSE thinking
+    Backend-->>Frontend: SSE tool_use
+    User->>Frontend: Abort ボタンクリック
+    Frontend->>Frontend: AbortController.abort()
+    Frontend--xBackend: 接続切断
+    Frontend->>User: 中断結果表示
 ```
 
 ## イベント処理フロー

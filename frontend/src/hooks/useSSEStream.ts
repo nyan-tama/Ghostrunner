@@ -49,7 +49,14 @@ export function useSSEStream({ onEvent, onError, onComplete }: UseSSEStreamOptio
             }
           }
         }
-      } finally {
+        onComplete();
+      } catch (error) {
+        // AbortError は正常な中断操作なので、エラーとして扱わない
+        if (error instanceof Error && error.name === "AbortError") {
+          onComplete();
+          return;
+        }
+        onError(error instanceof Error ? error.message : "Stream error");
         onComplete();
       }
     },

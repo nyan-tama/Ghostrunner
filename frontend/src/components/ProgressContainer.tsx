@@ -5,6 +5,7 @@ import LoadingIndicator from "./LoadingIndicator";
 import EventList from "./EventList";
 import QuestionSection from "./QuestionSection";
 import PlanApproval from "./PlanApproval";
+import ContinueSession from "./ContinueSession";
 
 interface ProgressContainerProps {
   visible: boolean;
@@ -22,6 +23,8 @@ interface ProgressContainerProps {
   onAnswer: (answer: string) => void;
   onApprove: () => void;
   onReject: () => void;
+  onAbort: () => void;
+  canAbort: boolean;
 }
 
 export default function ProgressContainer({
@@ -40,8 +43,18 @@ export default function ProgressContainer({
   onAnswer,
   onApprove,
   onReject,
+  onAbort,
+  canAbort,
 }: ProgressContainerProps) {
   if (!visible) return null;
+
+  // 完了後でセッションがあり、質問UIやプラン承認UIが出ていない場合に継続UIを表示
+  const showContinue =
+    resultType === "success" &&
+    !!sessionId &&
+    !showQuestions &&
+    !showPlanApproval &&
+    !isLoading;
 
   return (
     <div className="mt-6 bg-white rounded-xl shadow-md overflow-hidden">
@@ -52,6 +65,17 @@ export default function ProgressContainer({
       </div>
 
       <LoadingIndicator text={loadingText} visible={isLoading} />
+
+      {canAbort && (
+        <div className="px-5 pb-4">
+          <button
+            onClick={onAbort}
+            className="py-3.5 px-6 bg-red-500 text-white rounded-lg font-semibold text-base cursor-pointer transition-colors hover:bg-red-600 border-none"
+          >
+            Abort
+          </button>
+        </div>
+      )}
 
       <EventList events={events} />
 
@@ -79,6 +103,12 @@ export default function ProgressContainer({
           </div>
         </div>
       )}
+
+      <ContinueSession
+        visible={showContinue}
+        isLoading={isLoading}
+        onContinue={onAnswer}
+      />
 
       <div className="px-5 py-3 bg-gray-50 border-t border-gray-200 flex justify-between text-xs text-gray-500">
         <span>
