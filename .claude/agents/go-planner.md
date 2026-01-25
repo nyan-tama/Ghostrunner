@@ -80,6 +80,37 @@ model: opus
 3. 問題点に基づいて計画を修正
 4. 修正した計画書を出力
 
+## 修正範囲の図示
+
+**複数レイヤーにまたがる変更は、Mermaid で修正範囲の全体像を図示する。**
+
+図示が必要なケース:
+- CLI + バックエンド + フロントエンドの変更
+- 複数パッケージ/モジュールにまたがる変更
+- 設定ファイル + コードの変更
+
+例:
+```mermaid
+flowchart TD
+    subgraph "CLI"
+        CMD[commands/xxx.md]
+        AGENT[agents/xxx.md]
+    end
+    subgraph "Backend"
+        TYPES[types.go]
+    end
+    subgraph "Frontend"
+        HTML[index.html]
+    end
+    CMD --> TYPES
+    TYPES --> HTML
+```
+
+これにより:
+- 変更の全体像が一目で分かる
+- 実装漏れを防げる
+- レビュー時に確認しやすい
+
 ## 出力フォーマット
 
 ```markdown
