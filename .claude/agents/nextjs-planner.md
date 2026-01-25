@@ -21,7 +21,7 @@ description: >
   Next.js 実装前分析には TypeScript/React 固有の要件と潜在的問題のレビューが必要。
   </commentary>
   </example>
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, AskUserQuestion
 model: opus
 ---
 
