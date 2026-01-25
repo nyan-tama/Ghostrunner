@@ -13,7 +13,7 @@ description: >
   </commentary>
   </example>
 tools: Read, Grep, Glob
-model: sonnet
+model: opus
 ---
 
 **always ultrathink**
