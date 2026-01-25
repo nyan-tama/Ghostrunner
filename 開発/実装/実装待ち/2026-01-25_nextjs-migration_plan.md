@@ -46,30 +46,21 @@ Gemini Live API実装に向けたNext.js移行（A案）の実装計画。既存
 
 ```mermaid
 flowchart TD
-    subgraph "Frontend（新規作成）"
-        PAGE[app/page.tsx]
-        LAYOUT[app/layout.tsx]
-
-        subgraph "Components"
-            FORM[CommandForm]
-            PROGRESS[ProgressContainer]
-            EVENTS[EventList]
-            QUESTION[QuestionSection]
-            APPROVAL[PlanApproval]
-        end
-
-        subgraph "Hooks"
-            SSE[useSSEStream]
-            SESSION[useSessionManagement]
-            FILES[useFileSelector]
-        end
-
-        subgraph "Types"
-            TYPES[types/index.ts]
-        end
+    subgraph Frontend[Frontend]
+        PAGE[page.tsx]
+        LAYOUT[layout.tsx]
+        FORM[CommandForm]
+        PROGRESS[ProgressContainer]
+        EVENTS[EventList]
+        QUESTION[QuestionSection]
+        APPROVAL[PlanApproval]
+        SSE[useSSEStream]
+        SESSION[useSessionManagement]
+        FILES[useFileSelector]
+        TYPES[types/index.ts]
     end
 
-    subgraph "Backend（変更なし）"
+    subgraph Backend[Backend]
         API[Go API Server]
     end
 
@@ -141,54 +132,18 @@ flowchart TD
 
 ## SSEバッファ処理の詳細設計
 
-### 既存実装のロジック（移植対象）
+### 処理フロー
 
-```typescript
-// useSSEStream.ts の実装方針
+1. ReadableStreamからチャンクを読み取る
+2. TextDecoderで`stream: true`オプションを使用してデコード（マルチバイト文字対応）
+3. 改行で分割し、最後の不完全行はバッファに保持
+4. `data: `プレフィックスを持つ行のみJSONパースしてイベント発火
 
-async function processStream(response: Response, onEvent: (event: StreamEvent) => void) {
-  const reader = response.body!.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
+### 重要ポイント
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    // stream: true で途中のマルチバイト文字を正しく処理
-    buffer += decoder.decode(value, { stream: true });
-
-    // 改行で分割
-    const lines = buffer.split('\n');
-
-    // 最後の不完全な行をバッファに保持
-    buffer = lines.pop() || '';
-
-    for (const line of lines) {
-      // 空行をスキップ
-      if (!line.trim()) continue;
-
-      // SSEの data: プレフィックスを除去
-      if (!line.startsWith('data: ')) continue;
-
-      const jsonStr = line.slice(6); // 'data: '.length
-
-      try {
-        const event: StreamEvent = JSON.parse(jsonStr);
-        onEvent(event);
-      } catch (e) {
-        console.error('Failed to parse SSE event:', e);
-      }
-    }
-  }
-}
-```
-
-### バッファ処理の重要ポイント
-
-1. **`stream: true`オプション**: マルチバイト文字（日本語等）が途中で切れた場合に正しく処理
-2. **不完全行の保持**: `lines.pop()` で最後の行（改行で終わっていない可能性）をバッファに戻す
-3. **`data: `プレフィックス**: SSEフォーマットに従い、このプレフィックスがない行は無視
+- `stream: true`オプション: マルチバイト文字（日本語等）が途中で切れた場合に正しく処理
+- 不完全行の保持: 改行で終わっていない最後の行をバッファに戻す
+- `data: `プレフィックス: SSEフォーマットに従い、このプレフィックスがない行は無視
 
 ---
 
@@ -196,23 +151,10 @@ async function processStream(response: Response, onEvent: (event: StreamEvent) =
 
 ### 判定ロジック
 
-```typescript
-// ProgressContainer.tsx または page.tsx での判定
-
-function shouldShowApproval(result: CommandResult | null): boolean {
-  if (!result?.output) return false;
-
-  const approvalKeywords = [
-    '承認をお待ち',
-    'waiting for approval',
-    'Ready for approval'
-  ];
-
-  return approvalKeywords.some(keyword =>
-    result.output.includes(keyword)
-  );
-}
-```
+resultのoutputに以下のキーワードが含まれる場合にPlanApprovalを表示:
+- 「承認をお待ち」
+- 「waiting for approval」
+- 「Ready for approval」
 
 ### 表示フロー
 
@@ -237,25 +179,13 @@ sequenceDiagram
 
 ### CommandFormの仕様
 
-```typescript
-// CommandForm.tsx でのargs生成ロジック
-
-function buildArgs(selectedFile: string, userArgs: string): string {
-  if (selectedFile && userArgs) {
-    return `${selectedFile} ${userArgs}`;
-  } else if (selectedFile) {
-    return selectedFile;
-  } else {
-    return userArgs;
-  }
-}
-```
+選択ファイルと引数入力を結合してargsを生成:
 
 | ファイル選択 | 引数入力 | 結果のargs |
 |------------|---------|-----------|
-| 選択あり | 入力あり | `${file} ${args}` |
-| 選択あり | 入力なし | `${file}` |
-| 選択なし | 入力あり | `${args}` |
+| 選択あり | 入力あり | ファイルパス + 空白 + 引数 |
+| 選択あり | 入力なし | ファイルパスのみ |
+| 選択なし | 入力あり | 引数のみ |
 | 選択なし | 入力なし | 空文字 |
 
 ---
@@ -264,20 +194,17 @@ function buildArgs(selectedFile: string, userArgs: string): string {
 
 ### QuestionSectionの仕様
 
-```typescript
-// 単一選択（multiSelect: false）
-// - 選択肢クリックで即座に回答送信
-// - 選択後はUIを非表示
+**単一選択（multiSelect: false）**
+- 選択肢クリックで即座に回答送信
+- 選択後はUIを非表示
 
-// 複数選択（multiSelect: true）
-// - 選択肢クリックで選択状態をトグル
-// - 「送信」ボタン押下で選択肢をカンマ区切りで結合して送信
-// - 例: ["Option A", "Option C"] → "Option A, Option C"
+**複数選択（multiSelect: true）**
+- 選択肢クリックで選択状態をトグル
+- 「送信」ボタン押下で選択肢をカンマ区切りで結合して送信
 
-// カスタム入力
-// - テキスト入力フィールド + 「送信」ボタン
-// - 入力内容をそのまま送信
-```
+**カスタム入力**
+- テキスト入力フィールド + 「送信」ボタン
+- 入力内容をそのまま送信
 
 ---
 
