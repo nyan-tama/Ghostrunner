@@ -36,8 +36,9 @@ export default function Home() {
   } = useSessionManagement();
 
   const {
-    selectedFile,
-    setSelectedFile,
+    selectedFiles,
+    addSelectedFile,
+    removeSelectedFile,
     loadFiles,
     getGroupedFiles,
   } = useFileSelector();
@@ -300,10 +301,10 @@ export default function Home() {
 
   const handleSubmit = useCallback(async () => {
     let combinedArgs = "";
-    if (selectedFile && args) {
-      combinedArgs = selectedFile + " " + args;
-    } else if (selectedFile) {
-      combinedArgs = selectedFile;
+    if (selectedFiles.length > 0 && args) {
+      combinedArgs = selectedFiles.join(" ") + " " + args;
+    } else if (selectedFiles.length > 0) {
+      combinedArgs = selectedFiles.join(" ");
     } else {
       combinedArgs = args;
     }
@@ -352,7 +353,7 @@ export default function Home() {
     projectPath,
     command,
     args,
-    selectedFile,
+    selectedFiles,
     images,
     setProjectPath,
     addToHistory,
@@ -478,8 +479,9 @@ export default function Home() {
         projectHistory={projectHistory}
         command={command}
         onCommandChange={setCommand}
-        selectedFile={selectedFile}
-        onFileChange={setSelectedFile}
+        selectedFiles={selectedFiles}
+        onAddFile={addSelectedFile}
+        onRemoveFile={removeSelectedFile}
         args={args}
         onArgsChange={setArgs}
         images={images}

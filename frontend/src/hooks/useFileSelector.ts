@@ -7,10 +7,25 @@ import { DEV_FOLDERS } from "@/lib/constants";
 
 export function useFileSelector() {
   const [files, setFiles] = useState<Record<string, FileInfo[]>>({});
-  const [selectedFile, setSelectedFile] = useState<string>("");
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const [error, setError] = useState<string | null>(null);
+
+  const addSelectedFile = useCallback((file: string) => {
+    setSelectedFiles((prev) => {
+      if (prev.includes(file)) return prev; // 重複防止
+      return [...prev, file];
+    });
+  }, []);
+
+  const removeSelectedFile = useCallback((file: string) => {
+    setSelectedFiles((prev) => prev.filter((f) => f !== file));
+  }, []);
+
+  const clearSelectedFiles = useCallback(() => {
+    setSelectedFiles([]);
+  }, []);
 
   const loadFiles = useCallback(async (project: string) => {
     if (!project.trim()) return;
@@ -40,8 +55,10 @@ export function useFileSelector() {
 
   return {
     files,
-    selectedFile,
-    setSelectedFile,
+    selectedFiles,
+    addSelectedFile,
+    removeSelectedFile,
+    clearSelectedFiles,
     loadFiles,
     getGroupedFiles,
     isLoading,

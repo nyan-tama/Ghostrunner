@@ -22,6 +22,47 @@ flowchart TD
     H -->|新しいコマンド入力| A
 ```
 
+## ファイル選択フロー（複数選択）
+
+コマンド実行前に、複数のファイルを選択して引数に含めることができる。
+
+```mermaid
+flowchart TD
+    A[未選択<br>ドロップダウン表示] -->|ファイル選択| B[選択済み<br>タグリスト表示]
+    B -->|別のファイル選択| B
+    B -->|x ボタンクリック| C{残りファイル?}
+    C -->|あり| B
+    C -->|なし| A
+    B -->|Execute Command| D[実行中<br>選択は保持]
+    D -->|実行完了| B
+```
+
+### ファイル選択の状態遷移
+
+| 現在の状態 | トリガー | 次の状態 | 処理 |
+|-----------|---------|---------|------|
+| 未選択 | ドロップダウンでファイル選択 | 選択済み | addSelectedFile で配列に追加 |
+| 選択済み | ドロップダウンで別ファイル選択 | 選択済み | addSelectedFile で配列に追加（重複は無視） |
+| 選択済み | タグの x ボタンクリック | 選択済み/未選択 | removeSelectedFile で配列から削除 |
+| 選択済み | コマンド実行完了 | 選択済み | 選択状態は保持される |
+
+### ファイル選択 UI 詳細
+
+```mermaid
+flowchart LR
+    subgraph ドロップダウン
+        A[optgroup: 開発/資料] --> A1[file1.md]
+        A --> A2[checkmark file2.md<br>disabled]
+        B[optgroup: 開発/検討中] --> B1[file3.md]
+        B --> B2[checkmark file4.md<br>disabled]
+    end
+
+    subgraph 選択済みタグリスト
+        C1[file2.md x]
+        C2[file4.md x]
+    end
+```
+
 ## 状態遷移詳細
 
 ### 1. 初期状態 -> 実行中
@@ -33,7 +74,9 @@ flowchart TD
 **渡すデータ**:
 - `project`: プロジェクトパス
 - `command`: 選択したコマンド（plan, research, etc.）
-- `args`: 引数（選択ファイル + 入力テキスト）
+- `args`: 引数（選択ファイル群 + 入力テキスト）
+  - 複数ファイル選択時: `file1.md file2.md file3.md 引数テキスト`
+  - ファイル未選択時: `引数テキスト`
 - `images`: 画像データ配列（任意）
   - `name`: ファイル名
   - `data`: Base64エンコードされた画像データ

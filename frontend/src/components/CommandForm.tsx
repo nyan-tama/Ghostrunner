@@ -11,8 +11,9 @@ interface CommandFormProps {
   projectHistory: string[];
   command: string;
   onCommandChange: (command: string) => void;
-  selectedFile: string;
-  onFileChange: (file: string) => void;
+  selectedFiles: string[];
+  onAddFile: (file: string) => void;
+  onRemoveFile: (file: string) => void;
   args: string;
   onArgsChange: (args: string) => void;
   images: ImageData[];
@@ -29,8 +30,9 @@ export default function CommandForm({
   projectHistory,
   command,
   onCommandChange,
-  selectedFile,
-  onFileChange,
+  selectedFiles,
+  onAddFile,
+  onRemoveFile,
   args,
   onArgsChange,
   images,
@@ -111,21 +113,52 @@ export default function CommandForm({
           File (optional)
         </label>
         <select
-          value={selectedFile}
-          onChange={(e) => onFileChange(e.target.value)}
+          value=""
+          onChange={(e) => {
+            if (e.target.value) {
+              onAddFile(e.target.value);
+            }
+          }}
           className="w-full p-3 border border-gray-200 rounded-lg text-base bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         >
-          <option value="">-- Select a file or type below --</option>
+          <option value="">-- Select files to add --</option>
           {groupedFiles.map((group) => (
             <optgroup key={group.folder} label={group.folder}>
-              {group.files.map((file) => (
-                <option key={file.path} value={file.path}>
-                  {file.name}
-                </option>
-              ))}
+              {group.files.map((file) => {
+                const isSelected = selectedFiles.includes(file.path);
+                return (
+                  <option
+                    key={file.path}
+                    value={file.path}
+                    disabled={isSelected}
+                  >
+                    {isSelected ? `\u2713 ${file.name}` : file.name}
+                  </option>
+                );
+              })}
             </optgroup>
           ))}
         </select>
+        {selectedFiles.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {selectedFiles.map((file) => (
+              <div
+                key={file}
+                className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded text-sm text-gray-700"
+              >
+                <span>{file.split("/").pop()}</span>
+                <button
+                  type="button"
+                  onClick={() => onRemoveFile(file)}
+                  className="text-gray-500 hover:text-red-600 focus:outline-none"
+                  title="Remove file"
+                >
+                  x
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="mb-4">
