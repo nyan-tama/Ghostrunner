@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import type { FileInfo } from "@/types";
+import type { FileInfo, ImageData } from "@/types";
 import { COMMANDS } from "@/lib/constants";
+import ImageUploader from "@/components/ImageUploader";
 
 interface CommandFormProps {
   projectPath: string;
@@ -14,6 +15,8 @@ interface CommandFormProps {
   onFileChange: (file: string) => void;
   args: string;
   onArgsChange: (args: string) => void;
+  images: ImageData[];
+  onImagesChange: (images: ImageData[]) => void;
   groupedFiles: { folder: string; files: FileInfo[] }[];
   onLoadFiles: (project: string) => void;
   onSubmit: () => void;
@@ -30,6 +33,8 @@ export default function CommandForm({
   onFileChange,
   args,
   onArgsChange,
+  images,
+  onImagesChange,
   groupedFiles,
   onLoadFiles,
   onSubmit,
@@ -133,6 +138,8 @@ export default function CommandForm({
           className="w-full p-3 border border-gray-200 rounded-lg text-base bg-white min-h-20 resize-y focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         />
       </div>
+
+      <ImageUploader images={images} onImagesChange={onImagesChange} />
 
       <button
         type="submit"

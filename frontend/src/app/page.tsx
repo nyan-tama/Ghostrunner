@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import type { StreamEvent, DisplayEvent, Question, ToolInput, RestartStatus } from "@/types";
+import type { StreamEvent, DisplayEvent, Question, ToolInput, RestartStatus, ImageData } from "@/types";
 import { PLAN_APPROVAL_KEYWORDS, BACKEND_HEALTH_URL } from "@/lib/constants";
 import { executeCommandStream, continueSessionStream } from "@/lib/api";
 import { useSSEStream } from "@/hooks/useSSEStream";
@@ -44,6 +44,7 @@ export default function Home() {
 
   const [command, setCommand] = useState("plan");
   const [args, setArgs] = useState("");
+  const [images, setImages] = useState<ImageData[]>([]);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -323,6 +324,7 @@ export default function Home() {
           project: projectPath,
           command,
           args: combinedArgs,
+          images: images.length > 0 ? images : undefined,
         },
         controller.signal
       );
@@ -344,6 +346,7 @@ export default function Home() {
     command,
     args,
     selectedFile,
+    images,
     setProjectPath,
     addToHistory,
     resetSession,
@@ -459,6 +462,8 @@ export default function Home() {
         onFileChange={setSelectedFile}
         args={args}
         onArgsChange={setArgs}
+        images={images}
+        onImagesChange={setImages}
         groupedFiles={getGroupedFiles()}
         onLoadFiles={loadFiles}
         onSubmit={handleSubmit}

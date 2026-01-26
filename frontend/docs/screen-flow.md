@@ -33,6 +33,10 @@ flowchart TD
 - `project`: プロジェクトパス
 - `command`: 選択したコマンド（plan, research, etc.）
 - `args`: 引数（選択ファイル + 入力テキスト）
+- `images`: 画像データ配列（任意）
+  - `name`: ファイル名
+  - `data`: Base64エンコードされた画像データ
+  - `mimeType`: MIME タイプ（image/jpeg, image/png, image/gif, image/webp）
 
 ### 2. 実行中 -> 質問待ち
 
@@ -109,7 +113,9 @@ sequenceDiagram
     participant Backend
 
     User->>Frontend: Execute Command
+    Note over User,Frontend: 画像がある場合は Base64 データを含む
     Frontend->>Backend: POST /api/command/stream
+    Note right of Frontend: {project, command, args, images?}
     Backend-->>Frontend: SSE init
     Backend-->>Frontend: SSE thinking
     Backend-->>Frontend: SSE tool_use (複数回)

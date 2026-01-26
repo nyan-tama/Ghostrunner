@@ -67,10 +67,17 @@ export interface FilesResponse {
   error?: string;
 }
 
+export interface ImageData {
+  name: string;
+  data: string;
+  mimeType: string;
+}
+
 export interface CommandRequest {
   project: string;
   command: string;
   args: string;
+  images?: ImageData[];
 }
 
 export interface ContinueRequest {
