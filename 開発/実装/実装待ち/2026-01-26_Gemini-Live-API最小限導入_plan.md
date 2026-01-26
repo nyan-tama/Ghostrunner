@@ -543,3 +543,91 @@ curl -X POST http://localhost:8080/api/gemini/token \
 - [ ] `POST /api/gemini/token` が 200 を返すこと
 - [ ] レスポンスに `token` と `expireTime` が含まれること
 - [ ] フロントエンドから CORS エラーなくアクセスできること
+
+---
+
+## フロントエンド実装完了レポート
+
+### 実装サマリー
+
+- **実装日**: 2026-01-26
+- **変更ファイル数**: 9 files
+- **実装内容**: Gemini Live API を使用した音声 AI インターフェースの基盤（WebSocket 接続、音声入出力、専用ページ）
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `frontend/src/types/gemini.ts` | 新規作成: Gemini Live API 関連の型定義（ConnectionStatus、メッセージ型、型ガード関数） |
+| `frontend/src/lib/audioProcessor.ts` | 新規作成: 音声フォーマット変換ユーティリティ（ダウンサンプリング、PCM 変換、Base64 変換） |
+| `frontend/src/lib/api.ts` | 追加: `fetchGeminiToken()` 関数（エフェメラルトークン取得） |
+| `frontend/src/hooks/useGeminiLive.ts` | 新規作成: WebSocket 接続・音声処理フック（connect, disconnect, startRecording, stopRecording） |
+| `frontend/src/components/GeminiLiveClient.tsx` | 新規作成: 音声 AI インターフェースの UI コンポーネント |
+| `frontend/src/app/gemini-live/page.tsx` | 新規作成: Gemini Live 専用ページ（SSR 無効化で動的インポート） |
+| `frontend/public/audio-worklet-processor.js` | 新規作成: AudioWorklet プロセッサ（マイク入力のチャンク処理） |
+| `frontend/docs/screens.md` | 更新: Gemini Live ページのドキュメント追加 |
+| `frontend/docs/screen-flow.md` | 更新: Gemini Live の状態遷移、WebSocket 通信フロー、音声処理フローを追加 |
+
+### 計画からの変更点
+
+実装計画に記載がなかった判断・選択:
+
+- **型ガード関数の追加**: `types/gemini.ts` に `isSetupComplete`, `isServerContent`, `isToolCall`, `isGeminiError` の型ガード関数を追加。Union 型のメッセージを安全に判別するため
+- **GeminiLiveClient コンポーネントの分離**: ページファイルから UI コンポーネントを分離し、`components/GeminiLiveClient.tsx` として作成。SSR 無効化を明確にするため `dynamic` インポートを使用
+- **入力用と出力用の AudioContext を分離**: `inputAudioContextRef` と `audioContextRef` を分けて管理。入力は可変サンプルレート（マイクのネイティブレート）、出力は 24kHz 固定
+- **デバッグ情報の表示**: 開発環境でのみ接続状態、録音状態、エラー情報を表示する UI を追加
+
+### 実装時の課題
+
+#### ビルド・テストで苦戦した点
+
+- 特になし
+
+#### 技術的に難しかった点
+
+- **音声再生の再帰呼び出し**: `playNextAudio` 関数の再帰呼び出しで React の状態更新とタイミングの問題が発生。`useRef` と `useEffect` を組み合わせて `playNextAudioRef` に関数を保存することで解決
+- **AudioWorklet の非同期読み込み**: `addModule` が非同期のため、`startRecording` 内で `await` が必要。エラーハンドリングを適切に行う必要があった
+
+### 残存する懸念点
+
+今後注意が必要な点:
+
+- **セッション継続（14分問題）**: WebSocket 接続の寿命は約10分、セッションは15分で切断される。Phase 2 で自動再接続機能の実装が必要
+- **割り込み（Barge-in）未対応**: ユーザーがモデル発話中に割り込む機能は未実装。音声キューのクリアとセッションリセットが必要になる
+- **ブラウザ互換性**: AudioWorklet は Safari 14.1+ が必要。古いブラウザでの動作確認は行っていない
+- **メモリ使用量**: 長時間の会話で音声バッファが蓄積する可能性がある。キューの最大サイズ制限などの対策を検討
+
+### 動作確認フロー
+
+```bash
+# 1. バックエンドを起動（GEMINI_API_KEY が必要）
+cd backend
+export GEMINI_API_KEY="your-gemini-api-key"
+go run ./cmd/server
+
+# 2. フロントエンドを起動
+cd frontend
+npm run dev
+
+# 3. ブラウザで http://localhost:3000/gemini-live にアクセス
+
+# 4. 動作確認手順
+#    a. "Connect" ボタンをクリック
+#    b. 接続状態が "Connected"（緑）になることを確認
+#    c. "Start Recording" ボタンをクリック
+#    d. マイク許可を承諾
+#    e. マイクに向かって話しかける
+#    f. AI からの音声応答がスピーカーから再生されることを確認
+#    g. "Stop Recording" ボタンで録音停止
+#    h. "Disconnect" ボタンで切断
+```
+
+### デプロイ後の確認事項
+
+- [ ] バックエンドの環境変数 `GEMINI_API_KEY` が正しく設定されていること
+- [ ] `/api/gemini/token` エンドポイントが正常に動作すること
+- [ ] `/gemini-live` ページにアクセスできること
+- [ ] WebSocket 接続が確立できること（CORS、プロキシ設定）
+- [ ] マイク入力が正常に送信されること
+- [ ] 音声応答が正常に再生されること
+- [ ] HTTPS 環境でマイク許可が動作すること（getUserMedia は HTTPS 必須）

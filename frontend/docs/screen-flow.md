@@ -306,3 +306,104 @@ sequenceDiagram
 | idle | ボタンクリック | restarting | 両API呼び出し、ポーリング開始 |
 | restarting | ヘルスチェック成功 | success | 500ms後にページリロード |
 | restarting | 30秒タイムアウト | timeout | ボタン表示を "Timeout - Reload manually" に変更 |
+
+---
+
+## Gemini Live: 音声会話フロー
+
+`/gemini-live` は独立したページで、Gemini Live API を使用したリアルタイム音声会話機能を提供する。
+メインページ（`/`）との画面遷移はなく、直接 URL でアクセスする。
+
+### 状態遷移
+
+```mermaid
+flowchart TD
+    A[未接続<br>Connect ボタン表示] -->|Connect ボタンクリック| B[接続中<br>Connecting...]
+    B -->|setupComplete 受信| C[接続完了<br>マイクボタン有効]
+    B -->|エラー発生| E[エラー<br>エラーメッセージ表示]
+    C -->|Start Recording ボタンクリック| D[録音中<br>音声入力送信]
+    D -->|Stop Recording ボタンクリック| C
+    D -->|音声応答受信| D
+    C -->|Disconnect ボタンクリック| A
+    D -->|Disconnect ボタンクリック| A
+    E -->|Connect ボタンクリック| B
+```
+
+### 状態遷移詳細
+
+| 現在の状態 | トリガー | 次の状態 | 処理 |
+|-----------|---------|---------|------|
+| 未接続 | Connect ボタンクリック | 接続中 | エフェメラルトークン取得、WebSocket 接続開始 |
+| 接続中 | setupComplete メッセージ受信 | 接続完了 | connectionStatus を "connected" に設定 |
+| 接続中 | WebSocket エラー | エラー | エラーメッセージを表示 |
+| 接続完了 | Start Recording ボタンクリック | 録音中 | マイク取得、AudioWorklet 開始、音声送信開始 |
+| 録音中 | Stop Recording ボタンクリック | 接続完了 | 音声入力停止、リソース解放 |
+| 録音中 | 音声応答受信 | 録音中 | 音声をキューに追加、順次再生 |
+| 接続完了/録音中 | Disconnect ボタンクリック | 未接続 | WebSocket 切断、全リソース解放 |
+| エラー | Connect ボタンクリック | 接続中 | エラーをクリアし、再接続を試行 |
+
+### WebSocket 通信フロー
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Backend as Backend API
+    participant Gemini as Gemini Live API
+
+    User->>Frontend: Connect ボタンクリック
+    Frontend->>Backend: POST /api/gemini/token
+    Backend-->>Frontend: エフェメラルトークン
+    Frontend->>Gemini: WebSocket 接続 + setup メッセージ
+    Gemini-->>Frontend: setupComplete
+    Frontend->>User: 接続完了表示
+
+    User->>Frontend: Start Recording ボタンクリック
+    Frontend->>Frontend: マイク取得、AudioWorklet 開始
+
+    loop 録音中
+        Frontend->>Frontend: 音声をダウンサンプリング + Base64 エンコード
+        Frontend->>Gemini: realtimeInput（音声データ）
+        Gemini-->>Frontend: serverContent（音声応答）
+        Frontend->>Frontend: 音声をキューに追加、再生
+    end
+
+    User->>Frontend: Stop Recording ボタンクリック
+    Frontend->>Frontend: 音声入力停止
+
+    User->>Frontend: Disconnect ボタンクリック
+    Frontend->>Gemini: WebSocket 切断
+    Frontend->>User: 未接続表示
+```
+
+### 音声処理フロー
+
+```mermaid
+flowchart LR
+    subgraph 音声入力
+        A[マイク] --> B[AudioContext]
+        B --> C[AudioWorklet]
+        C --> D[ダウンサンプリング<br>48kHz -> 16kHz]
+        D --> E[Int16 PCM 変換]
+        E --> F[Base64 エンコード]
+        F --> G[WebSocket 送信]
+    end
+
+    subgraph 音声出力
+        H[WebSocket 受信] --> I[Base64 デコード]
+        I --> J[PCM -> AudioBuffer]
+        J --> K[再生キュー]
+        K --> L[順次再生]
+        L --> M[スピーカー]
+    end
+```
+
+### エラーハンドリング
+
+| エラー | 表示内容 | 対処 |
+|-------|---------|------|
+| トークン取得失敗 | "Failed to get ephemeral token" | Connect ボタンで再試行 |
+| WebSocket 接続エラー | "Failed to connect to Gemini Live API" | Connect ボタンで再試行 |
+| Gemini API エラー | "Gemini API error: [メッセージ]" | 内容を確認し、Connect ボタンで再試行 |
+| マイク許可拒否 | "Microphone permission denied" | ブラウザ設定でマイク許可を付与 |
+| 録音開始失敗 | "Failed to start recording: [詳細]" | Disconnect 後に再接続 |
