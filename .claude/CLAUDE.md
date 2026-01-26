@@ -181,3 +181,47 @@ npm run build
 - mainに直接コミットしない
 - PRにはレビューが必要
 - マージ前に全テストが通ること
+
+## 開発サーバーの起動・停止
+
+プロジェクトルートの `Makefile` を使用してサーバーを管理する。
+
+### エージェント向けルール
+
+- サーバーの起動・停止・再起動には**必ず `make` コマンドを使用**
+- 直接 `go run ./cmd/server` や `npm run dev` を実行しない
+- ログの確認には `make logs-backend` または `make logs-frontend` を使用
+
+### 主要コマンド
+
+**起動（フォアグラウンド）**
+```bash
+make backend          # バックエンドを起動
+make frontend         # フロントエンドを起動
+make dev              # 両方を並列起動
+```
+
+**再起動（ログ付き）**
+```bash
+make restart-backend-logs   # バックエンドを再起動してログ表示
+make restart-frontend-logs  # フロントエンドを再起動してログ表示
+```
+
+**停止**
+```bash
+make stop-backend     # バックエンドを停止
+make stop-frontend    # フロントエンドを停止
+make stop             # 両方を停止
+```
+
+**ログ確認**
+```bash
+make logs-backend     # バックエンドのログを表示
+make logs-frontend    # フロントエンドのログを表示
+```
+
+**その他**
+```bash
+make health           # ヘルスチェック
+make build            # 両方をビルド
+```

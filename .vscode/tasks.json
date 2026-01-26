@@ -18,14 +18,16 @@
     {
       "label": "Backend再起動",
       "type": "shell",
-      "command": "make restart-backend",
-      "group": "build"
+      "command": "make restart-backend-logs",
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "new" }
     },
     {
       "label": "Frontend再起動",
       "type": "shell",
-      "command": "make restart-frontend",
-      "group": "build"
+      "command": "make restart-frontend-logs",
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "new" }
     },
     {
       "label": "全停止",

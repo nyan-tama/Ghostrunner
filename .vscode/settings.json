@@ -1,5 +1,5 @@
 {
-  "VssTaskButtons.tasks": [
+  "VsCodeTaskButtons.tasks": [
     { "label": "$(play) Backend", "task": "Backend起動" },
     { "label": "$(play) Frontend", "task": "Frontend起動" },
     { "label": "$(sync) Restart BE", "task": "Backend再起動" },
