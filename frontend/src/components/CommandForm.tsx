@@ -20,6 +20,7 @@ interface CommandFormProps {
   onImagesChange: (images: ImageData[]) => void;
   groupedFiles: { folder: string; files: FileInfo[] }[];
   onLoadFiles: (project: string) => void;
+  onRefreshFiles: (project: string) => void;
   onSubmit: () => void;
   isSubmitting: boolean;
 }
@@ -39,6 +40,7 @@ export default function CommandForm({
   onImagesChange,
   groupedFiles,
   onLoadFiles,
+  onRefreshFiles,
   onSubmit,
   isSubmitting,
 }: CommandFormProps) {
@@ -119,6 +121,7 @@ export default function CommandForm({
               onAddFile(e.target.value);
             }
           }}
+          onFocus={() => onRefreshFiles(projectPath)}
           className="w-full p-3 border border-gray-200 rounded-lg text-base bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         >
           <option value="">-- Select files to add --</option>

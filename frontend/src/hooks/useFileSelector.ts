@@ -9,7 +9,6 @@ export function useFileSelector() {
   const [files, setFiles] = useState<Record<string, FileInfo[]>>({});
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-
   const [error, setError] = useState<string | null>(null);
 
   const addSelectedFile = useCallback((file: string) => {
@@ -27,6 +26,22 @@ export function useFileSelector() {
     setSelectedFiles([]);
   }, []);
 
+  // 内部でファイルを取得する関数（ローディング表示なし）
+  const fetchFilesInternal = useCallback(async (project: string) => {
+    if (!project.trim()) return;
+
+    try {
+      const data = await fetchFiles(project);
+      if (data.success && data.files) {
+        setFiles(data.files);
+      }
+      // リフレッシュ中はエラーを表示しない（初回ロード時のみ表示）
+    } catch {
+      // リフレッシュ中のエラーは無視
+    }
+  }, []);
+
+  // 初回ロード用の関数（ローディング表示あり）
   const loadFiles = useCallback(async (project: string) => {
     if (!project.trim()) return;
 
@@ -46,6 +61,14 @@ export function useFileSelector() {
     }
   }, []);
 
+  // ドロップダウンフォーカス時のリフレッシュ用関数（ローディング表示なし）
+  const refreshFiles = useCallback(
+    (project: string) => {
+      fetchFilesInternal(project);
+    },
+    [fetchFilesInternal]
+  );
+
   const getGroupedFiles = useCallback(() => {
     return DEV_FOLDERS.map((folder) => ({
       folder,
@@ -60,6 +83,7 @@ export function useFileSelector() {
     removeSelectedFile,
     clearSelectedFiles,
     loadFiles,
+    refreshFiles,
     getGroupedFiles,
     isLoading,
     error,

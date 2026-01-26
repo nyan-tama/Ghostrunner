@@ -40,6 +40,7 @@ export default function Home() {
     addSelectedFile,
     removeSelectedFile,
     loadFiles,
+    refreshFiles,
     getGroupedFiles,
   } = useFileSelector();
 
@@ -488,6 +489,7 @@ export default function Home() {
         onImagesChange={setImages}
         groupedFiles={getGroupedFiles()}
         onLoadFiles={loadFiles}
+        onRefreshFiles={refreshFiles}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
       />

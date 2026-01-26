@@ -43,6 +43,7 @@ Ghost Runner は単一ページアプリケーション（SPA）として構成�
 | 重複防止 | 同じファイルは追加されない |
 | 選択済みマーク | ドロップダウン内で選択済みファイルに checkmark を表示、disabled |
 | 実行後の動作 | 選択は保持される（手動で削除可能） |
+| 自動リフレッシュ | ドロップダウンにフォーカスすると、ファイルリストをサイレント更新（ローディング表示なし） |
 
 **引数生成**:
 - 選択ファイルがある場合: `ファイルパス1 ファイルパス2 ... 引数テキスト`
@@ -137,7 +138,7 @@ EventItem で表示されるイベントの種別と色。
 |-------|---------|------|
 | useSSEStream | `hooks/useSSEStream.ts` | SSEストリームの処理（バッファリング対応） |
 | useSessionManagement | `hooks/useSessionManagement.ts` | セッションID、累計コスト、プロジェクトパスの管理 |
-| useFileSelector | `hooks/useFileSelector.ts` | 開発フォルダ内のファイル取得と複数選択管理 |
+| useFileSelector | `hooks/useFileSelector.ts` | 開発フォルダ内のファイル取得と複数選択管理、ドロップダウンフォーカス時のサイレントリフレッシュ |
 
 ## データフロー
 
@@ -148,6 +149,7 @@ CommandForm
     |         |
     |         +---> addSelectedFile (ファイル追加)
     |         +---> removeSelectedFile (ファイル削除)
+    |         +---> refreshFiles (ドロップダウンフォーカス時にサイレント更新)
     |         v
     |     selectedFiles[] (選択されたファイルパスの配列)
     |
