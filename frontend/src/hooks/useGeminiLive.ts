@@ -21,8 +21,7 @@ import {
 // エフェメラルトークンを使用する場合は v1alpha と BidiGenerateContentConstrained を使用
 const GEMINI_LIVE_WS_URL =
   "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained";
-// gemini-2.5-flash-native-audio-preview は応答しない既知の問題があるため、2.0を使用
-const DEFAULT_MODEL = "models/gemini-2.0-flash-exp";
+const DEFAULT_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025";
 // Gemini Live API の音声フォーマット要件: 入力16kHz、出力24kHz
 const INPUT_SAMPLE_RATE = 16000;
 const OUTPUT_SAMPLE_RATE = 24000;
