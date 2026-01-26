@@ -15,6 +15,7 @@ interface ProgressContainerProps {
   isLoading: boolean;
   questions: Question[];
   showQuestions: boolean;
+  currentQuestionIndex: number;
   showPlanApproval: boolean;
   resultOutput: string;
   resultType: "success" | "error" | null;
@@ -35,6 +36,7 @@ export default function ProgressContainer({
   isLoading,
   questions,
   showQuestions,
+  currentQuestionIndex,
   showPlanApproval,
   resultOutput,
   resultType,
@@ -74,8 +76,10 @@ export default function ProgressContainer({
       <EventList events={events} />
 
       <QuestionSection
+        key={currentQuestionIndex}
         questions={questions}
         visible={showQuestions}
+        currentQuestionIndex={currentQuestionIndex}
         onAnswer={onAnswer}
       />
 

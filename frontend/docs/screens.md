@@ -64,7 +64,7 @@ Ghost Runner は単一ページアプリケーション（SPA）として構成�
 | LoadingIndicator | `components/LoadingIndicator.tsx` | 処理中のスピナーとテキスト表示 |
 | EventList | `components/EventList.tsx` | イベントリストの表示（自動スクロール） |
 | EventItem | `components/EventItem.tsx` | 個別イベントの表示（展開可能） |
-| QuestionSection | `components/QuestionSection.tsx` | AIからの質問への回答UI |
+| QuestionSection | `components/QuestionSection.tsx` | AIからの質問への回答UI（逐次表示） |
 | PlanApproval | `components/PlanApproval.tsx` | 計画の承認/拒否ボタン |
 
 #### 表示状態
@@ -75,6 +75,31 @@ Ghost Runner は単一ページアプリケーション（SPA）として構成�
 4. **計画承認待ち**: PlanApproval を表示（中断ボタンは非表示）
 5. **完了**: 結果出力を表示（成功は緑、エラーは赤）
 6. **中断**: 結果出力に "Execution aborted by user" を表示（赤背景）
+
+### 質問の逐次表示
+
+複数の質問がある場合、一度にすべてを表示するのではなく、1問ずつ順番に表示する。
+
+#### 表示要素
+
+- **進捗表示**: 「質問 N/M」形式で現在の質問番号と総質問数を表示
+- **質問内容**: ヘッダー、質問文、選択肢
+- **回答入力**: 選択肢ボタン、またはカスタム回答のテキスト入力
+
+#### 動作仕様
+
+| 操作 | 条件 | 処理 |
+|-----|------|------|
+| 選択肢クリック（単一選択） | 最後の質問以外 | 次の質問を表示 |
+| 選択肢クリック（単一選択） | 最後の質問 | バックエンドに回答を送信 |
+| Submit ボタンクリック | 最後の質問以外 | 次の質問を表示 |
+| Submit ボタンクリック | 最後の質問 | バックエンドに回答を送信 |
+
+#### 状態管理
+
+- `questions`: バックエンドから受信した質問の配列
+- `currentQuestionIndex`: 現在表示中の質問インデックス（0始まり）
+- 新しい質問セットを受信した際、インデックスは自動的にリセットされる
 
 ## イベント種別
 
@@ -114,9 +139,18 @@ SSEストリーム (AbortController で中断可能)
 handleStreamEvent
     |
     +---> setEvents (EventList)
-    +---> setQuestions (QuestionSection)
+    +---> setQuestionsWithReset (QuestionSection、インデックスもリセット)
     +---> setShowPlanApproval (PlanApproval)
     +---> setResultOutput (結果表示)
+
+質問回答:
+QuestionSection
+    |
+    v (onAnswer)
+handleAnswerWithNext
+    |
+    +---> 最後の質問以外: setCurrentQuestionIndex をインクリメント
+    +---> 最後の質問: handleAnswer でバックエンドに送信
 
 中断操作:
 Abort ボタン

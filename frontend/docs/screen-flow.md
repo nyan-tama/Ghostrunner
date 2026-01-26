@@ -14,7 +14,8 @@ flowchart TD
     C -->|complete| F[完了<br>結果表示]
     C -->|error| G[エラー<br>エラー表示]
     B -->|Abort ボタン| H[中断<br>結果表示]
-    D -->|回答送信| B
+    D -->|回答（次の質問あり）| D
+    D -->|回答（最後の質問）| B
     E -->|Approve/Reject| B
     F -->|新しいコマンド入力| A
     G -->|新しいコマンド入力| A
@@ -50,14 +51,26 @@ flowchart TD
 - `options`: 選択肢（label, description）
 - `multiSelect`: 複数選択可否
 
-### 3. 質問待ち -> 実行中
+### 3. 質問待ち -> 次の質問 / 実行中
 
-| トリガー | 処理 |
-|---------|------|
-| 選択肢クリック（単一選択時） | continueSessionStream API呼び出し |
-| Submit ボタンクリック | continueSessionStream API呼び出し |
+複数の質問がある場合、最後の質問に回答するまでバックエンド通信は発生しない。
 
-**渡すデータ**:
+```mermaid
+flowchart TD
+    A[質問待ち<br>質問 N/M 表示] -->|回答| B{最後の質問?}
+    B -->|いいえ| C[次の質問表示<br>質問 N+1/M]
+    C -->|回答| B
+    B -->|はい| D[実行中<br>バックエンドに送信]
+```
+
+| トリガー | 条件 | 処理 |
+|---------|------|------|
+| 選択肢クリック（単一選択時） | 最後の質問以外 | currentQuestionIndex をインクリメント |
+| 選択肢クリック（単一選択時） | 最後の質問 | continueSessionStream API呼び出し |
+| Submit ボタンクリック | 最後の質問以外 | currentQuestionIndex をインクリメント |
+| Submit ボタンクリック | 最後の質問 | continueSessionStream API呼び出し |
+
+**渡すデータ（最後の質問回答時のみ）**:
 - `project`: プロジェクトパス
 - `session_id`: セッションID
 - `answer`: 回答テキスト

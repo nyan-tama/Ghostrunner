@@ -55,6 +55,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [showQuestions, setShowQuestions] = useState(false);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [showPlanApproval, setShowPlanApproval] = useState(false);
   const [resultOutput, setResultOutput] = useState("");
   const [resultType, setResultType] = useState<"success" | "error" | null>(null);
@@ -62,6 +63,12 @@ export default function Home() {
 
   // サーバー再起動機能（開発環境のみ）
   const [restartStatus, setRestartStatus] = useState<RestartStatus>("idle");
+
+  // 質問セットと同時にインデックスをリセット
+  const setQuestionsWithReset = useCallback((newQuestions: Question[]) => {
+    setQuestions(newQuestions);
+    setCurrentQuestionIndex(0);
+  }, []);
 
   const handleRestartServers = useCallback(async () => {
     setRestartStatus("restarting");
@@ -224,7 +231,7 @@ export default function Home() {
         case "question":
           setIsLoading(false);
           if (event.result?.questions) {
-            setQuestions(event.result.questions);
+            setQuestionsWithReset(event.result.questions);
             setShowQuestions(true);
           }
           break;
@@ -236,7 +243,7 @@ export default function Home() {
               addCost(event.result.cost_usd);
             }
             if (event.result.questions && event.result.questions.length > 0) {
-              setQuestions(event.result.questions);
+              setQuestionsWithReset(event.result.questions);
               setShowQuestions(true);
             } else {
               const output = event.result.output || "(completed)";
@@ -259,7 +266,7 @@ export default function Home() {
           break;
       }
     },
-    [addEvent, addCost, handleToolUse, setSessionId]
+    [addEvent, addCost, handleToolUse, setSessionId, setQuestionsWithReset]
   );
 
   const handleError = useCallback((error: string) => {
@@ -401,6 +408,19 @@ export default function Home() {
     [sessionId, projectPath, processStream, handleError]
   );
 
+  // 逐次質問表示用: 最後の質問以外はインデックスをインクリメント、最後の質問のみバックエンドに送信
+  const handleAnswerWithNext = useCallback(
+    (answer: string) => {
+      const isLastQuestion = currentQuestionIndex >= questions.length - 1;
+      if (isLastQuestion) {
+        handleAnswer(answer);
+      } else {
+        setCurrentQuestionIndex((prev) => prev + 1);
+      }
+    },
+    [currentQuestionIndex, questions.length, handleAnswer]
+  );
+
   const handleApprove = useCallback(() => {
     handleAnswer("yes, proceed with the plan");
   }, [handleAnswer]);
@@ -478,12 +498,13 @@ export default function Home() {
         isLoading={isLoading}
         questions={questions}
         showQuestions={showQuestions}
+        currentQuestionIndex={currentQuestionIndex}
         showPlanApproval={showPlanApproval}
         resultOutput={resultOutput}
         resultType={resultType}
         sessionId={sessionId}
         totalCost={totalCost}
-        onAnswer={handleAnswer}
+        onAnswer={handleAnswerWithNext}
         onApprove={handleApprove}
         onReject={handleReject}
         onAbort={handleAbort}
