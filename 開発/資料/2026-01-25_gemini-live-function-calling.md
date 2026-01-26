@@ -658,7 +658,74 @@ graph TB
 
 ---
 
+## 実装結果（2026-01-26 追記）
+
+### Phase 1 完了: 基本接続と音声入出力
+
+Gemini Live API の基本接続と音声会話機能の実装が完了した。
+
+#### 実装ファイル
+
+| ファイル | 内容 |
+|---------|------|
+| `backend/internal/service/gemini.go` | エフェメラルトークン発行サービス |
+| `backend/internal/handler/gemini.go` | トークン発行エンドポイント |
+| `frontend/src/hooks/useGeminiLive.ts` | WebSocket 接続・音声処理フック |
+| `frontend/src/components/GeminiLiveClient.tsx` | 音声 AI UI コンポーネント |
+| `frontend/src/app/gemini-live/page.tsx` | 専用ページ |
+
+#### 動作確認済み構成
+
+```typescript
+// 動作確認済みの設定
+const DEFAULT_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025";
+const INPUT_SAMPLE_RATE = 16000;  // 入力
+const OUTPUT_SAMPLE_RATE = 24000; // 出力
+
+// メッセージ形式
+const audioMessage = {
+  realtimeInput: {
+    audio: {
+      data: base64Data,
+      mimeType: "audio/pcm;rate=16000",
+    },
+  },
+};
+
+// VAD 設定（重要）
+realtimeInputConfig: {
+  automaticActivityDetection: {
+    disabled: false,
+    startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
+    endOfSpeechSensitivity: "END_SENSITIVITY_HIGH",
+    silenceDurationMs: 500,
+  },
+}
+```
+
+#### 判明した重要事項
+
+1. **メッセージ形式**: `{ media: {...} }` ではなく `{ realtimeInput: { audio: {...} } }` を使用
+2. **サンプルレート**: 入力は必ず 16kHz（24kHz だと応答なし）
+3. **mimeType**: `audio/pcm;rate=16000` と rate を明示的に指定
+4. **VAD 設定**: 高感度設定 + 500ms 無音判定で安定動作
+5. **ブラウザ**: Safari で動作確認済み（Chrome は AudioContext の問題あり）
+
+#### 次のステップ: Phase 2 - Function Calling
+
+Phase 1 の基盤が完成したため、Phase 2 として Function Calling の実装に進む準備が整った。
+
+**実装予定**:
+- Function Declaration の定義（UI 操作、Claude CLI 実行）
+- ツール呼び出しハンドラーの実装
+- レスポンス処理と UI 更新
+
+**参考**: 本ドキュメントの「2. Function Calling の実装方法」セクションを参照
+
+---
+
 ## 関連資料
 
 - このレポートを参照: `/discuss`, `/plan` で活用
 - 既存計画との比較: `開発/アーカイブ/2026-01-25_function-calling-ui_plan.md`
+- デバッグ調査: `開発/資料/2026-01-26_Gemini_Live_API調査.md`

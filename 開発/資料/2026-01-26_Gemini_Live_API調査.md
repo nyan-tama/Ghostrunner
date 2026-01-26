@@ -217,6 +217,81 @@ realtimeInputConfig: {
 }
 ```
 
+---
+
+## 実装結果（2026-01-26 追記）
+
+### 動作確認済み構成
+
+以下の構成で Gemini Live API の音声会話が正常に動作することを確認:
+
+| 項目 | 値 |
+|------|------|
+| モデル | `models/gemini-2.5-flash-native-audio-preview-12-2025` |
+| WebSocket エンドポイント | `v1alpha` + `BidiGenerateContentConstrained` |
+| 入力サンプルレート | 16 kHz |
+| 出力サンプルレート | 24 kHz |
+| メッセージ形式 | `{ realtimeInput: { audio: { data, mimeType } } }` |
+| 動作確認ブラウザ | Safari（Chrome は AudioContext の問題あり） |
+
+### 最終的な実装コード
+
+```typescript
+// 定数
+const GEMINI_LIVE_WS_URL =
+  "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained";
+const DEFAULT_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025";
+const INPUT_SAMPLE_RATE = 16000;
+const OUTPUT_SAMPLE_RATE = 24000;
+
+// setup メッセージ
+const setupMessage = {
+  setup: {
+    model,
+    generationConfig: {
+      responseModalities: ["AUDIO"],
+    },
+    realtimeInputConfig: {
+      automaticActivityDetection: {
+        disabled: false,
+        startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
+        endOfSpeechSensitivity: "END_SENSITIVITY_HIGH",
+        silenceDurationMs: 500,
+      },
+    },
+    systemInstruction: {
+      parts: [{ text: "You are a helpful voice assistant." }],
+    },
+  },
+};
+
+// 音声送信メッセージ
+const audioMessage = {
+  realtimeInput: {
+    audio: {
+      data: base64Data,
+      mimeType: "audio/pcm;rate=16000",
+    },
+  },
+};
+```
+
+### 判明した事実
+
+1. **モデルの問題ではなかった**: `gemini-2.5-flash-native-audio-preview-12-2025` は正常に動作する。GitHub Issues で報告されていた「応答しない問題」は、メッセージ形式やサンプルレートの誤りが原因だった可能性が高い。
+
+2. **VAD 設定の重要性**: `endOfSpeechSensitivity: "END_SENSITIVITY_HIGH"` と `silenceDurationMs: 500` を設定することで、発話終了の検出が安定する。
+
+3. **Chrome の問題**: Chrome では `AudioContext({ sampleRate: 16000 })` を指定しても 24000Hz になる場合がある。Safari では正常に 16000Hz で動作。
+
+### 残課題
+
+- Chrome での音声入力問題の調査
+- デバッグログの削除（本番環境向け）
+- エラーハンドリングの強化
+
+---
+
 ## ソース一覧
 
 - [Live API - WebSockets API reference](https://ai.google.dev/api/live) - 公式APIリファレンス
