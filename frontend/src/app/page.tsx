@@ -458,20 +458,29 @@ export default function Home() {
     <div className="max-w-[900px] mx-auto px-5 py-5 bg-gray-100 min-h-screen">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-gray-800 text-2xl font-bold">Ghost Runner</h1>
-        {process.env.NODE_ENV === "development" && (
-          <button
-            onClick={handleRestartServers}
-            disabled={restartStatus === "restarting"}
-            className="px-3 py-1 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            title="Restart Backend and Frontend servers"
+        <div className="flex gap-2 items-center">
+          <a
+            href="/gemini-live"
+            className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+            title="Gemini Live API interface"
           >
-            {restartStatus === "restarting"
-              ? "Restarting..."
-              : restartStatus === "timeout"
-                ? "Timeout - Reload manually"
-                : "Restart Servers"}
-          </button>
-        )}
+            Gemini Live
+          </a>
+          {process.env.NODE_ENV === "development" && (
+            <button
+              onClick={handleRestartServers}
+              disabled={restartStatus === "restarting"}
+              className="px-3 py-1 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="Restart Backend and Frontend servers"
+            >
+              {restartStatus === "restarting"
+                ? "Restarting..."
+                : restartStatus === "timeout"
+                  ? "Timeout - Reload manually"
+                  : "Restart Servers"}
+            </button>
+          )}
+        </div>
       </div>
 
       <CommandForm

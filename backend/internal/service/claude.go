@@ -61,8 +61,8 @@ func (s *claudeServiceImpl) ExecuteCommand(ctx context.Context, project, command
 	defer cleanup()
 
 	// プロンプト構築: "/<command> <args>"
-	prompt := fmt.Sprintf("/%s %s", command, args)
-	return s.executeCommand(ctx, project, prompt, "", imagePaths)
+	prompt := buildPromptWithImages(command, args, imagePaths)
+	return s.executeCommand(ctx, project, prompt, "", nil)
 }
 
 // ExecuteCommandStream はカスタムコマンドをストリーミングで実行します
@@ -84,8 +84,8 @@ func (s *claudeServiceImpl) ExecuteCommandStream(ctx context.Context, project, c
 	defer cleanup()
 
 	// プロンプト構築: "/<command> <args>"
-	prompt := fmt.Sprintf("/%s %s", command, args)
-	return s.executeCommandStream(ctx, project, prompt, "", imagePaths, eventCh)
+	prompt := buildPromptWithImages(command, args, imagePaths)
+	return s.executeCommandStream(ctx, project, prompt, "", nil, eventCh)
 }
 
 // ExecutePlan は/planコマンドを実行します（互換性維持）
@@ -130,10 +130,6 @@ func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, p
 	cmdArgs := []string{"-p", prompt, "--output-format", "stream-json", "--verbose", "--permission-mode", "bypassPermissions"}
 	if sessionID != "" {
 		cmdArgs = append(cmdArgs, "--resume", sessionID)
-	}
-	// 画像オプションを追加
-	for _, imagePath := range imagePaths {
-		cmdArgs = append(cmdArgs, "--image", imagePath)
 	}
 
 	log.Printf("[ClaudeService] Executing stream: claude %v", cmdArgs)
@@ -500,10 +496,6 @@ func (s *claudeServiceImpl) executeCommand(ctx context.Context, project, prompt,
 	if sessionID != "" {
 		cmdArgs = append(cmdArgs, "--resume", sessionID)
 	}
-	// 画像オプションを追加
-	for _, imagePath := range imagePaths {
-		cmdArgs = append(cmdArgs, "--image", imagePath)
-	}
 
 	log.Printf("[ClaudeService] Executing: claude %v", cmdArgs)
 
@@ -736,4 +728,20 @@ func mimeTypeToExt(mimeType string) string {
 	default:
 		return ""
 	}
+}
+
+// buildPromptWithImages は画像情報を含むプロンプトを構築します
+func buildPromptWithImages(command, args string, imagePaths []string) string {
+	basePrompt := fmt.Sprintf("/%s %s", command, args)
+
+	if len(imagePaths) == 0 {
+		return basePrompt
+	}
+
+	imageInfo := "\n\nAttached images:\n"
+	for i, path := range imagePaths {
+		imageInfo += fmt.Sprintf("%d. %s\n", i+1, path)
+	}
+
+	return basePrompt + imageInfo
 }
