@@ -1,0 +1,37 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Backend起動",
+      "type": "shell",
+      "command": "make backend",
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "new" }
+    },
+    {
+      "label": "Frontend起動",
+      "type": "shell",
+      "command": "make frontend",
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "new" }
+    },
+    {
+      "label": "Backend再起動",
+      "type": "shell",
+      "command": "make restart-backend",
+      "group": "build"
+    },
+    {
+      "label": "Frontend再起動",
+      "type": "shell",
+      "command": "make restart-frontend",
+      "group": "build"
+    },
+    {
+      "label": "全停止",
+      "type": "shell",
+      "command": "make stop",
+      "group": "build"
+    }
+  ]
+}

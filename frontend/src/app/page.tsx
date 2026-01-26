@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import type { StreamEvent, DisplayEvent, Question, ToolInput } from "@/types";
-import { PLAN_APPROVAL_KEYWORDS } from "@/lib/constants";
+import type { StreamEvent, DisplayEvent, Question, ToolInput, RestartStatus } from "@/types";
+import { PLAN_APPROVAL_KEYWORDS, BACKEND_HEALTH_URL } from "@/lib/constants";
 import { executeCommandStream, continueSessionStream } from "@/lib/api";
 import { useSSEStream } from "@/hooks/useSSEStream";
 import { useSessionManagement } from "@/hooks/useSessionManagement";
@@ -58,6 +58,38 @@ export default function Home() {
   const [resultOutput, setResultOutput] = useState("");
   const [resultType, setResultType] = useState<"success" | "error" | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // サーバー再起動機能（開発環境のみ）
+  const [restartStatus, setRestartStatus] = useState<RestartStatus>("idle");
+
+  const handleRestartServers = useCallback(async () => {
+    setRestartStatus("restarting");
+
+    // Fire-and-Forget: 両方のAPIを呼び出し
+    fetch("/api/restart/backend", { method: "POST" }).catch(() => {});
+    fetch("/api/restart/frontend", { method: "POST" }).catch(() => {});
+
+    // ヘルスチェックポーリング（30秒間、1秒ごと）
+    for (let i = 0; i < 30; i++) {
+      try {
+        const res = await fetch(BACKEND_HEALTH_URL);
+        if (res.ok) {
+          setRestartStatus("success");
+          // 少し待ってからリロード（ユーザーに成功を見せるため）
+          setTimeout(() => {
+            window.location.reload();
+          }, 500);
+          return;
+        }
+      } catch {
+        // エラーは無視してリトライ
+      }
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+
+    // タイムアウト
+    setRestartStatus("timeout");
+  }, []);
 
   const addEvent = useCallback(
     (type: DisplayEvent["type"], title: string, detail?: string, fullText?: string) => {
@@ -399,7 +431,23 @@ export default function Home() {
 
   return (
     <div className="max-w-[900px] mx-auto px-5 py-5 bg-gray-100 min-h-screen">
-      <h1 className="text-gray-800 mb-6 text-2xl font-bold">Ghost Runner</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-gray-800 text-2xl font-bold">Ghost Runner</h1>
+        {process.env.NODE_ENV === "development" && (
+          <button
+            onClick={handleRestartServers}
+            disabled={restartStatus === "restarting"}
+            className="px-3 py-1 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Restart Backend and Frontend servers"
+          >
+            {restartStatus === "restarting"
+              ? "Restarting..."
+              : restartStatus === "timeout"
+                ? "Timeout - Reload manually"
+                : "Restart Servers"}
+          </button>
+        )}
+      </div>
 
       <CommandForm
         projectPath={projectPath}

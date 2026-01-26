@@ -1,0 +1,9 @@
+{
+  "VssTaskButtons.tasks": [
+    { "label": "$(play) Backend", "task": "Backend起動" },
+    { "label": "$(play) Frontend", "task": "Frontend起動" },
+    { "label": "$(sync) Restart BE", "task": "Backend再起動" },
+    { "label": "$(sync) Restart FE", "task": "Frontend再起動" },
+    { "label": "$(stop) Stop All", "task": "全停止" }
+  ]
+}

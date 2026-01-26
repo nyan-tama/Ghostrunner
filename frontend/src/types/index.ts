@@ -88,3 +88,5 @@ export interface DisplayEvent {
   detail?: string;
   fullText?: string;
 }
+
+export type RestartStatus = "idle" | "restarting" | "success" | "error" | "timeout";

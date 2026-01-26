@@ -184,3 +184,60 @@ flowchart LR
 | WebSearch | 検索クエリ（短縮） |
 | ExitPlanMode | "Requesting plan approval" |
 | EnterPlanMode | "Starting plan mode" |
+
+## 開発者機能：サーバー再起動フロー
+
+開発環境でのみ利用可能なサーバー再起動機能のフロー。
+
+```mermaid
+flowchart TD
+    A[idle<br>Restart Servers ボタン表示] -->|ボタンクリック| B[restarting<br>API呼び出し]
+    B -->|Fire-and-Forget| C[ヘルスチェックポーリング開始]
+    C -->|ヘルスチェック成功| D[success<br>ページリロード]
+    C -->|30秒経過| E[timeout<br>手動リロード促す]
+```
+
+### 再起動フロー詳細
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant RestartAPI as Route Handler
+    participant Makefile
+    participant Backend
+
+    User->>Frontend: Restart Servers ボタンクリック
+    Frontend->>Frontend: setRestartStatus("restarting")
+
+    par Fire-and-Forget
+        Frontend->>RestartAPI: POST /api/restart/backend
+        RestartAPI->>Makefile: make restart-backend
+        and
+        Frontend->>RestartAPI: POST /api/restart/frontend
+        RestartAPI->>Makefile: make restart-frontend
+    end
+
+    loop ヘルスチェック（最大30回、1秒間隔）
+        Frontend->>Backend: GET /api/health
+        alt 成功
+            Backend-->>Frontend: 200 OK
+            Frontend->>Frontend: setRestartStatus("success")
+            Frontend->>Frontend: window.location.reload()
+        else 失敗
+            Backend--xFrontend: エラー
+            Frontend->>Frontend: 1秒待機してリトライ
+        end
+    end
+
+    Note over Frontend: タイムアウト時
+    Frontend->>Frontend: setRestartStatus("timeout")
+```
+
+### 状態遷移
+
+| 現在の状態 | トリガー | 次の状態 | 処理 |
+|-----------|---------|---------|------|
+| idle | ボタンクリック | restarting | 両API呼び出し、ポーリング開始 |
+| restarting | ヘルスチェック成功 | success | 500ms後にページリロード |
+| restarting | 30秒タイムアウト | timeout | ボタン表示を "Timeout - Reload manually" に変更 |

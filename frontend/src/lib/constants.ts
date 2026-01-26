@@ -15,12 +15,17 @@ export const DEV_FOLDERS = [
   "アーカイブ",
 ] as const;
 
-export const DEFAULT_PROJECT_PATH = "/Users/user/auto-daysupport-cloudrun/";
+export const DEFAULT_PROJECT_PATH = "";
 
 export const LOCAL_STORAGE_KEY = "ghostrunner_project";
+export const LOCAL_STORAGE_HISTORY_KEY = "ghostrunner_project_history";
+export const MAX_PROJECT_HISTORY = 10;
 
 export const PLAN_APPROVAL_KEYWORDS = [
   "承認をお待ち",
   "waiting for approval",
   "Ready for approval",
 ] as const;
+
+// サーバー再起動機能用（開発環境のみ）
+export const BACKEND_HEALTH_URL = "http://localhost:8080/api/health";
