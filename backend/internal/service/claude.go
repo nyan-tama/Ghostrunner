@@ -5,10 +5,13 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -16,9 +19,9 @@ import (
 // ClaudeService はClaude CLI操作のインターフェースを定義します
 type ClaudeService interface {
 	// ExecuteCommand はカスタムコマンドを実行します
-	ExecuteCommand(ctx context.Context, project, command, args string) (*CommandResult, error)
+	ExecuteCommand(ctx context.Context, project, command, args string, images []ImageData) (*CommandResult, error)
 	// ExecuteCommandStream はカスタムコマンドをストリーミングで実行します
-	ExecuteCommandStream(ctx context.Context, project, command, args string, eventCh chan<- StreamEvent) error
+	ExecuteCommandStream(ctx context.Context, project, command, args string, images []ImageData, eventCh chan<- StreamEvent) error
 	// ExecutePlan は/planコマンドを実行します（互換性維持）
 	ExecutePlan(ctx context.Context, project, args string) (*CommandResult, error)
 	// ExecutePlanStream は/planコマンドをストリーミングで実行します（互換性維持）
@@ -42,22 +45,29 @@ func NewClaudeService() ClaudeService {
 }
 
 // ExecuteCommand はカスタムコマンドを実行します
-func (s *claudeServiceImpl) ExecuteCommand(ctx context.Context, project, command, args string) (*CommandResult, error) {
-	log.Printf("[ClaudeService] ExecuteCommand started: project=%s, command=%s, args=%s", project, command, truncateLog(args, 100))
+func (s *claudeServiceImpl) ExecuteCommand(ctx context.Context, project, command, args string, images []ImageData) (*CommandResult, error) {
+	log.Printf("[ClaudeService] ExecuteCommand started: project=%s, command=%s, args=%s, images=%d", project, command, truncateLog(args, 100), len(images))
 
 	// コマンドバリデーション
 	if !AllowedCommands[command] {
 		return nil, fmt.Errorf("command not allowed: %s", command)
 	}
 
+	// 画像を一時ファイルに保存
+	imagePaths, cleanup, err := saveImagesToTemp(images)
+	if err != nil {
+		return nil, fmt.Errorf("failed to save images: %w", err)
+	}
+	defer cleanup()
+
 	// プロンプト構築: "/<command> <args>"
 	prompt := fmt.Sprintf("/%s %s", command, args)
-	return s.executeCommand(ctx, project, prompt, "")
+	return s.executeCommand(ctx, project, prompt, "", imagePaths)
 }
 
 // ExecuteCommandStream はカスタムコマンドをストリーミングで実行します
-func (s *claudeServiceImpl) ExecuteCommandStream(ctx context.Context, project, command, args string, eventCh chan<- StreamEvent) error {
-	log.Printf("[ClaudeService] ExecuteCommandStream started: project=%s, command=%s, args=%s", project, command, truncateLog(args, 100))
+func (s *claudeServiceImpl) ExecuteCommandStream(ctx context.Context, project, command, args string, images []ImageData, eventCh chan<- StreamEvent) error {
+	log.Printf("[ClaudeService] ExecuteCommandStream started: project=%s, command=%s, args=%s, images=%d", project, command, truncateLog(args, 100), len(images))
 
 	// コマンドバリデーション
 	if !AllowedCommands[command] {
@@ -65,41 +75,49 @@ func (s *claudeServiceImpl) ExecuteCommandStream(ctx context.Context, project, c
 		return fmt.Errorf("command not allowed: %s", command)
 	}
 
+	// 画像を一時ファイルに保存
+	imagePaths, cleanup, err := saveImagesToTemp(images)
+	if err != nil {
+		close(eventCh)
+		return fmt.Errorf("failed to save images: %w", err)
+	}
+	defer cleanup()
+
 	// プロンプト構築: "/<command> <args>"
 	prompt := fmt.Sprintf("/%s %s", command, args)
-	return s.executeCommandStream(ctx, project, prompt, "", eventCh)
+	return s.executeCommandStream(ctx, project, prompt, "", imagePaths, eventCh)
 }
 
 // ExecutePlan は/planコマンドを実行します（互換性維持）
 func (s *claudeServiceImpl) ExecutePlan(ctx context.Context, project, args string) (*CommandResult, error) {
 	log.Printf("[ClaudeService] ExecutePlan started: project=%s, args=%s", project, truncateLog(args, 100))
 
-	return s.ExecuteCommand(ctx, project, "plan", args)
+	return s.ExecuteCommand(ctx, project, "plan", args, nil)
 }
 
 // ContinueSession はセッションを継続して回答を送信します
 func (s *claudeServiceImpl) ContinueSession(ctx context.Context, project, sessionID, answer string) (*CommandResult, error) {
 	log.Printf("[ClaudeService] ContinueSession started: project=%s, sessionID=%s, answer=%s", project, sessionID, truncateLog(answer, 100))
 
-	return s.executeCommand(ctx, project, answer, sessionID)
+	return s.executeCommand(ctx, project, answer, sessionID, nil)
 }
 
 // ExecutePlanStream は/planコマンドをストリーミングで実行します（互換性維持）
 func (s *claudeServiceImpl) ExecutePlanStream(ctx context.Context, project, args string, eventCh chan<- StreamEvent) error {
 	log.Printf("[ClaudeService] ExecutePlanStream started: project=%s, args=%s", project, truncateLog(args, 100))
 
-	return s.ExecuteCommandStream(ctx, project, "plan", args, eventCh)
+	return s.ExecuteCommandStream(ctx, project, "plan", args, nil, eventCh)
 }
 
 // ContinueSessionStream はセッションをストリーミングで継続します
 func (s *claudeServiceImpl) ContinueSessionStream(ctx context.Context, project, sessionID, answer string, eventCh chan<- StreamEvent) error {
 	log.Printf("[ClaudeService] ContinueSessionStream started: project=%s, sessionID=%s", project, sessionID)
 
-	return s.executeCommandStream(ctx, project, answer, sessionID, eventCh)
+	return s.executeCommandStream(ctx, project, answer, sessionID, nil, eventCh)
 }
 
 // executeCommandStream はCLIコマンドをストリーミングで実行します
-func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, prompt, sessionID string, eventCh chan<- StreamEvent) error {
+func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, prompt, sessionID string, imagePaths []string, eventCh chan<- StreamEvent) error {
 	defer close(eventCh)
 
 	// タイムアウト付きコンテキストを作成
@@ -112,6 +130,10 @@ func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, p
 	cmdArgs := []string{"-p", prompt, "--output-format", "stream-json", "--verbose", "--permission-mode", "bypassPermissions"}
 	if sessionID != "" {
 		cmdArgs = append(cmdArgs, "--resume", sessionID)
+	}
+	// 画像オプションを追加
+	for _, imagePath := range imagePaths {
+		cmdArgs = append(cmdArgs, "--image", imagePath)
 	}
 
 	log.Printf("[ClaudeService] Executing stream: claude %v", cmdArgs)
@@ -467,7 +489,7 @@ func formatToolMessage(toolName string, toolInput interface{}) string {
 }
 
 // executeCommand はCLIコマンドを実行し、結果をパースします
-func (s *claudeServiceImpl) executeCommand(ctx context.Context, project, prompt, sessionID string) (*CommandResult, error) {
+func (s *claudeServiceImpl) executeCommand(ctx context.Context, project, prompt, sessionID string, imagePaths []string) (*CommandResult, error) {
 	// タイムアウト付きコンテキストを作成
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
@@ -477,6 +499,10 @@ func (s *claudeServiceImpl) executeCommand(ctx context.Context, project, prompt,
 	cmdArgs := []string{"-p", prompt, "--output-format", "json", "--permission-mode", "bypassPermissions"}
 	if sessionID != "" {
 		cmdArgs = append(cmdArgs, "--resume", sessionID)
+	}
+	// 画像オプションを追加
+	for _, imagePath := range imagePaths {
+		cmdArgs = append(cmdArgs, "--image", imagePath)
 	}
 
 	log.Printf("[ClaudeService] Executing: claude %v", cmdArgs)
@@ -639,4 +665,75 @@ type stderrLogger struct{}
 func (l *stderrLogger) Write(p []byte) (n int, err error) {
 	log.Printf("[ClaudeService] stderr: %s", string(p))
 	return len(p), nil
+}
+
+// saveImagesToTemp は画像データを一時ファイルに保存し、パスの配列とクリーンアップ関数を返します
+func saveImagesToTemp(images []ImageData) ([]string, func(), error) {
+	if len(images) == 0 {
+		return nil, func() {}, nil
+	}
+
+	var paths []string
+	cleanup := func() {
+		for _, p := range paths {
+			if err := os.Remove(p); err != nil {
+				log.Printf("[ClaudeService] Failed to remove temp image: path=%s, error=%v", p, err)
+			}
+		}
+	}
+
+	for i, img := range images {
+		// Base64デコード
+		decoded, err := base64.StdEncoding.DecodeString(img.Data)
+		if err != nil {
+			cleanup()
+			return nil, nil, fmt.Errorf("failed to decode image %d: %w", i+1, err)
+		}
+
+		// 拡張子を取得
+		ext := mimeTypeToExt(img.MimeType)
+
+		// 一時ファイルを作成
+		tmpFile, err := os.CreateTemp("", fmt.Sprintf("claude-image-%d-*%s", i, ext))
+		if err != nil {
+			cleanup()
+			return nil, nil, fmt.Errorf("failed to create temp file for image %d: %w", i+1, err)
+		}
+
+		// データを書き込み
+		if _, err := tmpFile.Write(decoded); err != nil {
+			tmpFile.Close()
+			cleanup()
+			return nil, nil, fmt.Errorf("failed to write image %d: %w", i+1, err)
+		}
+		tmpFile.Close()
+
+		// 絶対パスを取得
+		absPath, err := filepath.Abs(tmpFile.Name())
+		if err != nil {
+			cleanup()
+			return nil, nil, fmt.Errorf("failed to get absolute path for image %d: %w", i+1, err)
+		}
+
+		paths = append(paths, absPath)
+		log.Printf("[ClaudeService] Saved temp image: path=%s, size=%d", absPath, len(decoded))
+	}
+
+	return paths, cleanup, nil
+}
+
+// mimeTypeToExt はMIMEタイプから拡張子を返します
+func mimeTypeToExt(mimeType string) string {
+	switch mimeType {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/gif":
+		return ".gif"
+	case "image/webp":
+		return ".webp"
+	default:
+		return ""
+	}
 }

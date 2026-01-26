@@ -53,6 +53,29 @@ type CommandResult struct {
 	CostUSD   float64    `json:"cost_usd,omitempty"`  // コスト
 }
 
+// 画像関連の定数
+const (
+	// MaxImageCount は画像の最大枚数です
+	MaxImageCount = 5
+	// MaxImageSize は画像の最大サイズ（バイト）です
+	MaxImageSize = 5 * 1024 * 1024 // 5MB
+)
+
+// AllowedImageMimeTypes は許可する画像のMIMEタイプです
+var AllowedImageMimeTypes = map[string]bool{
+	"image/jpeg": true,
+	"image/png":  true,
+	"image/gif":  true,
+	"image/webp": true,
+}
+
+// ImageData は画像データを表します
+type ImageData struct {
+	Name     string `json:"name"`     // ファイル名
+	Data     string `json:"data"`     // Base64エンコードされたデータ
+	MimeType string `json:"mimeType"` // MIMEタイプ
+}
+
 // StreamEvent はストリーミングイベントを表します
 type StreamEvent struct {
 	Type      string         `json:"type"`                 // イベントタイプ

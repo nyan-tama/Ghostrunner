@@ -35,6 +35,19 @@
 //   - discuss: アイデアや構想の対話形式での深掘り
 //   - research: 外部情報の調査・収集
 //
+// # 画像サポート
+//
+// ExecuteCommandとExecuteCommandStreamは画像データを受け取り、
+// Claude CLIの--imageオプションとして渡すことが可能。
+//
+// 画像制約:
+//   - 最大枚数: 5枚
+//   - 最大サイズ: 1枚あたり5MB
+//   - 対応形式: JPEG, PNG, GIF, WebP
+//
+// 画像はBase64デコード後、一時ファイルとして保存され、
+// コマンド実行完了後に自動的に削除される。
+//
 // # 機能
 //
 //   - 指定されたプロジェクトディレクトリでClaude CLIを実行
@@ -43,6 +56,7 @@
 //   - JSON形式およびstream-json形式の出力パース
 //   - AskUserQuestionの質問抽出とセッション継続
 //   - コマンドホワイトリストによるバリデーション
+//   - 画像データの一時ファイル保存とCLIへの引き渡し
 //
 // # ストリーミング
 //
@@ -68,10 +82,21 @@
 //
 //	import "ghostrunner/backend/internal/service"
 //
-// 同期実行（汎用コマンド）:
+// 同期実行（汎用コマンド、テキストのみ）:
 //
 //	svc := service.NewClaudeService()
-//	result, err := svc.ExecuteCommand(ctx, "/path/to/project", "fullstack", "implement feature X")
+//	result, err := svc.ExecuteCommand(ctx, "/path/to/project", "fullstack", "implement feature X", nil)
+//	if err != nil {
+//	    // エラーハンドリング
+//	}
+//	fmt.Println(result.Output)
+//
+// 同期実行（画像付き）:
+//
+//	images := []service.ImageData{
+//	    {Name: "screenshot.png", Data: "Base64データ", MimeType: "image/png"},
+//	}
+//	result, err := svc.ExecuteCommand(ctx, "/path/to/project", "go", "この画像を参考に実装", images)
 //	if err != nil {
 //	    // エラーハンドリング
 //	}
@@ -90,7 +115,7 @@
 //
 //	eventCh := make(chan service.StreamEvent, 100)
 //	go func() {
-//	    err := svc.ExecuteCommandStream(ctx, project, "go", args, eventCh)
+//	    err := svc.ExecuteCommandStream(ctx, project, "go", args, nil, eventCh)
 //	    if err != nil {
 //	        log.Printf("Error: %v", err)
 //	    }

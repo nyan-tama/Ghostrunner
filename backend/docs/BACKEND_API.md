@@ -88,7 +88,7 @@ GET /api/health
 
 ### POST /api/command
 
-コマンドを同期実行する。
+コマンドを同期実行する。テキストと画像を組み合わせた指示に対応。
 
 #### リクエスト
 
@@ -96,7 +96,14 @@ GET /api/health
 {
     "project": "/path/to/project",
     "command": "fullstack",
-    "args": "implement feature X"
+    "args": "implement feature X",
+    "images": [
+        {
+            "name": "screenshot.png",
+            "data": "Base64エンコードされた画像データ",
+            "mimeType": "image/png"
+        }
+    ]
 }
 ```
 
@@ -105,6 +112,21 @@ GET /api/health
 | `project` | string | Yes | 対象プロジェクトの絶対パス |
 | `command` | string | Yes | 実行するコマンド（plan, fullstack, go, nextjs, discuss, research） |
 | `args` | string | Yes | コマンドの引数 |
+| `images` | array | No | 画像データの配列（最大5枚） |
+
+#### ImageData オブジェクト
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `name` | string | ファイル名 |
+| `data` | string | Base64エンコードされた画像データ |
+| `mimeType` | string | MIMEタイプ（image/jpeg, image/png, image/gif, image/webp） |
+
+#### 画像の制約
+
+- 最大枚数: 5枚
+- 最大サイズ: 1枚あたり5MB
+- 対応形式: JPEG, PNG, GIF, WebP
 
 #### レスポンス（成功）
 
@@ -347,6 +369,13 @@ GET /api/files?project=/path/to/project
 ### 引数
 
 - 空でないこと
+
+### 画像（/api/command、/api/command/stream のみ）
+
+- 枚数が5枚以下であること
+- MIMEタイプがimage/jpeg, image/png, image/gif, image/webpのいずれかであること
+- Base64デコードが可能であること
+- デコード後のサイズが5MB以下であること
 
 ---
 
