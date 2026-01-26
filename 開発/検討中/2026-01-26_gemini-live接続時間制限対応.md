@@ -164,23 +164,29 @@ function onUserSpeech(transcript: string) {
 
 ### 4. UI/UX の考慮事項
 
-**再接続時の通知:**
+**再接続時の動作:**
 ```typescript
-// 再接続開始時
-showToast("セッションを更新しています...", { duration: 2000 });
+// 14分経過時点で静かに再接続
+// ユーザーへの通知なし（技術的制約なので気にしなくていい）
 
-// 再接続完了時
-playAudio("準備ができました");
-```
+async function reconnectWithHistory() {
+  // 1. 現在の音声を停止
+  stopCurrentAudio();
 
-**オプション: ユーザーへの事前通知**
-```typescript
-// 13分経過時点で予告
-if (elapsed > 13 * 60 * 1000 && !warningShown) {
-  playAudio("まもなく接続を更新します");
-  warningShown = true;
+  // 2. 接続を切断
+  ws.close();
+
+  // 3. 新規セッションを開始（通知なし）
+  await connect(newConfig);
+
+  sessionStartTime = Date.now();
 }
 ```
+
+**タスク完了時の通知:**
+- Web Notification + 効果音でバックグラウンド通知
+- ユーザーがクリックしてアプリにフォーカス後、Gemini Liveで詳細を音声説明
+- 詳細: `開発/検討中/2026-01-26_バックグラウンド通知設計.md`
 
 ---
 
