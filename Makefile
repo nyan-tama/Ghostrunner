@@ -44,7 +44,7 @@ help:
 .PHONY: backend frontend dev
 
 backend:
-	cd $(PROJECT_ROOT)/backend && go run ./cmd/server
+	cd $(PROJECT_ROOT)/backend && [ -f .env ] && set -a && . ./.env && set +a; go run ./cmd/server
 
 frontend:
 	cd $(PROJECT_ROOT)/frontend && npm run dev
@@ -58,10 +58,10 @@ dev:
 
 start-backend:
 	@echo "Starting backend in background..."
-	@nohup sh -c 'cd $(PROJECT_ROOT)/backend && go run ./cmd/server' > /tmp/backend.log 2>&1 &
+	@nohup sh -c 'cd $(PROJECT_ROOT)/backend && [ -f .env ] && set -a && . ./.env && set +a; go run ./cmd/server' > /tmp/backend.log 2>&1 &
 	@sleep 2
 	@echo "Backend started. Showing logs (Ctrl+C to exit):"
-	@tail -f /tmp/backend.log | sed \
+	@tail -f /tmp/backend.log | LC_ALL=C sed \
 		-e 's/.*ERROR.*/\x1b[1;31m&\x1b[0m/' \
 		-e 's/.*WARN.*/\x1b[1;33m&\x1b[0m/' \
 		-e 's/.*Failed.*/\x1b[1;31m&\x1b[0m/' \
@@ -77,7 +77,7 @@ start-frontend:
 	@nohup sh -c 'cd $(PROJECT_ROOT)/frontend && npm run dev' > /tmp/frontend.log 2>&1 &
 	@sleep 2
 	@echo "Frontend started. Showing logs (Ctrl+C to exit):"
-	@tail -f /tmp/frontend.log | sed \
+	@tail -f /tmp/frontend.log | LC_ALL=C sed \
 		-e 's/.*error.*/\x1b[1;31m&\x1b[0m/' \
 		-e 's/.*Error.*/\x1b[1;31m&\x1b[0m/' \
 		-e 's/.*warn.*/\x1b[1;33m&\x1b[0m/' \
@@ -117,7 +117,7 @@ stop: stop-backend stop-frontend
 
 restart-backend: stop-backend
 	@sleep 1
-	@nohup sh -c 'cd $(PROJECT_ROOT)/backend && go run ./cmd/server' > /tmp/backend.log 2>&1 &
+	@nohup sh -c 'cd $(PROJECT_ROOT)/backend && [ -f .env ] && set -a && . ./.env && set +a; go run ./cmd/server' > /tmp/backend.log 2>&1 &
 
 restart-frontend: stop-frontend
 	@sleep 1
@@ -132,10 +132,10 @@ restart:
 restart-backend-logs: stop-backend
 	@echo "Restarting backend..."
 	@sleep 1
-	@nohup sh -c 'cd $(PROJECT_ROOT)/backend && go run ./cmd/server' > /tmp/backend.log 2>&1 &
+	@nohup sh -c 'cd $(PROJECT_ROOT)/backend && [ -f .env ] && set -a && . ./.env && set +a; go run ./cmd/server' > /tmp/backend.log 2>&1 &
 	@sleep 2
 	@echo "Backend restarted. Showing logs (Ctrl+C to exit):"
-	@tail -f /tmp/backend.log | sed \
+	@tail -f /tmp/backend.log | LC_ALL=C sed \
 		-e 's/.*ERROR.*/\x1b[1;31m&\x1b[0m/' \
 		-e 's/.*WARN.*/\x1b[1;33m&\x1b[0m/' \
 		-e 's/.*Failed.*/\x1b[1;31m&\x1b[0m/' \
@@ -152,7 +152,7 @@ restart-frontend-logs: stop-frontend
 	@nohup sh -c 'cd $(PROJECT_ROOT)/frontend && npm run dev' > /tmp/frontend.log 2>&1 &
 	@sleep 2
 	@echo "Frontend restarted. Showing logs (Ctrl+C to exit):"
-	@tail -f /tmp/frontend.log | sed \
+	@tail -f /tmp/frontend.log | LC_ALL=C sed \
 		-e 's/.*error.*/\x1b[1;31m&\x1b[0m/' \
 		-e 's/.*Error.*/\x1b[1;31m&\x1b[0m/' \
 		-e 's/.*warn.*/\x1b[1;33m&\x1b[0m/' \
@@ -184,7 +184,7 @@ health:
 
 logs-backend:
 	@echo "=== Backend Logs (Ctrl+C to exit) ==="
-	@tail -f /tmp/backend.log | sed \
+	@tail -f /tmp/backend.log | LC_ALL=C sed \
 		-e 's/.*ERROR.*/\x1b[1;31m&\x1b[0m/' \
 		-e 's/.*WARN.*/\x1b[1;33m&\x1b[0m/' \
 		-e 's/.*Failed.*/\x1b[1;31m&\x1b[0m/' \
@@ -197,7 +197,7 @@ logs-backend:
 
 logs-frontend:
 	@echo "=== Frontend Logs (Ctrl+C to exit) ==="
-	@tail -f /tmp/frontend.log | sed \
+	@tail -f /tmp/frontend.log | LC_ALL=C sed \
 		-e 's/.*error.*/\x1b[1;31m&\x1b[0m/' \
 		-e 's/.*Error.*/\x1b[1;31m&\x1b[0m/' \
 		-e 's/.*warn.*/\x1b[1;33m&\x1b[0m/' \

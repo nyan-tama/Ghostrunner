@@ -177,7 +177,32 @@ npm run build
 
 ## Gitワークフロー
 
-- Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`
+### コミットメッセージ
+
+**重要: コミットメッセージは必ず日本語で詳細に記述する**
+
+- Conventional commitsの接頭辞を使用: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`
+- 接頭辞の後は**日本語**で詳細に記述
+- 後から`git log`で検索しやすいように具体的なキーワードを含める
+- 変更内容を細かく、分かりやすく書く
+
+**良い例:**
+```
+feat: 質問の逐次表示機能を追加、ユーザーが回答するまで次の質問を非表示にする処理を実装
+fix: MakefileのsedコマンドにLC_ALL=Cを追加、日本語ログでのエラーを修正
+refactor: QuestionSectionコンポーネントの状態管理をuseStateからuseReducerに変更、複雑な状態遷移を整理
+docs: 画面遷移フローに質問の逐次表示パターンを追加、ユーザー操作シナリオを更新
+```
+
+**悪い例:**
+```
+feat: add new feature
+fix: fix bug
+update something
+```
+
+### ブランチとマージ
+
 - mainに直接コミットしない
 - PRにはレビューが必要
 - マージ前に全テストが通ること
