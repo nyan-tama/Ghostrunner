@@ -3,6 +3,15 @@
 // 接続状態
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 
+// VAD設定用の型
+export interface AutomaticActivityDetection {
+  disabled?: boolean;
+  startOfSpeechSensitivity?: "START_SENSITIVITY_LOW" | "START_SENSITIVITY_MEDIUM" | "START_SENSITIVITY_HIGH";
+  endOfSpeechSensitivity?: "END_SENSITIVITY_LOW" | "END_SENSITIVITY_MEDIUM" | "END_SENSITIVITY_HIGH";
+  prefixPaddingMs?: number;
+  silenceDurationMs?: number;
+}
+
 // setup メッセージ用の型
 export interface GeminiLiveSetupMessage {
   setup: {
@@ -12,6 +21,9 @@ export interface GeminiLiveSetupMessage {
     };
     systemInstruction?: {
       parts: { text: string }[];
+    };
+    realtimeInputConfig?: {
+      automaticActivityDetection?: AutomaticActivityDetection;
     };
   };
 }

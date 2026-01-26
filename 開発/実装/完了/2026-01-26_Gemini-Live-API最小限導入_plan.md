@@ -631,3 +631,84 @@ npm run dev
 - [ ] マイク入力が正常に送信されること
 - [ ] 音声応答が正常に再生されること
 - [ ] HTTPS 環境でマイク許可が動作すること（getUserMedia は HTTPS 必須）
+
+---
+
+## デバッグ・修正レポート（2026-01-26）
+
+### 問題の概要
+
+フロントエンド実装後、WebSocket 接続は成功するが Gemini から音声応答が返ってこない問題が発生。
+
+### 調査結果
+
+調査レポート: [開発/資料/2026-01-26_Gemini_Live_API調査.md](../../資料/2026-01-26_Gemini_Live_API調査.md)
+
+#### 発見した問題点
+
+1. **メッセージ形式の誤り**
+   - 誤: `{ media: { data, mimeType } }` または `{ realtimeInput: { mediaChunks: [...] } }`
+   - 正: `{ realtimeInput: { audio: { data, mimeType } } }`
+
+2. **サンプルレートの不一致**
+   - 誤: 24kHz（出力用のレートを入力に使用）
+   - 正: 16kHz（Gemini Live API の入力要件）
+
+3. **mimeType の rate 指定漏れ**
+   - 誤: `audio/pcm`
+   - 正: `audio/pcm;rate=16000`
+
+4. **モデルの既知の問題**
+   - `gemini-2.5-flash-native-audio-preview-12-2025` は応答しない既知の問題あり
+   - `gemini-2.0-flash-exp` に変更して解決
+
+### 修正内容
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `frontend/src/hooks/useGeminiLive.ts` | メッセージ形式を `realtimeInput.audio` に変更、サンプルレートを 16kHz に変更、モデルを `gemini-2.0-flash-exp` に変更 |
+| `frontend/src/types/gemini.ts` | VAD 設定用の型 `AutomaticActivityDetection` を追加、`GeminiLiveSetupMessage` に `realtimeInputConfig` を追加 |
+
+### 修正後のコード（主要部分）
+
+```typescript
+// 定数
+const DEFAULT_MODEL = "models/gemini-2.0-flash-exp";
+const INPUT_SAMPLE_RATE = 16000;  // 入力用
+const OUTPUT_SAMPLE_RATE = 24000; // 出力用
+
+// AudioContext（入力用）
+const inputAudioContext = new AudioContext({ sampleRate: INPUT_SAMPLE_RATE });
+
+// 音声送信メッセージ
+const audioMessage = {
+  realtimeInput: {
+    audio: {
+      data: base64Data,
+      mimeType: "audio/pcm;rate=16000",
+    },
+  },
+};
+
+// VAD 設定（setup メッセージ内）
+realtimeInputConfig: {
+  automaticActivityDetection: {
+    disabled: false,
+    startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
+    endOfSpeechSensitivity: "END_SENSITIVITY_HIGH",
+    silenceDurationMs: 500,
+  },
+}
+```
+
+### 参考リソース
+
+- [Live API - WebSockets API reference](https://ai.google.dev/api/live)
+- [Inconsistent Response Behavior (Google AI Forum)](https://discuss.ai.google.dev/t/inconsistent-response-behavior-in-gemini-2-5-flash-native-audio-preview-09-2025-voicebot/110825)
+- [GitHub Issue #821 - Ephemeral token not working](https://github.com/google-gemini/cookbook/issues/821)
+
+### 今後の改善点
+
+- Chrome での音声入力が動作しない問題（Safari では動作確認済み）
+- より安定したモデルがリリースされたら `gemini-2.5-flash-native-audio-preview` への移行を検討
+- デバッグログの削除（本番環境向け）

@@ -4,7 +4,6 @@ import type {
   GeminiLiveConfig,
   GeminiLiveServerMessage,
   GeminiLiveSetupMessage,
-  GeminiLiveRealtimeInput,
 } from "@/types/gemini";
 import {
   isSetupComplete,
@@ -13,19 +12,20 @@ import {
 } from "@/types/gemini";
 import { fetchGeminiToken } from "@/lib/api";
 import {
-  downsample,
   float32ToInt16,
   arrayBufferToBase64,
   pcmToAudioBuffer,
 } from "@/lib/audioProcessor";
 
 // Gemini Live API の定数
+// エフェメラルトークンを使用する場合は v1alpha と BidiGenerateContentConstrained を使用
 const GEMINI_LIVE_WS_URL =
-  "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
-const DEFAULT_MODEL = "models/gemini-2.0-flash-live-001";
-const INPUT_SAMPLE_RATE = 16000; // Gemini が要求する入力サンプルレート
-const OUTPUT_SAMPLE_RATE = 24000; // Gemini が出力するサンプルレート
-const AUDIO_CHUNK_SIZE = 4096; // AudioWorklet から送信するチャンクサイズ
+  "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained";
+// gemini-2.5-flash-native-audio-preview は応答しない既知の問題があるため、2.0を使用
+const DEFAULT_MODEL = "models/gemini-2.0-flash-exp";
+// Gemini Live API の音声フォーマット要件: 入力16kHz、出力24kHz
+const INPUT_SAMPLE_RATE = 16000;
+const OUTPUT_SAMPLE_RATE = 24000;
 
 interface UseGeminiLiveReturn {
   connectionStatus: ConnectionStatus;
@@ -120,16 +120,18 @@ export function useGeminiLive(config?: GeminiLiveConfig): UseGeminiLiveReturn {
           if (serverContent.modelTurn?.parts) {
             for (const part of serverContent.modelTurn.parts) {
               if (part.inlineData?.data && part.inlineData.mimeType.includes("audio")) {
-                const audioContext = audioContextRef.current;
-                if (audioContext && audioContext.state !== "closed") {
-                  const audioBuffer = pcmToAudioBuffer(
-                    audioContext,
-                    part.inlineData.data,
-                    OUTPUT_SAMPLE_RATE
-                  );
-                  audioQueueRef.current.push(audioBuffer);
-                  playNextAudio();
+                // AudioContext を遅延作成（入力用 AudioContext と競合しないように）
+                if (!audioContextRef.current || audioContextRef.current.state === "closed") {
+                  audioContextRef.current = new AudioContext();
                 }
+                const audioContext = audioContextRef.current;
+                const audioBuffer = pcmToAudioBuffer(
+                  audioContext,
+                  part.inlineData.data,
+                  OUTPUT_SAMPLE_RATE
+                );
+                audioQueueRef.current.push(audioBuffer);
+                playNextAudio();
               }
             }
           }
@@ -194,21 +196,29 @@ export function useGeminiLive(config?: GeminiLiveConfig): UseGeminiLiveReturn {
       // エフェメラルトークンを取得
       const token = await fetchGeminiToken();
 
-      // WebSocket 接続を確立
-      const wsUrl = `${GEMINI_LIVE_WS_URL}?key=${token}`;
+      // WebSocket 接続を確立（エフェメラルトークンは access_token パラメータで渡す）
+      const wsUrl = `${GEMINI_LIVE_WS_URL}?access_token=${encodeURIComponent(token)}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
-      // AudioContext を作成（音声再生用）
-      audioContextRef.current = new AudioContext({ sampleRate: OUTPUT_SAMPLE_RATE });
+      // AudioContext は音声再生時に遅延作成する（入力用 AudioContext と競合しないように）
 
       ws.onopen = () => {
-        // setup メッセージを送信
+        // setup メッセージを送信（VAD設定を含む）
         const setupMessage: GeminiLiveSetupMessage = {
           setup: {
             model,
             generationConfig: {
               responseModalities: ["AUDIO"],
+            },
+            // VAD（Voice Activity Detection）設定
+            realtimeInputConfig: {
+              automaticActivityDetection: {
+                disabled: false,
+                startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
+                endOfSpeechSensitivity: "END_SENSITIVITY_HIGH",
+                silenceDurationMs: 500,
+              },
             },
           },
         };
@@ -219,10 +229,22 @@ export function useGeminiLive(config?: GeminiLiveConfig): UseGeminiLiveReturn {
           };
         }
 
+        console.log("[GeminiLive] Sending setup message:", JSON.stringify(setupMessage));
         ws.send(JSON.stringify(setupMessage));
       };
 
-      ws.onmessage = handleServerMessage;
+      ws.onmessage = async (event) => {
+        // Blob の場合はテキストに変換
+        if (event.data instanceof Blob) {
+          const text = await event.data.text();
+          console.log("[GeminiLive] Received:", text.substring(0, 100));
+          const textEvent = new MessageEvent("message", { data: text });
+          handleServerMessage(textEvent);
+        } else {
+          console.log("[GeminiLive] Received:", String(event.data).substring(0, 100));
+          handleServerMessage(event);
+        }
+      };
 
       ws.onerror = () => {
         setError("Failed to connect to Gemini Live API");
@@ -271,6 +293,7 @@ export function useGeminiLive(config?: GeminiLiveConfig): UseGeminiLiveReturn {
    * マイク入力を開始
    */
   const startRecording = useCallback(async () => {
+    console.log("[GeminiLive] startRecording called");
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       setError("WebSocket is not connected");
       return;
@@ -282,73 +305,78 @@ export function useGeminiLive(config?: GeminiLiveConfig): UseGeminiLiveReturn {
 
     try {
       // マイクへのアクセスを取得
+      console.log("[GeminiLive] Requesting microphone access...");
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          sampleRate: { ideal: 48000 },
-          channelCount: { exact: 1 },
           echoCancellation: true,
           noiseSuppression: true,
         },
       });
       streamRef.current = stream;
 
-      // 入力用 AudioContext を作成
-      const inputAudioContext = new AudioContext();
+      // MediaStream の実際のサンプルレートを取得
+      const audioTrack = stream.getAudioTracks()[0];
+      const trackSettings = audioTrack.getSettings();
+      console.log("[GeminiLive] Audio track settings:", trackSettings);
+
+      // 入力用 AudioContext を作成（Gemini要件: 入力は16kHz）
+      const inputAudioContext = new AudioContext({ sampleRate: INPUT_SAMPLE_RATE });
       inputAudioContextRef.current = inputAudioContext;
 
-      // AudioWorklet を登録
-      await inputAudioContext.audioWorklet.addModule("/audio-worklet-processor.js");
+      // AudioContext が suspended の場合は resume
+      if (inputAudioContext.state === "suspended") {
+        console.log("[GeminiLive] AudioContext is suspended, resuming...");
+        await inputAudioContext.resume();
+      }
+      console.log("[GeminiLive] AudioContext state:", inputAudioContext.state, "sampleRate:", inputAudioContext.sampleRate);
 
       // ソースノードを作成
       const source = inputAudioContext.createMediaStreamSource(stream);
       sourceNodeRef.current = source;
 
-      // WorkletNode を作成
-      const workletNode = new AudioWorkletNode(inputAudioContext, "audio-processor", {
-        processorOptions: {
-          chunkSize: AUDIO_CHUNK_SIZE,
-        },
-      });
-      workletNodeRef.current = workletNode;
+      // ScriptProcessorNode を使用（Google公式サンプルと同じ bufferSize: 1024）
+      const bufferSize = 1024;
+      const scriptProcessor = inputAudioContext.createScriptProcessor(bufferSize, 1, 1);
+      let audioChunkCount = 0;
 
-      // WorkletNode からのメッセージを処理
-      workletNode.port.onmessage = (event) => {
-        if (event.data.type === "audio" && wsRef.current?.readyState === WebSocket.OPEN) {
-          const float32Data = event.data.audio as Float32Array;
+      scriptProcessor.onaudioprocess = (audioEvent) => {
+        if (wsRef.current?.readyState !== WebSocket.OPEN) return;
 
-          // ダウンサンプリング
-          const downsampled = downsample(
-            float32Data,
-            inputAudioContext.sampleRate,
-            INPUT_SAMPLE_RATE
-          );
+        const inputData = audioEvent.inputBuffer.getChannelData(0);
+        // Float32 を Int16 PCM に変換（Google公式サンプルと同じ処理）
+        const int16Data = float32ToInt16(new Float32Array(inputData));
 
-          // Int16 PCM に変換
-          const int16Data = float32ToInt16(downsampled);
+        // 音声データの最大値を確認（デバッグ用）
+        if (audioChunkCount % 50 === 0) {
+          const maxVal = Math.max(...Array.from(inputData).map(Math.abs));
+          console.log(`[GeminiLive] Audio max amplitude: ${maxVal.toFixed(6)}`);
+        }
 
-          // Base64 エンコード
-          const base64Data = arrayBufferToBase64(int16Data.buffer);
+        // Base64 エンコード
+        const base64Data = arrayBufferToBase64(int16Data.buffer);
 
-          // Gemini に送信
-          const realtimeInput: GeminiLiveRealtimeInput = {
-            realtimeInput: {
-              mediaChunks: [
-                {
-                  mimeType: "audio/pcm;rate=16000",
-                  data: base64Data,
-                },
-              ],
+        // Gemini に送信（realtimeInput.audio 形式）
+        const audioMessage = {
+          realtimeInput: {
+            audio: {
+              data: base64Data,
+              mimeType: "audio/pcm;rate=16000",
             },
-          };
+          },
+        };
 
-          wsRef.current.send(JSON.stringify(realtimeInput));
+        wsRef.current.send(JSON.stringify(audioMessage));
+        audioChunkCount++;
+        if (audioChunkCount % 50 === 1) {
+          console.log(`[GeminiLive] Sent audio chunk #${audioChunkCount}, size: ${base64Data.length}`);
         }
       };
 
       // ノードを接続
-      source.connect(workletNode);
-      workletNode.connect(inputAudioContext.destination);
+      source.connect(scriptProcessor);
+      scriptProcessor.connect(inputAudioContext.destination);
 
+      console.log("[GeminiLive] Recording started, sampleRate:", inputAudioContext.sampleRate);
       setIsRecording(true);
       setError(null);
     } catch (err) {
