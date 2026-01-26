@@ -462,3 +462,84 @@ flowchart TD
 - フルスタック実装: `/fullstack`
 - Go バックエンドのみ: `/go`
 - Next.js フロントエンドのみ: `/nextjs`
+
+---
+
+## バックエンド実装完了レポート
+
+### 実装サマリー
+
+- **実装日**: 2026-01-26
+- **変更ファイル数**: 5 files
+- **実装内容**: Gemini Live API エフェメラルトークン発行エンドポイント
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `backend/internal/service/types.go` | `GeminiTokenResult` 型を追加（Token, ExpireTime フィールド） |
+| `backend/internal/service/gemini.go` | 新規作成: `GeminiService` インターフェースと実装、`ProvisionEphemeralToken` メソッド |
+| `backend/internal/handler/gemini.go` | 新規作成: `GeminiHandler`、`GeminiTokenRequest`/`GeminiTokenResponse` 型、`HandleToken` ハンドラー |
+| `backend/cmd/server/main.go` | `geminiService`/`geminiHandler` の初期化、`/api/gemini/token` ルート登録 |
+| `backend/docs/BACKEND_API.md` | Gemini API セクションを追加、`POST /api/gemini/token` の仕様を記載 |
+
+### 計画からの変更点
+
+計画に記載がなかった判断・選択:
+
+- 特になし（計画通りに実装）
+
+### 実装時の課題
+
+#### ビルド・テストで苦戦した点
+
+- 特になし
+
+#### 技術的に難しかった点
+
+- 特になし
+
+### 残存する懸念点
+
+今後注意が必要な点:
+
+- **レート制限**: MVP では未対応。トークン発行リクエストの頻度制限が必要な場合は Phase 2 以降で検討
+- **認証**: エンドポイントは認証なしで公開されている。内部利用想定だが、本番環境では検討が必要
+
+### 動作確認フロー
+
+```bash
+# 1. 環境変数を設定
+export GEMINI_API_KEY="your-gemini-api-key"
+
+# 2. サーバー起動
+cd backend && go run ./cmd/server
+
+# 3. トークン発行（デフォルト1時間）
+curl -X POST http://localhost:8080/api/gemini/token
+
+# 4. トークン発行（有効期限指定: 2時間）
+curl -X POST http://localhost:8080/api/gemini/token \
+  -H "Content-Type: application/json" \
+  -d '{"expireSeconds": 7200}'
+
+# 5. 期待されるレスポンス（成功時）
+# {
+#   "success": true,
+#   "token": "ephemeral-token-string...",
+#   "expireTime": "2026-01-26T13:00:00Z"
+# }
+
+# 6. GEMINI_API_KEY 未設定時のレスポンス（503）
+# {
+#   "success": false,
+#   "error": "Gemini サービスが利用できません"
+# }
+```
+
+### デプロイ後の確認事項
+
+- [ ] 環境変数 `GEMINI_API_KEY` が正しく設定されていること
+- [ ] `POST /api/gemini/token` が 200 を返すこと
+- [ ] レスポンスに `token` と `expireTime` が含まれること
+- [ ] フロントエンドから CORS エラーなくアクセスできること

@@ -97,3 +97,9 @@ const (
 	EventTypeComplete   = "complete"    // 完了
 	EventTypeError      = "error"       // エラー
 )
+
+// GeminiTokenResult はGemini APIのエフェメラルトークン発行結果を表します
+type GeminiTokenResult struct {
+	Token      string `json:"token"`       // エフェメラルトークン
+	ExpireTime string `json:"expire_time"` // トークン有効期限（ISO8601形式）
+}

@@ -30,6 +30,7 @@ Server-Sent Events (SSE) によるストリーミング出力とセッション�
 | `/api/plan/stream` | POST | /planコマンドのストリーミング実行（後方互換性） |
 | `/api/plan/continue` | POST | セッション継続（後方互換性） |
 | `/api/plan/continue/stream` | POST | セッション継続のストリーミング実行（後方互換性） |
+| `/api/gemini/token` | POST | Gemini Live API 用エフェメラルトークン発行 |
 
 ---
 
@@ -340,6 +341,69 @@ GET /api/files?project=/path/to/project
 ### POST /api/plan/continue/stream
 
 `/api/command/continue/stream` と同じ。
+
+---
+
+## Gemini API
+
+### POST /api/gemini/token
+
+Gemini Live API 用のエフェメラルトークンを発行する。
+
+フロントエンドがGemini Live APIへWebSocket接続する際に使用する一時的なトークンを生成する。
+トークンには有効期限が設定され、期限切れ後は再発行が必要となる。
+
+#### 必要な環境変数
+
+| 環境変数 | 説明 |
+|----------|------|
+| `GEMINI_API_KEY` | Gemini API のAPIキー |
+
+#### リクエスト
+
+```json
+{
+    "expireSeconds": 3600
+}
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `expireSeconds` | number | No | トークンの有効期間（秒）。デフォルト: 3600、範囲: 60-86400 |
+
+#### レスポンス（成功）
+
+```json
+{
+    "success": true,
+    "token": "ephemeral-token-string",
+    "expireTime": "2026-01-26T12:00:00Z"
+}
+```
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `success` | boolean | 成功フラグ |
+| `token` | string | エフェメラルトークン |
+| `expireTime` | string | トークンの有効期限（RFC3339形式） |
+
+#### レスポンス（エラー）
+
+```json
+{
+    "success": false,
+    "error": "エラーメッセージ"
+}
+```
+
+#### HTTPステータスコード
+
+| コード | 説明 |
+|--------|------|
+| 200 | 正常完了 |
+| 400 | リクエスト不正（expireSecondsが範囲外等） |
+| 500 | トークン発行に失敗（Gemini API エラー） |
+| 503 | GEMINI_API_KEY 未設定 |
 
 ---
 
