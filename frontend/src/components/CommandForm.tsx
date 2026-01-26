@@ -7,6 +7,7 @@ import { COMMANDS } from "@/lib/constants";
 interface CommandFormProps {
   projectPath: string;
   onProjectChange: (path: string) => void;
+  projectHistory: string[];
   command: string;
   onCommandChange: (command: string) => void;
   selectedFile: string;
@@ -22,6 +23,7 @@ interface CommandFormProps {
 export default function CommandForm({
   projectPath,
   onProjectChange,
+  projectHistory,
   command,
   onCommandChange,
   selectedFile,
@@ -44,20 +46,44 @@ export default function CommandForm({
     onSubmit();
   };
 
+  const handleHistorySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    if (value) {
+      onProjectChange(value);
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit}>
       <div className="mb-4">
         <label className="block mb-2 font-semibold text-gray-800">
           Project Path
         </label>
-        <input
-          type="text"
-          value={projectPath}
-          onChange={(e) => onProjectChange(e.target.value)}
-          placeholder="/Users/user/myproject"
-          required
-          className="w-full p-3 border border-gray-200 rounded-lg text-base bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-        />
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={projectPath}
+            onChange={(e) => onProjectChange(e.target.value)}
+            placeholder="/Users/user/myproject"
+            required
+            className="flex-1 p-3 border border-gray-200 rounded-lg text-base bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+          {projectHistory.length > 0 && (
+            <select
+              value=""
+              onChange={handleHistorySelect}
+              className="p-3 border border-gray-200 rounded-lg text-base bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              title="履歴から選択"
+            >
+              <option value="">履歴</option>
+              {projectHistory.map((path) => (
+                <option key={path} value={path}>
+                  {path.split("/").slice(-2).join("/")}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       <div className="mb-4">

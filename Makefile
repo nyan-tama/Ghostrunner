@@ -8,7 +8,7 @@ backend:
 	cd $(PROJECT_ROOT)/backend && go run ./cmd/server
 
 frontend:
-	cd $(PROJECT_ROOT)/frontend && npm start
+	cd $(PROJECT_ROOT)/frontend && npm run dev
 
 dev:
 	@echo "両サーバーを起動..."
@@ -20,10 +20,13 @@ dev:
 stop-backend:
 	-pkill -f "go run.*cmd/server" || true
 	-pkill -f "backend/server" || true
+	-lsof -ti:8080 | xargs kill -9 2>/dev/null || true
 
 stop-frontend:
 	-pkill -f "next dev" || true
+	-pkill -f "npm.*dev" || true
 	-pkill -f "npm.*start" || true
+	-lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 
 stop: stop-backend stop-frontend
 
@@ -36,7 +39,7 @@ restart-backend: stop-backend
 
 restart-frontend: stop-frontend
 	@sleep 1
-	nohup sh -c 'cd $(PROJECT_ROOT)/frontend && npm start' > /tmp/frontend.log 2>&1 &
+	nohup sh -c 'cd $(PROJECT_ROOT)/frontend && npm run dev' > /tmp/frontend.log 2>&1 &
 
 restart:
 	@make -j2 restart-backend restart-frontend

@@ -64,18 +64,12 @@ export default function ProgressContainer({
         </div>
       </div>
 
-      <LoadingIndicator text={loadingText} visible={isLoading} />
-
-      {canAbort && (
-        <div className="px-5 pb-4">
-          <button
-            onClick={onAbort}
-            className="py-3.5 px-6 bg-red-500 text-white rounded-lg font-semibold text-base cursor-pointer transition-colors hover:bg-red-600 border-none"
-          >
-            Abort
-          </button>
-        </div>
-      )}
+      <LoadingIndicator
+        text={loadingText}
+        visible={isLoading}
+        showAbort={canAbort}
+        onAbort={onAbort}
+      />
 
       <EventList events={events} />
 
