@@ -8,6 +8,7 @@
 //
 // # 主要なコンポーネント
 //
+//   - HealthHandler: /api/health ヘルスチェックエンドポイントを処理
 //   - PlanHandler: /api/plan 関連のエンドポイントを処理（後方互換性維持）
 //   - CommandHandler: /api/command 関連のエンドポイントを処理（汎用コマンド実行）
 //   - FilesHandler: /api/files 関連のエンドポイントを処理（ファイル一覧取得）
@@ -44,7 +45,23 @@
 // 内部的にCommandHandlerと同じサービスを使用する。
 // 後方互換性のために維持している。
 //
+// # HealthHandler
+//
+// サーバーのヘルスチェックを提供するエンドポイント。
+// 外部サービスへの依存がなく、サーバープロセスが起動していれば常に成功を返す。
+// Cloud Runやロードバランサーのヘルスチェックに使用する。
+//
 // # エンドポイント一覧
+//
+// ## Health API (ヘルスチェック)
+//
+// GET /api/health - サーバーのヘルスチェック
+//
+// レスポンス:
+//
+//	{
+//	    "status": "ok"
+//	}
 //
 // ## Files API (ファイル一覧取得)
 //
@@ -189,4 +206,8 @@
 //	// FilesHandler
 //	filesHandler := handler.NewFilesHandler()
 //	api.GET("/files", filesHandler.Handle)
+//
+//	// HealthHandler
+//	healthHandler := handler.NewHealthHandler()
+//	api.GET("/health", healthHandler.Handle)
 package handler
