@@ -460,7 +460,7 @@ export default function Home() {
         <h1 className="text-gray-800 text-2xl font-bold">Ghost Runner</h1>
         <div className="flex gap-2 items-center">
           <a
-            href="/docs"
+            href={projectPath ? `/docs?project=${encodeURIComponent(projectPath)}` : "/docs"}
             className="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors"
             title="Documentation"
           >

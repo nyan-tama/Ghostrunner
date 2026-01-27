@@ -1,11 +1,20 @@
 import Link from "next/link";
 import type { FileSystemEntry } from "@/lib/docs/fileSystem";
 
-interface Props {
+interface FolderListProps {
   entries: FileSystemEntry[];
+  project?: string;
 }
 
-export default function FolderList({ entries }: Props) {
+function buildHref(entryPath: string, project?: string): string {
+  const base = `/docs/${entryPath}`;
+  if (project) {
+    return `${base}?project=${encodeURIComponent(project)}`;
+  }
+  return base;
+}
+
+export default function FolderList({ entries, project }: FolderListProps) {
   if (entries.length === 0) {
     return (
       <p className="text-gray-500 text-center py-8">このフォルダは空です</p>
@@ -17,7 +26,7 @@ export default function FolderList({ entries }: Props) {
       {entries.map((entry) => (
         <li key={entry.path}>
           <Link
-            href={`/docs/${entry.path}`}
+            href={buildHref(entry.path, project)}
             className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
           >
             {entry.type === "directory" ? (

@@ -7,6 +7,8 @@ Ghost Runner は単一ページアプリケーション（SPA）として構成�
 | パス | コンポーネント | 役割 |
 |-----|--------------|------|
 | `/` | `app/page.tsx` | メインページ（コマンド入力と実行結果表示） |
+| `/docs` | `app/docs/page.tsx` | 開発ドキュメントのルート表示（フォルダ一覧） |
+| `/docs/[...path]` | `app/docs/[...path]/page.tsx` | 開発ドキュメントのサブフォルダ/ファイル表示 |
 | `/gemini-live` | `app/gemini-live/page.tsx` | Gemini Live API を使用した音声 AI インターフェース |
 | `/openai-realtime` | `app/openai-realtime/page.tsx` | OpenAI Realtime API を使用した音声 AI インターフェース |
 
@@ -17,6 +19,9 @@ Ghost Runner は単一ページアプリケーション（SPA）として構成�
 | 要素 | 役割 | 備考 |
 |-----|------|------|
 | タイトル | "Ghost Runner" の表示 | |
+| Docs リンク | 開発ドキュメントページへの遷移 | projectPath を `?project=` クエリで引き渡し |
+| Gemini Live リンク | Gemini Live ページへの遷移 | |
+| OpenAI Realtime リンク | OpenAI Realtime ページへの遷移 | |
 | Restart Servers ボタン | バックエンド・フロントエンドサーバーの再起動 | 開発環境のみ表示 |
 
 ### コマンド入力エリア
@@ -410,3 +415,63 @@ OpenAI Realtime API を使用したリアルタイム音声会話機能を提供
 | `types/openai.ts` | OpenAI Realtime API 関連の型定義 |
 | `lib/api.ts` | エフェメラルトークン取得 API |
 | `lib/audioProcessor.ts` | 音声処理ユーティリティ |
+
+---
+
+## Docs ページ
+
+プロジェクトの `開発/` フォルダ内のドキュメントをブラウザで閲覧する機能を提供する。クエリパラメータ `?project=` で任意のプロジェクトパスを指定でき、異なるプロジェクトのドキュメントを表示できる。
+
+### クエリパラメータ
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `project` | string | いいえ | 対象プロジェクトの絶対パス。指定時はそのパス配下の `開発/` フォルダを表示する。未指定時は Ghostrunner プロジェクトの `開発/` フォルダにフォールバックする |
+
+### 構成要素
+
+| 要素 | 役割 | 備考 |
+|-----|------|------|
+| タイトル | "開発ドキュメント" の表示 | `/docs` のみ |
+| Home リンク | メインページへの遷移 | |
+| Breadcrumb | パンくずナビゲーション | サブフォルダ/ファイル閲覧時のみ表示、`project` パラメータを引き回す |
+| FolderList | フォルダ・ファイル一覧 | ディレクトリ表示時に表示、`project` パラメータを引き回す |
+| MarkdownViewer | Markdown ファイルの内容表示 | ファイル表示時に表示 |
+
+### コンポーネント
+
+| コンポーネント | ファイル | 役割 |
+|--------------|---------|------|
+| FolderList | `components/docs/FolderList.tsx` | フォルダ・ファイルの一覧表示、リンクに `?project=` を付与 |
+| Breadcrumb | `components/docs/Breadcrumb.tsx` | パンくずナビゲーション、リンクに `?project=` を付与 |
+| MarkdownViewer | `components/docs/MarkdownViewer.tsx` | Markdown ファイルのレンダリング |
+| MermaidRenderer | `components/docs/MermaidRenderer.tsx` | Mermaid 図のレンダリング |
+
+### パス解決とセキュリティ
+
+| 項目 | 内容 |
+|-----|------|
+| ドキュメントルート | `{projectPath}/開発/` （`projectPath` 未指定時は `{cwd}/../開発/`） |
+| パストラバーサル防止 | 解決後のパスがドキュメントルート配下であることを検証し、範囲外アクセスを拒否 |
+| 隠しファイル除外 | `.` で始まるファイル・フォルダは一覧に表示しない |
+| ソート順 | ディレクトリを先に表示、ファイルは名前降順 |
+
+### 表示モード
+
+| パスの種別 | 表示内容 |
+|-----------|---------|
+| ディレクトリ | FolderList でフォルダ・ファイルの一覧を表示 |
+| ファイル（`.md`） | MarkdownViewer で Markdown の内容をレンダリング表示 |
+| 存在しないパス | 404 Not Found |
+
+### 関連ファイル
+
+| ファイル | 役割 |
+|---------|------|
+| `app/docs/page.tsx` | Docs ルートページ（`searchParams` から `project` を取得） |
+| `app/docs/[...path]/page.tsx` | サブパスページ（`params` と `searchParams` から `project` を取得） |
+| `components/docs/FolderList.tsx` | フォルダ・ファイル一覧コンポーネント |
+| `components/docs/Breadcrumb.tsx` | パンくずナビゲーションコンポーネント |
+| `components/docs/MarkdownViewer.tsx` | Markdown レンダリングコンポーネント |
+| `components/docs/MermaidRenderer.tsx` | Mermaid 図レンダリングコンポーネント |
+| `lib/docs/fileSystem.ts` | ファイルシステム操作（パス解決、ディレクトリ取得、ファイル読み取り、パストラバーサル防止） |

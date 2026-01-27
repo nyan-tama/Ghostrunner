@@ -1,15 +1,23 @@
 import Link from "next/link";
 
-interface Props {
+interface BreadcrumbProps {
   path: string;
+  project?: string;
 }
 
-export default function Breadcrumb({ path }: Props) {
+function buildHref(basePath: string, project?: string): string {
+  if (project) {
+    return `${basePath}?project=${encodeURIComponent(project)}`;
+  }
+  return basePath;
+}
+
+export default function Breadcrumb({ path, project }: BreadcrumbProps) {
   const segments = path.split("/").filter(Boolean);
 
   return (
     <nav className="flex items-center gap-2 mb-6 text-sm text-gray-600">
-      <Link href="/docs" className="hover:text-blue-600">
+      <Link href={buildHref("/docs", project)} className="hover:text-blue-600">
         開発
       </Link>
       {segments.map((segment, index) => {
@@ -24,7 +32,7 @@ export default function Breadcrumb({ path }: Props) {
                 {decodeURIComponent(segment)}
               </span>
             ) : (
-              <Link href={href} className="hover:text-blue-600">
+              <Link href={buildHref(href, project)} className="hover:text-blue-600">
                 {decodeURIComponent(segment)}
               </Link>
             )}

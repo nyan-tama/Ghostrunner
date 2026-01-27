@@ -407,3 +407,64 @@ flowchart LR
 | Gemini API エラー | "Gemini API error: [メッセージ]" | 内容を確認し、Connect ボタンで再試行 |
 | マイク許可拒否 | "Microphone permission denied" | ブラウザ設定でマイク許可を付与 |
 | 録音開始失敗 | "Failed to start recording: [詳細]" | Disconnect 後に再接続 |
+
+---
+
+## Docs: ドキュメント閲覧フロー
+
+`/docs` はプロジェクトの `開発/` フォルダ内のドキュメントを閲覧するページ。クエリパラメータ `?project=` で任意のプロジェクトパスを指定でき、ページ内遷移でもパラメータが引き回される。
+
+### ページ間遷移
+
+```mermaid
+flowchart TD
+    A["メインページ<br>/"] -->|Docs リンククリック| B["/docs?project={projectPath}<br>開発フォルダルート"]
+    B -->|フォルダクリック| C["/docs/{folder}?project={projectPath}<br>サブフォルダ"]
+    C -->|フォルダクリック| C
+    C -->|ファイルクリック| D["/docs/{folder}/{file}?project={projectPath}<br>ファイル表示"]
+    B -->|ファイルクリック| D
+    C -->|パンくずリンククリック| B
+    D -->|パンくずリンククリック| B
+    D -->|パンくずリンククリック| C
+    B -->|Home リンククリック| A
+    C -->|Home リンククリック| A
+    D -->|Home リンククリック| A
+```
+
+### 遷移詳細
+
+| 遷移元 | 遷移先 | トリガー | 遷移方法 | 渡すデータ |
+|-------|-------|---------|---------|-----------|
+| メインページ (`/`) | Docs ルート (`/docs`) | Docs リンククリック | `<a>` タグ | `project` (query): メインページの `projectPath` を `encodeURIComponent` でエンコード。`projectPath` 未設定時は `?project=` なし |
+| Docs ルート (`/docs`) | サブフォルダ (`/docs/{path}`) | FolderList のフォルダクリック | Link | `project` (query): 現在の `project` パラメータをそのまま引き回し |
+| Docs ルート (`/docs`) | ファイル表示 (`/docs/{path}`) | FolderList のファイルクリック | Link | `project` (query): 同上 |
+| サブフォルダ (`/docs/{path}`) | サブフォルダ (`/docs/{path}`) | FolderList のフォルダクリック | Link | `project` (query): 同上 |
+| サブフォルダ (`/docs/{path}`) | ファイル表示 (`/docs/{path}`) | FolderList のファイルクリック | Link | `project` (query): 同上 |
+| 任意の Docs ページ | Docs ルート (`/docs`) | Breadcrumb の「開発」リンククリック | Link | `project` (query): 同上 |
+| 任意の Docs ページ | 親フォルダ (`/docs/{path}`) | Breadcrumb の中間パスリンククリック | Link | `project` (query): 同上 |
+| 任意の Docs ページ | メインページ (`/`) | Home リンククリック | Link | なし |
+
+### project パラメータの流れ
+
+```mermaid
+flowchart LR
+    A[メインページ<br>projectPath 状態] -->|Docs リンク| B["?project={projectPath}"]
+    B -->|searchParams から取得| C[page.tsx<br>project prop]
+    C -->|prop として渡す| D[FolderList<br>project prop]
+    C -->|prop として渡す| E[Breadcrumb<br>project prop]
+    D -->|リンク生成時に付与| F["href に ?project= 付与"]
+    E -->|リンク生成時に付与| F
+    F -->|遷移先で再取得| C
+```
+
+### パス解決
+
+```mermaid
+flowchart LR
+    A["searchParams.project"] -->|あり| B["resolveDocsRoot(project)<br>= project + '/開発'"]
+    A -->|なし| C["resolveDocsRoot()<br>= cwd + '/../開発'"]
+    B --> D["validatePath<br>パストラバーサル検証"]
+    C --> D
+    D -->|検証OK| E[ファイル/ディレクトリ操作]
+    D -->|検証NG| F[アクセス拒否<br>空配列 or null 返却]
+```

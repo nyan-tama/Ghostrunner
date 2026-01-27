@@ -6,8 +6,13 @@ export const metadata = {
   title: "Docs - Ghost Runner",
 };
 
-export default async function DocsPage() {
-  const entries = await getDirectoryContents("");
+interface Props {
+  searchParams: Promise<{ project?: string }>;
+}
+
+export default async function DocsPage({ searchParams }: Props) {
+  const { project } = await searchParams;
+  const entries = await getDirectoryContents("", project);
 
   return (
     <div className="max-w-[900px] mx-auto px-5 py-5 bg-gray-100 min-h-screen">
@@ -21,7 +26,7 @@ export default async function DocsPage() {
         </Link>
       </div>
 
-      <FolderList entries={entries} />
+      <FolderList entries={entries} project={project} />
     </div>
   );
 }

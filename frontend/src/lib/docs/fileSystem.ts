@@ -1,20 +1,42 @@
 import fs from "fs/promises";
 import path from "path";
 
-// 開発フォルダの絶対パス
-const DOCS_ROOT = path.join(process.cwd(), "..", "開発");
-
 export interface FileSystemEntry {
   name: string;
   path: string;
   type: "file" | "directory";
 }
 
+// プロジェクトパスから開発フォルダのルートを解決する
+function resolveDocsRoot(projectPath?: string): string {
+  if (projectPath) {
+    return path.join(projectPath, "開発");
+  }
+  return path.join(process.cwd(), "..", "開発");
+}
+
+// パストラバーサル防止: 解決後のパスが docsRoot 配下であることを検証
+function validatePath(absolutePath: string, docsRoot: string): void {
+  const resolved = path.resolve(absolutePath);
+  const resolvedRoot = path.resolve(docsRoot);
+  if (!resolved.startsWith(resolvedRoot + path.sep) && resolved !== resolvedRoot) {
+    throw new Error("Access denied: path traversal detected");
+  }
+}
+
 // ディレクトリの内容を取得
 export async function getDirectoryContents(
-  relativePath: string = ""
+  relativePath: string = "",
+  projectPath?: string
 ): Promise<FileSystemEntry[]> {
-  const absolutePath = path.join(DOCS_ROOT, relativePath);
+  const docsRoot = resolveDocsRoot(projectPath);
+  const absolutePath = path.join(docsRoot, relativePath);
+
+  try {
+    validatePath(absolutePath, docsRoot);
+  } catch {
+    return [];
+  }
 
   try {
     const entries = await fs.readdir(absolutePath, { withFileTypes: true });
@@ -38,9 +60,18 @@ export async function getDirectoryContents(
 
 // ファイルの内容を取得
 export async function getFileContent(
-  relativePath: string
+  relativePath: string,
+  projectPath?: string
 ): Promise<string | null> {
-  const absolutePath = path.join(DOCS_ROOT, relativePath + ".md");
+  const docsRoot = resolveDocsRoot(projectPath);
+  const absolutePath = path.join(docsRoot, relativePath + ".md");
+
+  try {
+    validatePath(absolutePath, docsRoot);
+  } catch {
+    return null;
+  }
+
   try {
     return await fs.readFile(absolutePath, "utf-8");
   } catch {
@@ -50,10 +81,19 @@ export async function getFileContent(
 
 // パスがディレクトリかファイルか判定
 export async function getPathType(
-  relativePath: string
+  relativePath: string,
+  projectPath?: string
 ): Promise<"directory" | "file" | "not_found"> {
-  const dirPath = path.join(DOCS_ROOT, relativePath);
-  const filePath = path.join(DOCS_ROOT, relativePath + ".md");
+  const docsRoot = resolveDocsRoot(projectPath);
+  const dirPath = path.join(docsRoot, relativePath);
+  const filePath = path.join(docsRoot, relativePath + ".md");
+
+  try {
+    validatePath(dirPath, docsRoot);
+    validatePath(filePath, docsRoot);
+  } catch {
+    return "not_found";
+  }
 
   try {
     const stat = await fs.stat(dirPath);
