@@ -28,4 +28,7 @@ export const PLAN_APPROVAL_KEYWORDS = [
 ] as const;
 
 // サーバー再起動機能用（開発環境のみ）
-export const BACKEND_HEALTH_URL = "http://localhost:8080/api/health";
+// NEXT_PUBLIC_API_BASE が設定されている場合はそれを使用（外部アクセス時）
+export const BACKEND_HEALTH_URL = process.env.NEXT_PUBLIC_API_BASE
+  ? `${process.env.NEXT_PUBLIC_API_BASE}/api/health`
+  : "http://localhost:8080/api/health";

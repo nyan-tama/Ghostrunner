@@ -26,9 +26,13 @@ func main() {
 	// Ginエンジン初期化
 	r := gin.Default()
 
-	// CORS設定（ローカル開発時にフロントエンドから直接アクセスを許可）
+	// CORS設定（ローカル開発時およびTailscale経由のアクセスを許可）
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000"},
+		AllowOriginFunc: func(origin string) bool {
+			// localhost と Tailscale IP (100.x.x.x) を許可
+			return origin == "http://localhost:3000" ||
+				len(origin) > 11 && origin[:11] == "http://100."
+		},
 		AllowMethods:     []string{"GET", "POST", "OPTIONS"},
 		AllowHeaders:     []string{"Content-Type"},
 		AllowCredentials: true,

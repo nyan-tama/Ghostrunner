@@ -226,14 +226,17 @@ logs:
 .PHONY: frontend-external dev-external
 
 frontend-external:
-	cd $(PROJECT_ROOT)/frontend && npx next dev -H 0.0.0.0
+	@TAILSCALE_IP=$$(tailscale ip -4 2>/dev/null || echo "localhost"); \
+	echo "Using API base: http://$$TAILSCALE_IP:8080"; \
+	cd $(PROJECT_ROOT)/frontend && NEXT_PUBLIC_API_BASE="http://$$TAILSCALE_IP:8080" npx next dev -H 0.0.0.0
 
 dev-external:
-	@echo "外部アクセス可能モードで両サーバーを起動します..."
-	@echo "外部からのアクセスURL:"
-	@echo "  フロントエンド: http://<Tailscale IP>:3000"
-	@echo "  バックエンド API: http://<Tailscale IP>:8080"
-	@echo ""
-	@echo "※制限事項: サーバー再起動機能は外部からは使用できません"
-	@echo ""
+	@TAILSCALE_IP=$$(tailscale ip -4 2>/dev/null || echo "localhost"); \
+	echo "外部アクセス可能モードで両サーバーを起動します..."; \
+	echo "外部からのアクセスURL:"; \
+	echo "  フロントエンド: http://$$TAILSCALE_IP:3000"; \
+	echo "  バックエンド API: http://$$TAILSCALE_IP:8080"; \
+	echo ""; \
+	echo "※制限事項: サーバー再起動機能は外部からは使用できません"; \
+	echo ""
 	@make -j2 backend frontend-external
