@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  experimental: {
+    // Next.js 16 の global-error プリレンダリング問題を回避
+    preloadEntriesOnStart: false,
+  },
 };
 
 export default nextConfig;

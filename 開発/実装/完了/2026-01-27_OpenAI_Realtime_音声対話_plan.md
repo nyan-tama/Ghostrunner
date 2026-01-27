@@ -477,3 +477,191 @@ flowchart TD
 - [OpenAI Realtime API WebSocket ガイド](https://platform.openai.com/docs/guides/realtime-websocket)
 - [OpenAI Realtime API リファレンス](https://platform.openai.com/docs/api-reference/realtime)
 - [OpenAI Client Secrets](https://platform.openai.com/docs/api-reference/realtime-sessions)
+
+---
+
+## バックエンド実装レポート
+
+### 実装サマリー
+
+- **実装日**: 2026-01-27
+- **実装範囲**: バックエンド（`backend/` 配下）
+- **変更ファイル数**: 7 files
+
+OpenAI Realtime API用のエフェメラルキー発行エンドポイント `POST /api/openai/realtime/session` を実装した。既存のGemini API実装パターンを踏襲し、一貫したアーキテクチャで設計。
+
+### 変更ファイル一覧
+
+| ファイル | 変更種別 | 変更内容 |
+|---------|----------|---------|
+| `backend/internal/service/types.go` | 追記 | `OpenAISessionResult` 型を追加（Token, ExpireTime フィールド） |
+| `backend/internal/service/openai.go` | 新規作成 | OpenAIService インターフェースと実装。エフェメラルキー発行ロジック |
+| `backend/internal/handler/openai.go` | 新規作成 | OpenAIHandler。リクエスト/レスポンス型定義とHTTPハンドラー |
+| `backend/cmd/server/main.go` | 修正 | OpenAIService/Handler の初期化とルーティング追加 |
+| `backend/docs/BACKEND_API.md` | 追記 | API仕様ドキュメント追加 |
+| `backend/internal/service/doc.go` | 修正 | パッケージドキュメントに OpenAIService の説明を追加 |
+| `backend/internal/handler/doc.go` | 修正 | パッケージドキュメントに OpenAIHandler の説明を追加 |
+
+### API仕様の要約
+
+#### POST /api/openai/realtime/session
+
+OpenAI Realtime API用のエフェメラルキー（ek_xxx形式）を発行する。
+
+**リクエスト:**
+```json
+{
+    "model": "gpt-4o-realtime-preview-2024-12-17",  // オプション
+    "voice": "verse"                                // オプション
+}
+```
+
+**レスポンス（成功）:**
+```json
+{
+    "success": true,
+    "token": "ek_xxx...",
+    "expireTime": "2026-01-27T12:00:00Z"
+}
+```
+
+**HTTPステータス:**
+| コード | 説明 |
+|--------|------|
+| 200 | 正常完了 |
+| 400 | リクエスト不正 |
+| 500 | OpenAI API エラー |
+| 503 | OPENAI_API_KEY 未設定 |
+
+### 計画からの変更点
+
+特になし。計画書通りに実装した。
+
+### 実装時の課題
+
+特になし。既存のGemini API実装パターンを参考に、スムーズに実装できた。
+
+### 残存する懸念点
+
+- **API キー管理**: `OPENAI_API_KEY` 環境変数が未設定の場合、サービスが nil を返す設計。フロントエンドで適切なエラーハンドリングが必要
+- **トークン有効期限**: OpenAI のエフェメラルキーは発行から1分程度で失効する。フロントエンド側で接続前に毎回取得する必要がある
+
+### 動作確認手順
+
+#### 1. 環境変数の設定
+
+```bash
+export OPENAI_API_KEY="sk-xxx..."
+```
+
+#### 2. バックエンドの起動
+
+```bash
+make restart-backend-logs
+```
+
+起動ログに以下が表示されることを確認:
+```
+[OpenAIService] Initialized with OpenAI API
+```
+
+#### 3. API疎通確認
+
+```bash
+# リクエスト送信
+curl -X POST http://localhost:8080/api/openai/realtime/session \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+# 期待されるレスポンス
+{
+  "success": true,
+  "token": "ek_...",
+  "expireTime": "2026-01-27T12:34:56Z"
+}
+```
+
+#### 4. パラメータ指定の確認
+
+```bash
+curl -X POST http://localhost:8080/api/openai/realtime/session \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4o-realtime-preview-2024-12-17", "voice": "alloy"}'
+```
+
+#### 5. API キー未設定時の確認
+
+```bash
+# 環境変数を削除してサーバー再起動
+unset OPENAI_API_KEY
+make restart-backend-logs
+
+# リクエスト送信
+curl -X POST http://localhost:8080/api/openai/realtime/session
+
+# 期待されるレスポンス（503 Service Unavailable）
+{
+  "success": false,
+  "error": "OpenAI サービスが利用できません"
+}
+```
+
+### 次のステップ
+
+~~フロントエンド実装に進む~~ → 完了
+
+---
+
+## フロントエンド実装レポート
+
+### 実装サマリー
+
+- **実装日**: 2026-01-27
+- **実装範囲**: フロントエンド（`frontend/` 配下）
+- **変更ファイル数**: 6 files
+
+OpenAI Realtime API を使用したリアルタイム音声対話のフロントエンド機能を実装した。既存の Gemini Live 実装と同様のパターンで、型定義・カスタムフック・UIコンポーネント・ページを作成。
+
+### 変更ファイル一覧
+
+| ファイル | 変更種別 | 変更内容 |
+|---------|----------|---------|
+| `frontend/src/types/openai.ts` | 新規作成 | OpenAI Realtime API 用型定義（接続状態、送受信イベント、型ガード関数） |
+| `frontend/src/hooks/useOpenAIRealtime.ts` | 新規作成 | WebSocket 接続・音声入出力・状態管理フック |
+| `frontend/src/components/OpenAIRealtimeClient.tsx` | 新規作成 | 音声 AI インターフェースの UI コンポーネント |
+| `frontend/src/app/openai-realtime/page.tsx` | 新規作成 | ページエントリーポイント（SSR 無効化） |
+| `frontend/src/lib/api.ts` | 修正 | `fetchOpenAIRealtimeToken` 関数を追加 |
+| `frontend/docs/screens.md` | 修正 | ページ一覧に `/openai-realtime` を追加、OpenAI Realtime ページセクションを追加 |
+
+### Gemini Live 版との主な違い
+
+| 項目 | Gemini Live | OpenAI Realtime |
+|-----|------------|-----------------|
+| WebSocket URL | Gemini API エンドポイント | `wss://api.openai.com/v1/realtime` |
+| 認証方式 | URL にトークンを含める | サブプロトコルにエフェメラルキーを含める |
+| 入力サンプルレート | 16kHz | 24kHz |
+| 出力サンプルレート | 24kHz | 24kHz |
+| セットアップメッセージ | Gemini 独自形式 | `session.update` イベント |
+| 音声データ受信 | Gemini 独自形式 | `response.audio.delta` イベント |
+| VAD（音声区間検出） | クライアント側 | サーバー側（`server_vad`） |
+| 音声入力処理 | AudioWorklet | ScriptProcessorNode |
+
+### 計画からの変更点
+
+- **AudioWorklet → ScriptProcessorNode**: AudioWorklet を使用する計画だったが、24kHz サンプルレートでの互換性を考慮し ScriptProcessorNode を採用
+- **追加イベント型**: `session.updated` と `response.audio.done` イベントの型を追加（MVP範囲で処理に活用）
+
+### 残存する懸念点
+
+- **ScriptProcessorNode の非推奨**: ScriptProcessorNode は Web Audio API で非推奨。将来的に AudioWorklet への移行を検討
+- **エフェメラルキーの有効期限**: OpenAI のエフェメラルキーは約1分で失効するため、接続前に毎回取得が必要
+- **同時再生の競合**: 出力用 AudioContext の遅延作成により、入力用 AudioContext との競合を回避しているが、エッジケースの検証が必要
+
+### 動作確認手順
+
+1. バックエンドを起動（`OPENAI_API_KEY` 環境変数が設定されていること）
+2. フロントエンドを起動
+3. ブラウザで `/openai-realtime` にアクセス
+4. "Connect" をクリックして接続
+5. "Start Recording" をクリックしてマイク入力開始
+6. 音声で話しかけると AI の音声応答が再生される

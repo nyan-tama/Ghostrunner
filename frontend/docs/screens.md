@@ -8,6 +8,7 @@ Ghost Runner は単一ページアプリケーション（SPA）として構成�
 |-----|--------------|------|
 | `/` | `app/page.tsx` | メインページ（コマンド入力と実行結果表示） |
 | `/gemini-live` | `app/gemini-live/page.tsx` | Gemini Live API を使用した音声 AI インターフェース |
+| `/openai-realtime` | `app/openai-realtime/page.tsx` | OpenAI Realtime API を使用した音声 AI インターフェース |
 
 ## メインページの構成要素
 
@@ -317,3 +318,95 @@ Gemini Live API を使用したリアルタイム音声会話機能を提供す�
 | `lib/api.ts` | エフェメラルトークン取得 API |
 | `lib/audioProcessor.ts` | 音声処理ユーティリティ |
 | `public/audio-worklet-processor.js` | AudioWorklet プロセッサ |
+
+---
+
+## OpenAI Realtime ページ
+
+OpenAI Realtime API を使用したリアルタイム音声会話機能を提供する独立ページ。Gemini Live ページと同等の機能を持つ。
+
+### 構成要素
+
+| 要素 | 役割 | 備考 |
+|-----|------|------|
+| タイトル | "OpenAI Realtime" の表示 | |
+| 接続状態インジケーター | WebSocket 接続状態を色とテキストで表示 | |
+| エラー表示 | エラーメッセージの表示（エラー発生時のみ） | |
+| 接続ボタン | OpenAI Realtime API への接続/切断 | |
+| マイクボタン | 音声入力の開始/停止 | 接続時のみ有効 |
+| 使い方説明 | 操作手順の説明 | |
+| デバッグ情報 | 接続状態、録音状態、エラー情報の表示 | 開発環境のみ表示 |
+
+### コンポーネント
+
+| コンポーネント | ファイル | 役割 |
+|--------------|---------|------|
+| OpenAIRealtimeClient | `components/OpenAIRealtimeClient.tsx` | 音声 AI インターフェースの UI |
+
+### カスタムフック
+
+| フック | ファイル | 役割 |
+|-------|---------|------|
+| useOpenAIRealtime | `hooks/useOpenAIRealtime.ts` | WebSocket 接続と音声処理の管理 |
+
+### 接続状態
+
+| 状態 | インジケーター色 | 表示テキスト |
+|-----|-----------------|-------------|
+| disconnected | グレー | Disconnected |
+| connecting | 黄色 | Connecting... |
+| connected | 緑 | Connected |
+| error | 赤 | Error |
+
+### ボタン状態
+
+#### 接続ボタン
+
+| 接続状態 | 表示テキスト | 操作 |
+|---------|------------|------|
+| disconnected | "Connect" | クリックで接続開始 |
+| connecting | "Connecting..." | 無効化 |
+| connected | "Disconnect" | クリックで切断 |
+| error | "Connect" | クリックで再接続 |
+
+#### マイクボタン
+
+| 接続状態 | 録音状態 | 表示テキスト | 操作 |
+|---------|---------|------------|------|
+| 未接続 | - | "Start Recording" | 無効化 |
+| 接続中 | 停止 | "Start Recording" | クリックで録音開始 |
+| 接続中 | 録音中 | "Stop Recording" | クリックで録音停止 |
+
+### 技術仕様
+
+#### 音声入力
+
+| 項目 | 値 |
+|-----|-----|
+| サンプルレート | 24kHz（OpenAI 要求仕様） |
+| チャンネル数 | モノラル |
+| フォーマット | 16-bit PCM、Base64 エンコード |
+| 処理方式 | ScriptProcessorNode によるリアルタイム処理 |
+
+#### 音声出力
+
+| 項目 | 値 |
+|-----|-----|
+| サンプルレート | 24kHz（OpenAI 出力仕様） |
+| フォーマット | 16-bit PCM |
+| 処理方式 | キュー方式による順次再生 |
+
+#### WebSocket 認証
+
+ブラウザの WebSocket API はヘッダーを直接設定できないため、サブプロトコルにエフェメラルキーを含める方式を使用。
+
+### 関連ファイル
+
+| ファイル | 役割 |
+|---------|------|
+| `app/openai-realtime/page.tsx` | ページエントリーポイント（SSR 無効化） |
+| `components/OpenAIRealtimeClient.tsx` | UI コンポーネント |
+| `hooks/useOpenAIRealtime.ts` | WebSocket 接続・音声処理フック |
+| `types/openai.ts` | OpenAI Realtime API 関連の型定義 |
+| `lib/api.ts` | エフェメラルトークン取得 API |
+| `lib/audioProcessor.ts` | 音声処理ユーティリティ |

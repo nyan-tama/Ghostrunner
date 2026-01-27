@@ -1,5 +1,6 @@
 import type { FilesResponse, CommandRequest, ContinueRequest } from "@/types";
 import type { GeminiTokenResponse } from "@/types/gemini";
+import type { OpenAITokenResponse } from "@/types/openai";
 
 // ローカル開発時はバックエンド直接、本番はプロキシ経由
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
@@ -54,6 +55,33 @@ export async function fetchGeminiToken(expireSeconds?: number): Promise<string> 
   });
 
   const data: GeminiTokenResponse = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || "Failed to get ephemeral token");
+  }
+
+  if (!data.token) {
+    throw new Error("Token not found in response");
+  }
+
+  return data.token;
+}
+
+/**
+ * OpenAI Realtime API 用のエフェメラルトークンを取得
+ * @param model 使用するモデル（オプション）
+ * @param voice 音声タイプ（オプション）
+ * @returns エフェメラルトークン文字列
+ * @throws トークン取得に失敗した場合
+ */
+export async function fetchOpenAIRealtimeToken(model?: string, voice?: string): Promise<string> {
+  const response = await fetch(`${API_BASE}/api/openai/realtime/session`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model, voice }),
+  });
+
+  const data: OpenAITokenResponse = await response.json();
 
   if (!response.ok || !data.success) {
     throw new Error(data.error || "Failed to get ephemeral token");

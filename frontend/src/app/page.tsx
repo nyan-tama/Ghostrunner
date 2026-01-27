@@ -460,11 +460,25 @@ export default function Home() {
         <h1 className="text-gray-800 text-2xl font-bold">Ghost Runner</h1>
         <div className="flex gap-2 items-center">
           <a
+            href="/docs"
+            className="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors"
+            title="Documentation"
+          >
+            Docs
+          </a>
+          <a
             href="/gemini-live"
             className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
             title="Gemini Live API interface"
           >
             Gemini Live
+          </a>
+          <a
+            href="/openai-realtime"
+            className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
+            title="OpenAI Realtime API interface"
+          >
+            OpenAI Realtime
           </a>
           {process.env.NODE_ENV === "development" && (
             <button
