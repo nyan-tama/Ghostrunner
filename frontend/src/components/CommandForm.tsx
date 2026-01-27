@@ -75,13 +75,13 @@ export default function CommandForm({
             onChange={(e) => onProjectChange(e.target.value)}
             placeholder="/Users/user/myproject"
             required
-            className="flex-1 p-3 border border-gray-200 rounded-lg text-base bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="flex-1 min-w-0 p-3 border border-gray-200 rounded-lg text-base bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           />
           {projectHistory.length > 0 && (
             <select
               value=""
               onChange={handleHistorySelect}
-              className="p-3 border border-gray-200 rounded-lg text-base bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="w-20 shrink-0 p-3 border border-gray-200 rounded-lg text-base bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               title="履歴から選択"
             >
               <option value="">履歴</option>
