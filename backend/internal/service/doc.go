@@ -10,6 +10,9 @@
 // ClaudeService インターフェースがClaude CLI操作を抽象化する。
 // handlerパッケージから利用され、依存性の注入を可能にする。
 //
+// OpenAIService インターフェースがOpenAI Realtime API操作を抽象化する。
+// 音声対話機能のためのエフェメラルキー発行を担当する。
+//
 // # ClaudeService
 //
 // Claude CLIの実行を担当するサービス。
@@ -34,6 +37,18 @@
 //   - nextjs: Next.js フロントエンドのみの実装
 //   - discuss: アイデアや構想の対話形式での深掘り
 //   - research: 外部情報の調査・収集
+//
+// # OpenAIService
+//
+// OpenAI Realtime API用のエフェメラルキー発行を担当するサービス。
+// OPENAI_API_KEY 環境変数が設定されていない場合は nil を返し、機能が無効になる。
+//
+// 主なメソッド:
+//   - CreateRealtimeSession: Realtime API用のエフェメラルキーを発行
+//
+// セッション作成パラメータ:
+//   - model: 使用するモデル（未指定時: gpt-4o-realtime-preview-2024-12-17）
+//   - voice: 音声タイプ（未指定時: verse）
 //
 // # 画像サポート
 //

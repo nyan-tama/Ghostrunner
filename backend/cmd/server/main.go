@@ -17,9 +17,11 @@ func main() {
 	// 依存性の組み立て
 	claudeService := service.NewClaudeService()
 	geminiService := service.NewGeminiService() // nil の場合がある（API キー未設定時）
+	openaiService := service.NewOpenAIService() // nil の場合がある（API キー未設定時）
 	planHandler := handler.NewPlanHandler(claudeService)
 	commandHandler := handler.NewCommandHandler(claudeService)
 	geminiHandler := handler.NewGeminiHandler(geminiService)
+	openaiHandler := handler.NewOpenAIHandler(openaiService)
 	filesHandler := handler.NewFilesHandler()
 	healthHandler := handler.NewHealthHandler()
 
@@ -61,6 +63,9 @@ func main() {
 
 		// Gemini API
 		api.POST("/gemini/token", geminiHandler.HandleToken)
+
+		// OpenAI Realtime API
+		api.POST("/openai/realtime/session", openaiHandler.HandleSession)
 	}
 
 	// サーバー起動（0.0.0.0で全インターフェースからアクセス可能に）

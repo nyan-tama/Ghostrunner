@@ -103,3 +103,9 @@ type GeminiTokenResult struct {
 	Token      string `json:"token"`       // エフェメラルトークン
 	ExpireTime string `json:"expire_time"` // トークン有効期限（ISO8601形式）
 }
+
+// OpenAISessionResult はOpenAI Realtime APIのセッション作成結果を表します
+type OpenAISessionResult struct {
+	Token      string `json:"token"`       // エフェメラルキー（ek_xxx形式）
+	ExpireTime string `json:"expire_time"` // トークン有効期限（ISO8601形式）
+}

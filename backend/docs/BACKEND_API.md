@@ -31,6 +31,7 @@ Server-Sent Events (SSE) によるストリーミング出力とセッション�
 | `/api/plan/continue` | POST | セッション継続（後方互換性） |
 | `/api/plan/continue/stream` | POST | セッション継続のストリーミング実行（後方互換性） |
 | `/api/gemini/token` | POST | Gemini Live API 用エフェメラルトークン発行 |
+| `/api/openai/realtime/session` | POST | OpenAI Realtime API 用エフェメラルキー発行 |
 
 ---
 
@@ -404,6 +405,70 @@ Gemini Live API 用のエフェメラルトークンを発行する。
 | 400 | リクエスト不正（expireSecondsが範囲外等） |
 | 500 | トークン発行に失敗（Gemini API エラー） |
 | 503 | GEMINI_API_KEY 未設定 |
+
+---
+
+## OpenAI Realtime API
+
+### POST /api/openai/realtime/session
+
+OpenAI Realtime API 用のエフェメラルキーを発行する。
+
+フロントエンドがOpenAI Realtime APIへWebSocket接続する際に使用する一時的なトークン（ek_xxx形式）を生成する。
+
+#### 必要な環境変数
+
+| 環境変数 | 説明 |
+|----------|------|
+| `OPENAI_API_KEY` | OpenAI API のAPIキー（sk-xxx形式） |
+
+#### リクエスト
+
+```json
+{
+    "model": "gpt-4o-realtime-preview-2024-12-17",
+    "voice": "verse"
+}
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `model` | string | No | 使用するモデル。デフォルト: `gpt-4o-realtime-preview-2024-12-17` |
+| `voice` | string | No | 音声タイプ。デフォルト: `verse` |
+
+#### レスポンス（成功）
+
+```json
+{
+    "success": true,
+    "token": "ek_xxx...",
+    "expireTime": "2026-01-27T12:00:00Z"
+}
+```
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `success` | boolean | 成功フラグ |
+| `token` | string | エフェメラルキー（ek_xxx形式） |
+| `expireTime` | string | トークンの有効期限（RFC3339形式） |
+
+#### レスポンス（エラー）
+
+```json
+{
+    "success": false,
+    "error": "エラーメッセージ"
+}
+```
+
+#### HTTPステータスコード
+
+| コード | 説明 |
+|--------|------|
+| 200 | 正常完了 |
+| 400 | リクエスト不正 |
+| 500 | セッション作成に失敗（OpenAI API エラー） |
+| 503 | OPENAI_API_KEY 未設定 |
 
 ---
 

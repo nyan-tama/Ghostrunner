@@ -12,6 +12,7 @@
 //   - PlanHandler: /api/plan 関連のエンドポイントを処理（後方互換性維持）
 //   - CommandHandler: /api/command 関連のエンドポイントを処理（汎用コマンド実行）
 //   - FilesHandler: /api/files 関連のエンドポイントを処理（ファイル一覧取得）
+//   - OpenAIHandler: /api/openai 関連のエンドポイントを処理（音声対話用エフェメラルキー発行）
 //
 // ClaudeServiceへの依存性注入によりテスタビリティを確保する。
 //
@@ -51,6 +52,12 @@
 // Claude CLIの /plan コマンドを実行するエンドポイント群。
 // 内部的にCommandHandlerと同じサービスを使用する。
 // 後方互換性のために維持している。
+//
+// # OpenAIHandler
+//
+// OpenAI Realtime API用のエフェメラルキー発行を処理するエンドポイント。
+// フロントエンドの音声対話機能がWebRTC接続に使用する短期トークンを発行する。
+// OPENAI_API_KEY環境変数が未設定の場合は503エラーを返す。
 //
 // # HealthHandler
 //
@@ -130,6 +137,25 @@
 // リクエスト: /api/command/continue と同じ
 // レスポンス: Server-Sent Events形式でStreamEventを送信
 //
+// ## OpenAI API (音声対話)
+//
+// POST /api/openai/realtime/session - Realtime API用エフェメラルキー発行
+//
+// リクエスト:
+//
+//	{
+//	    "model": "gpt-4o-realtime-preview-2024-12-17",  // モデル (オプション)
+//	    "voice": "verse"                                // 音声タイプ (オプション)
+//	}
+//
+// レスポンス:
+//
+//	{
+//	    "success": true,
+//	    "token": "ek_xxx...",       // エフェメラルキー
+//	    "expireTime": "2025-01-27T12:34:56Z"  // 有効期限（ISO8601形式）
+//	}
+//
 // ## Plan API (後方互換性)
 //
 // POST /api/plan - /planコマンドの同期実行
@@ -193,7 +219,8 @@
 //   - 200 OK: 正常完了
 //   - 400 Bad Request: リクエスト不正、バリデーションエラー、許可されていないコマンド
 //   - 404 Not Found: リソースが存在しない（/api/filesで開発ディレクトリが存在しない場合）
-//   - 500 Internal Server Error: Claude CLI実行エラー、ファイルシステムエラー
+//   - 500 Internal Server Error: Claude CLI実行エラー、ファイルシステムエラー、API呼び出しエラー
+//   - 503 Service Unavailable: サービス利用不可（OpenAI API キー未設定など）
 //
 // # 使用例
 //
@@ -226,6 +253,13 @@
 //	// FilesHandler
 //	filesHandler := handler.NewFilesHandler()
 //	api.GET("/files", filesHandler.Handle)
+//
+//	// OpenAIHandler
+//	openaiService := service.NewOpenAIService()
+//	if openaiService != nil {
+//	    openaiHandler := handler.NewOpenAIHandler(openaiService)
+//	    api.POST("/openai/realtime/session", openaiHandler.HandleSession)
+//	}
 //
 //	// HealthHandler
 //	healthHandler := handler.NewHealthHandler()
