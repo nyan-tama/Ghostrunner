@@ -39,6 +39,11 @@ help:
 	@echo "  make build            - 両方をビルド"
 	@echo "  make health           - ヘルスチェック"
 	@echo ""
+	@echo "外部アクセス（Tailscale等）:"
+	@echo "  make dev-external     - 両サーバーを外部公開モードで起動"
+	@echo "  make frontend-external - フロントエンドのみ外部公開モードで起動"
+	@echo "  ※外部からアクセスする場合は tailscale ip -4 でIPを確認"
+	@echo ""
 
 # 起動（フォアグラウンド、ログ直接表示）
 .PHONY: backend frontend dev
@@ -214,3 +219,21 @@ logs:
 	@echo "両方のログを表示します（別々のターミナルで実行してください）"
 	@echo "  make logs-backend"
 	@echo "  make logs-frontend"
+
+# 外部アクセス用（Tailscale等）
+# フロントエンドを 0.0.0.0 でリッスンさせ、外部からのアクセスを許可
+# バックエンドは既に 0.0.0.0:8080 でリッスンしているため変更不要
+.PHONY: frontend-external dev-external
+
+frontend-external:
+	cd $(PROJECT_ROOT)/frontend && npx next dev -H 0.0.0.0
+
+dev-external:
+	@echo "外部アクセス可能モードで両サーバーを起動します..."
+	@echo "外部からのアクセスURL:"
+	@echo "  フロントエンド: http://<Tailscale IP>:3000"
+	@echo "  バックエンド API: http://<Tailscale IP>:8080"
+	@echo ""
+	@echo "※制限事項: サーバー再起動機能は外部からは使用できません"
+	@echo ""
+	@make -j2 backend frontend-external
