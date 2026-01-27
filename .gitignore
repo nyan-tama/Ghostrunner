@@ -1,6 +1,9 @@
 server
 backend/server
 
+# macOS
+.DS_Store
+
 # Environment files
 .env
 .env.local
