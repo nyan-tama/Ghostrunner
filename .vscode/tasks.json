@@ -34,6 +34,20 @@
       "type": "shell",
       "command": "make stop",
       "group": "build"
+    },
+    {
+      "label": "外部公開モード起動",
+      "type": "shell",
+      "command": "make dev-external",
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "new" }
+    },
+    {
+      "label": "Frontend外部再起動",
+      "type": "shell",
+      "command": "make stop-frontend && make frontend-external",
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "new" }
     }
   ]
 }

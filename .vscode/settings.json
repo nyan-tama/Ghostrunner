@@ -4,6 +4,8 @@
     { "label": "$(play) Frontend", "task": "Frontend起動" },
     { "label": "$(sync) Restart BE", "task": "Backend再起動" },
     { "label": "$(sync) Restart FE", "task": "Frontend再起動" },
-    { "label": "$(stop) Stop All", "task": "全停止" }
+    { "label": "$(stop) Stop All", "task": "全停止" },
+    { "label": "$(globe) External", "task": "外部公開モード起動" },
+    { "label": "$(sync) Restart FE Ext", "task": "Frontend外部再起動" }
   ]
 }
