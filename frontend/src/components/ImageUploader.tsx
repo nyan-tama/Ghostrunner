@@ -18,6 +18,7 @@ export default function ImageUploader({
 }: ImageUploaderProps) {
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const fileToBase64 = useCallback((file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -143,33 +144,80 @@ export default function ImageUploader({
     fileInputRef.current?.click();
   }, []);
 
+  const handleCameraClick = useCallback(() => {
+    cameraInputRef.current?.click();
+  }, []);
+
+  const handleCameraCapture = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (files && files.length > 0) {
+        processFiles(files);
+      }
+      e.target.value = "";
+    },
+    [processFiles]
+  );
+
   return (
     <div className="mb-4">
       <label className="block mb-2 font-semibold text-gray-800">
         Images (optional)
       </label>
 
-      {/* ドロップゾーン */}
-      <div
-        onClick={handleZoneClick}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-        className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/gif,image/webp"
-          multiple
-          onChange={handleFileSelect}
-          className="hidden"
-        />
-        <p className="text-gray-500 text-sm">
-          Click or drag images here ({images.length}/{MAX_IMAGES})
-        </p>
-        <p className="text-gray-400 text-xs mt-1">
-          JPEG, PNG, GIF, WebP / Max 5MB each
-        </p>
+      {/* ドロップゾーン + カメラ撮影ゾーン */}
+      <div className="grid grid-cols-2 gap-2">
+        {/* ドロップゾーン（左側） */}
+        <div
+          onClick={handleZoneClick}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            multiple
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+          <p className="text-gray-500 text-sm">
+            Click or drag images here ({images.length}/{MAX_IMAGES})
+          </p>
+          <p className="text-gray-400 text-xs mt-1">
+            JPEG, PNG, GIF, WebP / Max 5MB each
+          </p>
+        </div>
+
+        {/* カメラ撮影ゾーン（右側） */}
+        <div
+          onClick={handleCameraClick}
+          className="border-2 border-dashed border-gray-300 rounded-lg p-4 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors flex flex-col items-center justify-center"
+        >
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleCameraCapture}
+            className="hidden"
+          />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="w-6 h-6 text-gray-400"
+          >
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+            <circle cx="12" cy="13" r="4" />
+          </svg>
+          <p className="text-gray-500 text-sm mt-1">Take photo</p>
+        </div>
       </div>
 
       {/* エラー表示 */}
