@@ -23,6 +23,8 @@ interface CommandFormProps {
   onRefreshFiles: (project: string) => void;
   onSubmit: () => void;
   isSubmitting: boolean;
+  gitWorkflow: boolean;
+  onGitWorkflowChange: (enabled: boolean) => void;
 }
 
 export default function CommandForm({
@@ -43,6 +45,8 @@ export default function CommandForm({
   onRefreshFiles,
   onSubmit,
   isSubmitting,
+  gitWorkflow,
+  onGitWorkflowChange,
 }: CommandFormProps) {
   useEffect(() => {
     if (projectPath) {
@@ -173,6 +177,21 @@ export default function CommandForm({
           required
           className="w-full p-3 border border-gray-200 rounded-lg text-base bg-white min-h-20 resize-y focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         />
+      </div>
+
+      <div className="mb-4 flex items-center gap-3">
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={gitWorkflow}
+            onChange={(e) => onGitWorkflowChange(e.target.checked)}
+            className="sr-only peer"
+          />
+          <div className="w-9 h-5 bg-gray-300 rounded-full peer peer-checked:bg-blue-500 peer-focus:ring-2 peer-focus:ring-blue-100 after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white" />
+        </label>
+        <span className="text-sm text-gray-700">
+          PR workflow (develop branch + Pull Request)
+        </span>
       </div>
 
       <ImageUploader images={images} onImagesChange={onImagesChange} />

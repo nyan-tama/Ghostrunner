@@ -2,7 +2,12 @@
 
 import { useState, useCallback, useRef } from "react";
 import type { StreamEvent, DisplayEvent, Question, ToolInput, RestartStatus, ImageData } from "@/types";
-import { PLAN_APPROVAL_KEYWORDS, BACKEND_HEALTH_URL } from "@/lib/constants";
+import {
+  PLAN_APPROVAL_KEYWORDS,
+  BACKEND_HEALTH_URL,
+  LOCAL_STORAGE_GIT_WORKFLOW_KEY,
+  GIT_WORKFLOW_INSTRUCTION,
+} from "@/lib/constants";
 import { executeCommandStream, continueSessionStream } from "@/lib/api";
 import { useSSEStream } from "@/hooks/useSSEStream";
 import { useSessionManagement } from "@/hooks/useSessionManagement";
@@ -47,6 +52,15 @@ export default function Home() {
   const [command, setCommand] = useState("plan");
   const [args, setArgs] = useState("");
   const [images, setImages] = useState<ImageData[]>([]);
+  const [gitWorkflow, setGitWorkflow] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(LOCAL_STORAGE_GIT_WORKFLOW_KEY) === "true";
+  });
+
+  const handleGitWorkflowChange = useCallback((enabled: boolean) => {
+    setGitWorkflow(enabled);
+    localStorage.setItem(LOCAL_STORAGE_GIT_WORKFLOW_KEY, String(enabled));
+  }, []);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -310,6 +324,10 @@ export default function Home() {
       combinedArgs = args;
     }
 
+    if (gitWorkflow) {
+      combinedArgs += GIT_WORKFLOW_INSTRUCTION;
+    }
+
     if (!projectPath || !combinedArgs) return;
 
     // 既存のAbortControllerがあればキャンセル
@@ -356,6 +374,7 @@ export default function Home() {
     args,
     selectedFiles,
     images,
+    gitWorkflow,
     setProjectPath,
     addToHistory,
     resetSession,
@@ -515,6 +534,8 @@ export default function Home() {
         onRefreshFiles={refreshFiles}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
+        gitWorkflow={gitWorkflow}
+        onGitWorkflowChange={handleGitWorkflowChange}
       />
 
       <ProgressContainer

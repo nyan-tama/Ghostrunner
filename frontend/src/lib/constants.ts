@@ -19,7 +19,16 @@ export const DEFAULT_PROJECT_PATH = "";
 
 export const LOCAL_STORAGE_KEY = "ghostrunner_project";
 export const LOCAL_STORAGE_HISTORY_KEY = "ghostrunner_project_history";
+export const LOCAL_STORAGE_GIT_WORKFLOW_KEY = "ghostrunner_git_workflow";
 export const MAX_PROJECT_HISTORY = 10;
+
+export const GIT_WORKFLOW_INSTRUCTION = `
+[Git Workflow]
+mainブランチに直接コミットしないこと。
+developブランチから新しいfeatureブランチを作成する（例: feat/<機能名>）。
+実装完了後、featureブランチをリモートにプッシュし、developブランチ向けのPull Requestを作成する。
+PRはマージせず、作成してURLを返すこと。
+developブランチが存在しない場合は、まずmainから作成する。`;
 
 export const PLAN_APPROVAL_KEYWORDS = [
   "承認をお待ち",
