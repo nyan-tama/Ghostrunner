@@ -17,9 +17,9 @@ import {
   pcmToAudioBuffer,
 } from "@/lib/audioProcessor";
 
-// OpenAI Realtime API の定数
+// OpenAI Realtime API GA版の定数
 const OPENAI_REALTIME_WS_URL = "wss://api.openai.com/v1/realtime";
-const DEFAULT_MODEL = "gpt-4o-realtime-preview-2024-12-17";
+const DEFAULT_MODEL = "gpt-realtime";
 const DEFAULT_VOICE = "verse";
 // OpenAI Realtime API の音声フォーマット要件: 入出力ともに24kHz
 const INPUT_SAMPLE_RATE = 24000;
@@ -107,21 +107,27 @@ export function useOpenAIRealtime(config?: OpenAIRealtimeConfig): UseOpenAIRealt
         const message: OpenAIServerEvent = JSON.parse(event.data);
 
         if (isSessionCreated(message)) {
-          // session.update を送信してセッションを設定
+          // GA版: session.update を送信してセッションを設定
           if (wsRef.current?.readyState === WebSocket.OPEN) {
             const sessionUpdate = {
               type: "session.update",
               session: {
-                modalities: ["text", "audio"],
+                type: "realtime",
                 instructions: instructions || "You are a helpful voice assistant. Respond in a conversational and friendly manner.",
-                voice: voice,
-                input_audio_format: "pcm16",
-                output_audio_format: "pcm16",
-                turn_detection: {
-                  type: "server_vad",
-                  threshold: 0.5,
-                  prefix_padding_ms: 300,
-                  silence_duration_ms: 500,
+                audio: {
+                  input: {
+                    format: { type: "audio/pcm", rate: INPUT_SAMPLE_RATE },
+                    turn_detection: {
+                      type: "server_vad",
+                      threshold: 0.5,
+                      prefix_padding_ms: 300,
+                      silence_duration_ms: 500,
+                    },
+                  },
+                  output: {
+                    format: { type: "audio/pcm", rate: OUTPUT_SAMPLE_RATE },
+                    voice: voice,
+                  },
                 },
               },
             };

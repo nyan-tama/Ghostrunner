@@ -13,12 +13,15 @@ import (
 )
 
 const (
-	// openAIRealtimeSessionsURL はOpenAI Realtime APIのセッション作成エンドポイント
-	openAIRealtimeSessionsURL = "https://api.openai.com/v1/realtime/sessions"
+	// openAIClientSecretsURL はOpenAI Realtime API GA版のclient_secrets作成エンドポイント
+	openAIClientSecretsURL = "https://api.openai.com/v1/realtime/client_secrets"
 
-	// デフォルト値
-	defaultOpenAIModel = "gpt-4o-realtime-preview-2024-12-17"
+	// デフォルト値（GA版）
+	defaultOpenAIModel = "gpt-realtime"
 	defaultOpenAIVoice = "verse"
+
+	// デフォルトの有効期限（秒）
+	defaultExpiresAfterSeconds = 600
 )
 
 // OpenAIService はOpenAI Realtime API操作のインターフェースを定義します
@@ -51,26 +54,40 @@ func NewOpenAIService() OpenAIService {
 	}
 }
 
-// openAISessionRequest はセッション作成リクエストの構造体
-type openAISessionRequest struct {
-	Model string `json:"model"`
-	Voice string `json:"voice"`
+// openAIClientSecretsRequest はGA版client_secrets作成リクエストの構造体
+type openAIClientSecretsRequest struct {
+	ExpiresAfter openAIExpiresAfter       `json:"expires_after"`
+	Session      openAISessionConfig      `json:"session"`
 }
 
-// openAISessionResponse はセッション作成レスポンスの構造体
-type openAISessionResponse struct {
-	ID           string                    `json:"id"`
-	Object       string                    `json:"object"`
-	Model        string                    `json:"model"`
-	ExpiresAt    int64                     `json:"expires_at"`
-	ClientSecret openAISessionClientSecret `json:"client_secret"`
-	Error        *openAIErrorResponse      `json:"error,omitempty"`
+// openAIExpiresAfter は有効期限の設定
+type openAIExpiresAfter struct {
+	Anchor  string `json:"anchor"`
+	Seconds int    `json:"seconds"`
 }
 
-// openAISessionClientSecret はclient_secretフィールドの構造体
-type openAISessionClientSecret struct {
+// openAISessionConfig はセッション設定
+type openAISessionConfig struct {
+	Type  string              `json:"type"`
+	Model string              `json:"model"`
+	Audio *openAIAudioConfig  `json:"audio,omitempty"`
+}
+
+// openAIAudioConfig は音声設定
+type openAIAudioConfig struct {
+	Output *openAIAudioOutput `json:"output,omitempty"`
+}
+
+// openAIAudioOutput は音声出力設定
+type openAIAudioOutput struct {
+	Voice string `json:"voice,omitempty"`
+}
+
+// openAIClientSecretsResponse はGA版client_secrets作成レスポンスの構造体
+type openAIClientSecretsResponse struct {
 	Value     string `json:"value"`
 	ExpiresAt int64  `json:"expires_at"`
+	Error     *openAIErrorResponse `json:"error,omitempty"`
 }
 
 // openAIErrorResponse はOpenAI APIのエラーレスポンス
@@ -92,10 +109,21 @@ func (s *openaiServiceImpl) CreateRealtimeSession(model, voice string) (*OpenAIS
 		voice = defaultOpenAIVoice
 	}
 
-	// リクエストボディを作成
-	reqBody := openAISessionRequest{
-		Model: model,
-		Voice: voice,
+	// GA版リクエストボディを作成
+	reqBody := openAIClientSecretsRequest{
+		ExpiresAfter: openAIExpiresAfter{
+			Anchor:  "created_at",
+			Seconds: defaultExpiresAfterSeconds,
+		},
+		Session: openAISessionConfig{
+			Type:  "realtime",
+			Model: model,
+			Audio: &openAIAudioConfig{
+				Output: &openAIAudioOutput{
+					Voice: voice,
+				},
+			},
+		},
 	}
 
 	jsonBody, err := json.Marshal(reqBody)
@@ -105,7 +133,7 @@ func (s *openaiServiceImpl) CreateRealtimeSession(model, voice string) (*OpenAIS
 	}
 
 	// HTTPリクエストを作成
-	req, err := http.NewRequest(http.MethodPost, openAIRealtimeSessionsURL, bytes.NewReader(jsonBody))
+	req, err := http.NewRequest(http.MethodPost, openAIClientSecretsURL, bytes.NewReader(jsonBody))
 	if err != nil {
 		log.Printf("[OpenAIService] CreateRealtimeSession failed: failed to create request, error=%v", err)
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -146,25 +174,25 @@ func (s *openaiServiceImpl) CreateRealtimeSession(model, voice string) (*OpenAIS
 	}
 
 	// レスポンスをパース
-	var sessionResp openAISessionResponse
-	if err := json.Unmarshal(body, &sessionResp); err != nil {
+	var secretsResp openAIClientSecretsResponse
+	if err := json.Unmarshal(body, &secretsResp); err != nil {
 		log.Printf("[OpenAIService] CreateRealtimeSession failed: failed to parse response, error=%v", err)
 		return nil, fmt.Errorf("failed to parse OpenAI API response: %w", err)
 	}
 
-	// client_secret.value を抽出
-	if sessionResp.ClientSecret.Value == "" {
-		log.Printf("[OpenAIService] CreateRealtimeSession failed: client_secret.value is empty")
+	// value を抽出
+	if secretsResp.Value == "" {
+		log.Printf("[OpenAIService] CreateRealtimeSession failed: value is empty")
 		return nil, fmt.Errorf("OpenAI API returned empty client_secret")
 	}
 
 	// 有効期限をISO8601形式に変換
-	expireTime := time.Unix(sessionResp.ClientSecret.ExpiresAt, 0).UTC().Format(time.RFC3339)
+	expireTime := time.Unix(secretsResp.ExpiresAt, 0).UTC().Format(time.RFC3339)
 
-	log.Printf("[OpenAIService] CreateRealtimeSession completed: id=%s, expireTime=%s", sessionResp.ID, expireTime)
+	log.Printf("[OpenAIService] CreateRealtimeSession completed: token=%s..., expireTime=%s", secretsResp.Value[:10], expireTime)
 
 	return &OpenAISessionResult{
-		Token:      sessionResp.ClientSecret.Value,
+		Token:      secretsResp.Value,
 		ExpireTime: expireTime,
 	}, nil
 }
