@@ -12,6 +12,7 @@ import { executeCommandStream, continueSessionStream } from "@/lib/api";
 import { useSSEStream } from "@/hooks/useSSEStream";
 import { useSessionManagement } from "@/hooks/useSessionManagement";
 import { useFileSelector } from "@/hooks/useFileSelector";
+import { useVoiceNotification } from "@/hooks/useVoiceNotification";
 import CommandForm from "@/components/CommandForm";
 import ProgressContainer from "@/components/ProgressContainer";
 
@@ -61,6 +62,23 @@ export default function Home() {
     setGitWorkflow(enabled);
     localStorage.setItem(LOCAL_STORAGE_GIT_WORKFLOW_KEY, String(enabled));
   }, []);
+
+  // 音声通知フック
+  const {
+    enabled: voiceNotificationEnabled,
+    setEnabled: setVoiceNotificationEnabled,
+    connectionStatus: voiceConnectionStatus,
+    isRecording: voiceIsRecording,
+    error: voiceError,
+    notifyCompletion,
+    notifyError,
+    startRecording: voiceStartRecording,
+    stopRecording: voiceStopRecording,
+  } = useVoiceNotification();
+
+  const handleVoiceNotificationChange = useCallback((enabled: boolean) => {
+    setVoiceNotificationEnabled(enabled);
+  }, [setVoiceNotificationEnabled]);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -266,6 +284,9 @@ export default function Home() {
               setResultOutput(output);
               setResultType("success");
 
+              // 音声通知: 完了を通知
+              notifyCompletion(output);
+
               const needsApproval = PLAN_APPROVAL_KEYWORDS.some((keyword) =>
                 output.includes(keyword)
               );
@@ -282,7 +303,7 @@ export default function Home() {
           break;
       }
     },
-    [addEvent, addCost, handleToolUse, setSessionId, setQuestionsWithReset]
+    [addEvent, addCost, handleToolUse, setSessionId, setQuestionsWithReset, notifyCompletion]
   );
 
   const handleError = useCallback((error: string) => {
@@ -290,7 +311,9 @@ export default function Home() {
     setIsSubmitting(false);
     setResultOutput(error);
     setResultType("error");
-  }, []);
+    // 音声通知: エラーを通知
+    notifyError(error);
+  }, [notifyError]);
 
   const handleComplete = useCallback(() => {
     setIsLoading(false);
@@ -536,6 +559,13 @@ export default function Home() {
         isSubmitting={isSubmitting}
         gitWorkflow={gitWorkflow}
         onGitWorkflowChange={handleGitWorkflowChange}
+        voiceNotificationEnabled={voiceNotificationEnabled}
+        onVoiceNotificationChange={handleVoiceNotificationChange}
+        voiceConnectionStatus={voiceConnectionStatus}
+        voiceIsRecording={voiceIsRecording}
+        voiceError={voiceError}
+        onVoiceStartRecording={voiceStartRecording}
+        onVoiceStopRecording={voiceStopRecording}
       />
 
       <ProgressContainer

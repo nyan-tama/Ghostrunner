@@ -26,6 +26,21 @@ export interface OpenAIInputAudioBufferAppend {
   audio: string; // Base64 encoded PCM
 }
 
+// テキストメッセージ追加用
+export interface OpenAIConversationItemCreate {
+  type: "conversation.item.create";
+  item: {
+    type: "message";
+    role: "user";
+    content: Array<{ type: "input_text"; text: string }>;
+  };
+}
+
+// 音声レスポンス生成要求用
+export interface OpenAIResponseCreate {
+  type: "response.create";
+}
+
 // サーバー -> クライアント（受信用）
 export interface OpenAISessionCreatedEvent {
   type: "session.created";

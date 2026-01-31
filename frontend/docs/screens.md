@@ -36,6 +36,8 @@ Ghost Runner は単一ページアプリケーション（SPA）として構成�
 - **Command**: 実行コマンドの選択（plan, research, discuss, fullstack, go, nextjs）
 - **File**: 開発フォルダ内のファイル選択（任意、複数選択可）
 - **Arguments**: コマンドへの引数入力
+- **PR workflow**: トグルスイッチ（ON で develop ブランチ経由 PR の指示を追加）
+- **Voice notification**: トグルスイッチ（ON で音声通知を有効化）
 - **Images**: 画像のアップロード（任意）
 
 #### ファイル選択（複数対応）
@@ -148,6 +150,41 @@ EventItem で表示されるイベントの種別と色。
 | error | 赤 | エラー |
 | question | 黄 | 質問 |
 
+### 音声通知エリア
+
+| コンポーネント | ファイル | 役割 |
+|--------------|---------|------|
+| VoiceNotificationSection | `components/VoiceNotificationSection.tsx` | 音声通知のトグル、接続状態インジケーター、マイクボタン |
+
+#### 構成要素
+
+| 要素 | 役割 | 備考 |
+|-----|------|------|
+| トグルスイッチ | 音声通知機能の ON/OFF | 状態は localStorage に保存 |
+| 接続状態ドット | OpenAI Realtime API への接続状態を色で表示 | ツールチップで詳細を表示 |
+| マイクボタン | 対話モードの開始/停止 | 接続時のみ表示 |
+| エラー表示 | 接続エラーの表示 | エラー発生時のみ表示 |
+
+#### 接続状態インジケーター
+
+| 状態 | ドット色 | ツールチップ |
+|-----|---------|------------|
+| disconnected | グレー | Disconnected |
+| connecting | 黄色 | Connecting... |
+| connected | 緑 | Connected |
+| error | 赤 | エラーメッセージ |
+
+#### 動作仕様
+
+| 操作 | 条件 | 処理 |
+|-----|------|------|
+| トグル ON | - | OpenAI Realtime API に自動接続 |
+| トグル OFF | - | 接続を切断、通知キューをクリア |
+| マイクボタンクリック（録音停止中） | 接続状態 = connected | 音声入力を開始（対話モード） |
+| マイクボタンクリック（録音中） | 接続状態 = connected | 音声入力を停止 |
+| コマンド完了 | トグル ON、録音停止中 | 完了メッセージを音声で通知 |
+| コマンドエラー | トグル ON、録音停止中 | エラーメッセージを音声で通知 |
+
 ## カスタムフック
 
 | フック | ファイル | 役割 |
@@ -155,6 +192,7 @@ EventItem で表示されるイベントの種別と色。
 | useSSEStream | `hooks/useSSEStream.ts` | SSEストリームの処理（バッファリング対応） |
 | useSessionManagement | `hooks/useSessionManagement.ts` | セッションID、累計コスト、プロジェクトパスの管理 |
 | useFileSelector | `hooks/useFileSelector.ts` | 開発フォルダ内のファイル取得と複数選択管理、ドロップダウンフォーカス時のサイレントリフレッシュ |
+| useVoiceNotification | `hooks/useVoiceNotification.ts` | 音声通知機能の状態管理、OpenAI Realtime API との連携 |
 
 ## データフロー
 
@@ -211,6 +249,9 @@ AbortController.abort()
 | キー | 保存場所 | 内容 |
 |-----|---------|------|
 | `ghostrunner_project` | localStorage | プロジェクトパス |
+| `ghostrunner_project_history` | localStorage | プロジェクトパス履歴 |
+| `ghostrunner_git_workflow` | localStorage | PR workflow トグル状態 |
+| `ghostrunner_voice_notification` | localStorage | 音声通知トグル状態 |
 
 ## 開発者機能
 
