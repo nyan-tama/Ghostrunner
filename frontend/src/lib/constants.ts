@@ -20,6 +20,7 @@ export const DEFAULT_PROJECT_PATH = "";
 export const LOCAL_STORAGE_KEY = "ghostrunner_project";
 export const LOCAL_STORAGE_HISTORY_KEY = "ghostrunner_project_history";
 export const LOCAL_STORAGE_GIT_WORKFLOW_KEY = "ghostrunner_git_workflow";
+export const LOCAL_STORAGE_VOICE_NOTIFICATION_KEY = "ghostrunner_voice_notification";
 export const MAX_PROJECT_HISTORY = 10;
 
 export const GIT_WORKFLOW_INSTRUCTION = `

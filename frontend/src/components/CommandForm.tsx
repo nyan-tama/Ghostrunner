@@ -2,8 +2,10 @@
 
 import { useEffect } from "react";
 import type { FileInfo, ImageData } from "@/types";
+import type { OpenAIConnectionStatus } from "@/types/openai";
 import { COMMANDS } from "@/lib/constants";
 import ImageUploader from "@/components/ImageUploader";
+import VoiceNotificationSection from "@/components/VoiceNotificationSection";
 
 interface CommandFormProps {
   projectPath: string;
@@ -25,6 +27,13 @@ interface CommandFormProps {
   isSubmitting: boolean;
   gitWorkflow: boolean;
   onGitWorkflowChange: (enabled: boolean) => void;
+  voiceNotificationEnabled: boolean;
+  onVoiceNotificationChange: (enabled: boolean) => void;
+  voiceConnectionStatus: OpenAIConnectionStatus;
+  voiceIsRecording: boolean;
+  voiceError: string | null;
+  onVoiceStartRecording: () => void;
+  onVoiceStopRecording: () => void;
 }
 
 export default function CommandForm({
@@ -47,6 +56,13 @@ export default function CommandForm({
   isSubmitting,
   gitWorkflow,
   onGitWorkflowChange,
+  voiceNotificationEnabled,
+  onVoiceNotificationChange,
+  voiceConnectionStatus,
+  voiceIsRecording,
+  voiceError,
+  onVoiceStartRecording,
+  onVoiceStopRecording,
 }: CommandFormProps) {
   useEffect(() => {
     if (projectPath) {
@@ -192,6 +208,18 @@ export default function CommandForm({
         <span className="text-sm text-gray-700">
           PR workflow (develop branch + Pull Request)
         </span>
+      </div>
+
+      <div className="mb-4">
+        <VoiceNotificationSection
+          enabled={voiceNotificationEnabled}
+          onEnabledChange={onVoiceNotificationChange}
+          connectionStatus={voiceConnectionStatus}
+          isRecording={voiceIsRecording}
+          error={voiceError}
+          onStartRecording={onVoiceStartRecording}
+          onStopRecording={onVoiceStopRecording}
+        />
       </div>
 
       <ImageUploader images={images} onImagesChange={onImagesChange} />

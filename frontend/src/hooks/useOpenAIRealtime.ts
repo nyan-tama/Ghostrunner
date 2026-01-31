@@ -3,6 +3,8 @@ import type {
   OpenAIConnectionStatus,
   OpenAIRealtimeConfig,
   OpenAIServerEvent,
+  OpenAIConversationItemCreate,
+  OpenAIResponseCreate,
 } from "@/types/openai";
 import {
   isSessionCreated,
@@ -25,6 +27,10 @@ const DEFAULT_VOICE = "verse";
 const INPUT_SAMPLE_RATE = 24000;
 const OUTPUT_SAMPLE_RATE = 24000;
 
+// 再接続の最大試行回数と指数バックオフ
+const MAX_RECONNECT_ATTEMPTS = 3;
+const INITIAL_RECONNECT_DELAY_MS = 1000;
+
 interface UseOpenAIRealtimeReturn {
   connectionStatus: OpenAIConnectionStatus;
   isRecording: boolean;
@@ -33,6 +39,7 @@ interface UseOpenAIRealtimeReturn {
   disconnect: () => void;
   startRecording: () => Promise<void>;
   stopRecording: () => void;
+  sendText: (message: string) => void;
 }
 
 export function useOpenAIRealtime(config?: OpenAIRealtimeConfig): UseOpenAIRealtimeReturn {
@@ -54,6 +61,11 @@ export function useOpenAIRealtime(config?: OpenAIRealtimeConfig): UseOpenAIRealt
 
   // 再帰呼び出し用のref
   const playNextAudioRef = useRef<() => void>(() => {});
+
+  // 自動再接続用の ref
+  const reconnectAttemptRef = useRef(0);
+  const shouldReconnectRef = useRef(false);
+  const connectFnRef = useRef<(() => Promise<void>) | null>(null);
 
   // 設定
   const model = config?.model || DEFAULT_MODEL;
@@ -209,6 +221,9 @@ export function useOpenAIRealtime(config?: OpenAIRealtimeConfig): UseOpenAIRealt
       return;
     }
 
+    // 自動再接続を有効化
+    shouldReconnectRef.current = true;
+
     setConnectionStatus("connecting");
     setError(null);
 
@@ -234,8 +249,27 @@ export function useOpenAIRealtime(config?: OpenAIRealtimeConfig): UseOpenAIRealt
       };
 
       ws.onclose = () => {
-        setConnectionStatus((prev) => (prev === "error" ? prev : "disconnected"));
         wsRef.current = null;
+
+        // 自動再接続: shouldReconnectRef が true かつ再接続試行回数が上限未満
+        if (shouldReconnectRef.current && reconnectAttemptRef.current < MAX_RECONNECT_ATTEMPTS) {
+          const delay = INITIAL_RECONNECT_DELAY_MS * Math.pow(2, reconnectAttemptRef.current);
+          reconnectAttemptRef.current += 1;
+          setConnectionStatus("connecting");
+
+          setTimeout(() => {
+            if (shouldReconnectRef.current && connectFnRef.current) {
+              connectFnRef.current();
+            }
+          }, delay);
+        } else {
+          setConnectionStatus((prev) => (prev === "error" ? prev : "disconnected"));
+        }
+      };
+
+      // 接続成功時に再接続カウンタをリセット
+      ws.onopen = () => {
+        reconnectAttemptRef.current = 0;
       };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to get ephemeral token";
@@ -244,10 +278,19 @@ export function useOpenAIRealtime(config?: OpenAIRealtimeConfig): UseOpenAIRealt
     }
   }, [model, voice, handleServerMessage]);
 
+  // connect 関数を ref に保存（自動再接続で使用）
+  useEffect(() => {
+    connectFnRef.current = connect;
+  }, [connect]);
+
   /**
    * WebSocket を切断し、リソースを解放
    */
   const disconnect = useCallback(() => {
+    // 意図的な切断なので自動再接続を無効化
+    shouldReconnectRef.current = false;
+    reconnectAttemptRef.current = 0;
+
     // 録音を停止
     stopRecordingInternal();
 
@@ -365,6 +408,32 @@ export function useOpenAIRealtime(config?: OpenAIRealtimeConfig): UseOpenAIRealt
     stopRecordingInternal();
   }, [stopRecordingInternal]);
 
+  /**
+   * テキストメッセージを送信し、AIに音声で応答させる
+   */
+  const sendText = useCallback((message: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    // conversation.item.create でユーザーメッセージを追加
+    const conversationItem: OpenAIConversationItemCreate = {
+      type: "conversation.item.create",
+      item: {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: message }],
+      },
+    };
+    wsRef.current.send(JSON.stringify(conversationItem));
+
+    // response.create でAIの音声応答を要求
+    const responseCreate: OpenAIResponseCreate = {
+      type: "response.create",
+    };
+    wsRef.current.send(JSON.stringify(responseCreate));
+  }, []);
+
   // コンポーネントのアンマウント時にリソースを解放
   useEffect(() => {
     return () => {
@@ -391,5 +460,6 @@ export function useOpenAIRealtime(config?: OpenAIRealtimeConfig): UseOpenAIRealt
     disconnect,
     startRecording,
     stopRecording,
+    sendText,
   };
 }
