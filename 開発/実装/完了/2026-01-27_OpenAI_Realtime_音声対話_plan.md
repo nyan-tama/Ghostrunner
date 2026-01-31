@@ -665,3 +665,97 @@ OpenAI Realtime API を使用したリアルタイム音声対話のフロント
 4. "Connect" をクリックして接続
 5. "Start Recording" をクリックしてマイク入力開始
 6. 音声で話しかけると AI の音声応答が再生される
+
+---
+
+## GA版移行（2026-01-31）
+
+### 背景
+
+当初の実装は OpenAI Realtime API Beta 版を使用していたが、GA（General Availability）版がリリースされ、エンドポイントとリクエスト/レスポンス形式が変更された。Beta 版のエフェメラルキーで GA 版に接続しようとすると「API version mismatch」エラーが発生するため、GA 版に移行した。
+
+### 変更内容
+
+#### バックエンド（`backend/internal/service/openai.go`）
+
+| 項目 | Beta版 | GA版 |
+|-----|--------|------|
+| エンドポイント | `/v1/realtime/sessions` | `/v1/realtime/client_secrets` |
+| モデル名 | `gpt-4o-realtime-preview-2024-12-17` | `gpt-realtime` |
+| リクエスト形式 | `{ model, voice }` | `{ expires_after, session: { type, model, audio } }` |
+| レスポンス形式 | `client_secret.value` | トップレベルの `value` |
+
+#### フロントエンド（`frontend/src/hooks/useOpenAIRealtime.ts`、`frontend/src/types/openai.ts`）
+
+| 項目 | Beta版 | GA版 |
+|-----|--------|------|
+| モデル名 | `gpt-4o-realtime-preview-2024-12-17` | `gpt-realtime` |
+| session.update | `modalities` フィールドあり | `type: "realtime"` 必須、`modalities` 非対応 |
+| 音声応答イベント | `response.audio.delta` | `response.output_audio.delta` |
+| 音声応答完了イベント | `response.audio.done` | `response.output_audio.done` |
+
+### 発生した問題と解決策
+
+#### 1. 音声入力データがゼロ（無音）になる問題
+
+**症状**: WebSocket で送信される音声データが全て `AAAA...`（Base64エンコードされたゼロ）になる
+
+**原因**: `AudioContext({ sampleRate: 24000 })` を強制的に指定していたが、ブラウザによっては24kHzがサポートされず、マイク入力が正しく取得できなかった
+
+**解決策**: デフォルトのサンプルレート（通常48kHz）で AudioContext を作成し、リサンプリングで24kHzに変換するように修正
+
+```typescript
+// 修正前
+const inputAudioContext = new AudioContext({ sampleRate: INPUT_SAMPLE_RATE });
+
+// 修正後
+const inputAudioContext = new AudioContext();
+const nativeSampleRate = inputAudioContext.sampleRate;
+// リサンプリングで24kHzに変換
+```
+
+#### 2. 音声応答が再生されない問題
+
+**症状**: サーバーから音声データは受信しているが、再生されない
+
+**原因**: GA版では音声応答のイベントタイプが `response.audio.delta` から `response.output_audio.delta` に変更されていた。型定義と型ガード関数が古いイベントタイプ名を使っていたため、音声応答データを認識できなかった
+
+**解決策**: 型定義と型ガード関数を GA 版のイベントタイプに修正
+
+```typescript
+// 修正前
+type: "response.audio.delta"
+return msg.type === "response.audio.delta";
+
+// 修正後
+type: "response.output_audio.delta"
+return msg.type === "response.output_audio.delta";
+```
+
+#### 3. 英語で応答される問題
+
+**症状**: 日本語で話しかけても英語で応答される
+
+**原因**: `instructions` のデフォルト値が英語だった
+
+**解決策**: 日本語の instructions に変更
+
+```typescript
+instructions: instructions || "あなたは親切な音声アシスタントです。日本語で会話してください。フレンドリーで自然な口調で応答してください。"
+```
+
+### CORS設定の追加
+
+Tailscale Funnel 経由でのアクセスをサポートするため、バックエンドのCORS設定に `*.ts.net` ドメインを追加。
+
+```go
+// Tailscale Funnel ドメイン (*.ts.net) を許可
+if len(origin) > 7 && origin[len(origin)-7:] == ".ts.net" {
+    return true
+}
+```
+
+### 関連コミット
+
+- `feat: OpenAI Realtime APIをGA版に移行、エンドポイントとリクエスト形式を更新`
+- `fix: OpenAI Realtime GA版の音声応答イベント名を修正、リサンプリング処理を追加`

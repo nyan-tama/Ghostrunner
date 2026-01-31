@@ -44,14 +44,14 @@ export interface OpenAISessionUpdatedEvent {
 }
 
 export interface OpenAIResponseAudioDeltaEvent {
-  type: "response.audio.delta";
+  type: "response.output_audio.delta";
   delta: string; // Base64 encoded PCM
   response_id: string;
   item_id: string;
 }
 
 export interface OpenAIResponseAudioDoneEvent {
-  type: "response.audio.done";
+  type: "response.output_audio.done";
   response_id: string;
   item_id: string;
 }
@@ -90,11 +90,11 @@ export function isSessionUpdated(msg: OpenAIServerEvent): msg is OpenAISessionUp
 }
 
 export function isResponseAudioDelta(msg: OpenAIServerEvent): msg is OpenAIResponseAudioDeltaEvent {
-  return msg.type === "response.audio.delta";
+  return msg.type === "response.output_audio.delta";
 }
 
 export function isResponseAudioDone(msg: OpenAIServerEvent): msg is OpenAIResponseAudioDoneEvent {
-  return msg.type === "response.audio.done";
+  return msg.type === "response.output_audio.done";
 }
 
 export function isOpenAIError(msg: OpenAIServerEvent): msg is OpenAIErrorEvent {

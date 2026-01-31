@@ -31,9 +31,19 @@ func main() {
 	// CORS設定（ローカル開発時およびTailscale経由のアクセスを許可）
 	r.Use(cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
-			// localhost と Tailscale IP (100.x.x.x) を許可
-			return origin == "http://localhost:3000" ||
-				len(origin) > 11 && origin[:11] == "http://100."
+			// localhost を許可
+			if origin == "http://localhost:3000" {
+				return true
+			}
+			// Tailscale IP (100.x.x.x) を許可
+			if len(origin) > 11 && origin[:11] == "http://100." {
+				return true
+			}
+			// Tailscale Funnel ドメイン (*.ts.net) を許可
+			if len(origin) > 7 && origin[len(origin)-7:] == ".ts.net" {
+				return true
+			}
+			return false
 		},
 		AllowMethods:     []string{"GET", "POST", "OPTIONS"},
 		AllowHeaders:     []string{"Content-Type"},

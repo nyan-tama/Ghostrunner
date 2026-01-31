@@ -113,7 +113,7 @@ export function useOpenAIRealtime(config?: OpenAIRealtimeConfig): UseOpenAIRealt
               type: "session.update",
               session: {
                 type: "realtime",
-                instructions: instructions || "You are a helpful voice assistant. Respond in a conversational and friendly manner.",
+                instructions: instructions || "あなたは親切な音声アシスタントです。日本語で会話してください。フレンドリーで自然な口調で応答してください。",
                 audio: {
                   input: {
                     format: { type: "audio/pcm", rate: INPUT_SAMPLE_RATE },
@@ -294,9 +294,10 @@ export function useOpenAIRealtime(config?: OpenAIRealtimeConfig): UseOpenAIRealt
       });
       streamRef.current = stream;
 
-      // 入力用 AudioContext を作成（OpenAI要件: 入力は24kHz）
-      const inputAudioContext = new AudioContext({ sampleRate: INPUT_SAMPLE_RATE });
+      // 入力用 AudioContext を作成（デフォルトサンプルレートを使用）
+      const inputAudioContext = new AudioContext();
       inputAudioContextRef.current = inputAudioContext;
+      const nativeSampleRate = inputAudioContext.sampleRate;
 
       // AudioContext が suspended の場合は resume
       if (inputAudioContext.state === "suspended") {
@@ -307,15 +308,33 @@ export function useOpenAIRealtime(config?: OpenAIRealtimeConfig): UseOpenAIRealt
       const source = inputAudioContext.createMediaStreamSource(stream);
       sourceNodeRef.current = source;
 
-      // ScriptProcessorNode を使用（bufferSize: 2048 で 24kHz に対応）
-      const bufferSize = 2048;
+      // ScriptProcessorNode を使用
+      const bufferSize = 4096;
       const scriptProcessor = inputAudioContext.createScriptProcessor(bufferSize, 1, 1);
+
+      // リサンプリング用の関数（ネイティブ -> 24kHz）
+      const resampleTo24k = (inputData: Float32Array, fromRate: number): Float32Array => {
+        const ratio = fromRate / INPUT_SAMPLE_RATE;
+        const newLength = Math.floor(inputData.length / ratio);
+        const result = new Float32Array(newLength);
+        for (let i = 0; i < newLength; i++) {
+          const srcIndex = Math.floor(i * ratio);
+          result[i] = inputData[srcIndex];
+        }
+        return result;
+      };
 
       scriptProcessor.onaudioprocess = (audioEvent) => {
         if (wsRef.current?.readyState !== WebSocket.OPEN) return;
 
         const inputData = audioEvent.inputBuffer.getChannelData(0);
-        const int16Data = float32ToInt16(new Float32Array(inputData));
+
+        // リサンプリング（ネイティブ -> 24kHz）
+        const resampledData = nativeSampleRate !== INPUT_SAMPLE_RATE
+          ? resampleTo24k(inputData, nativeSampleRate)
+          : new Float32Array(inputData);
+
+        const int16Data = float32ToInt16(resampledData);
         const base64Data = arrayBufferToBase64(int16Data.buffer);
 
         wsRef.current.send(JSON.stringify({
