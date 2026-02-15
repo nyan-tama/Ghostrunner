@@ -9,6 +9,10 @@ backend/server
 .env.local
 .env*.local
 
+# TLS certificates
+*.crt
+*.key
+
 # Node
 node_modules/
 .next/

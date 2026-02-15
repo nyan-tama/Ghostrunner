@@ -6,14 +6,27 @@
 
 ```mermaid
 flowchart TD
-    A[go-impl] -->|実装完了| B[go-reviewer]
+    Start[ブランチ作成] --> A[go-impl]
+    A -->|実装完了| B[go-reviewer]
     B -->|問題なし| C[go-documenter]
     B -->|修正必要| A
     B -->|計画見直し必要| D[go-planner]
     D -->|計画再作成| A
     C -->|ドキュメント更新| E[reporter]
     E -->|レポート作成| F[コミット]
-    F --> G[完了]
+    F --> N[mainにマージ → deploy.sh → 確認 → push]
+    N --> G[完了]
+```
+
+## 準備
+
+### 0. ブランチ作成
+
+作業開始前に main を最新化し、機能ブランチを作成する。
+
+```bash
+git checkout main && git pull
+git checkout -b feat/機能名
 ```
 
 ## 実装サイクル
@@ -54,10 +67,22 @@ flowchart TD
 
 ### 6. コミット
 
-- 機能ブランチを作成（`feat/機能名` または `fix/修正内容`）
-- 変更をコミット
+- 変更をコミット（ブランチはステップ0で作成済み）
 
-### 7. 仕様書の移動（必須）
+### 7. main にマージ・デプロイ・確認
+
+```bash
+git checkout main
+git merge feat/機能名
+./scripts/deploy.sh
+```
+
+ユーザーに本番確認を依頼する。
+
+- **問題なし:** `git push` で GitHub にバックアップ
+- **問題あり:** `git revert HEAD` でマージを取り消し → feat ブランチに戻って修正 → 再マージ
+
+### 8. 仕様書の移動（必須）
 
 **重要: このステップを絶対にスキップしないこと**
 
@@ -68,7 +93,6 @@ mkdir -p "保守/実装/完了"
 mv "保守/実装/修正/<仕様書ファイル名>.md" "保守/実装/完了/<仕様書ファイル名>.md"
 git add "保守/実装/"
 git commit -m "docs: move completed spec to 完了 folder"
-git push
 ```
 
 ## 完了条件
@@ -79,6 +103,7 @@ git push
 - ドキュメントが更新されている
 - 実装レポートが作成されている
 - コミットが完了している
+- **main にマージ → deploy.sh → 本番確認 → git push が完了している**
 - **仕様書が `保守/実装/完了/` に移動されている**
 
 ## タスク
