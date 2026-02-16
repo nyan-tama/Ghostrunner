@@ -34,13 +34,15 @@ type ClaudeService interface {
 
 // claudeServiceImpl はClaudeServiceの実装です
 type claudeServiceImpl struct {
-	timeout time.Duration
+	timeout     time.Duration
+	ntfyService NtfyService
 }
 
 // NewClaudeService は新しいClaudeServiceを生成します
-func NewClaudeService() ClaudeService {
+func NewClaudeService(ntfyService NtfyService) ClaudeService {
 	return &claudeServiceImpl{
-		timeout: 60 * time.Minute, // 60分タイムアウト
+		timeout:     60 * time.Minute, // 60分タイムアウト
+		ntfyService: ntfyService,
 	}
 }
 
@@ -141,6 +143,7 @@ func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, p
 	// stdoutをパイプで取得
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		s.notifyError("Failed to create stdout pipe: " + err.Error())
 		eventCh <- StreamEvent{Type: EventTypeError, Message: "Failed to create stdout pipe: " + err.Error()}
 		return fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
@@ -150,6 +153,7 @@ func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, p
 
 	// コマンド開始
 	if err := cmd.Start(); err != nil {
+		s.notifyError("Failed to start command: " + err.Error())
 		eventCh <- StreamEvent{Type: EventTypeError, Message: "Failed to start command: " + err.Error()}
 		return fmt.Errorf("failed to start command: %w", err)
 	}
@@ -187,6 +191,7 @@ func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, p
 			// 最終結果を保持
 			if event.Type == EventTypeComplete && event.Result != nil {
 				finalResult = event.Result
+				s.notifyComplete(event.Result.Output)
 			}
 
 			// AskUserQuestion検出時はプロセスを停止してユーザー入力を待つ
@@ -220,6 +225,7 @@ func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, p
 
 	if err := scanner.Err(); err != nil {
 		log.Printf("[ClaudeService] Scanner error: %v", err)
+		s.notifyError("Stream read error: " + err.Error())
 		select {
 		case eventCh <- StreamEvent{Type: EventTypeError, Message: "Stream read error: " + err.Error()}:
 		case <-ctx.Done():
@@ -233,6 +239,7 @@ func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, p
 	if err != nil {
 		// コンテキストキャンセルの場合
 		if ctx.Err() == context.DeadlineExceeded {
+			s.notifyError("Execution timeout")
 			select {
 			case eventCh <- StreamEvent{Type: EventTypeError, Message: "Execution timeout"}:
 			default:
@@ -254,6 +261,7 @@ func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, p
 		}
 
 		log.Printf("[ClaudeService] Command failed: error=%v", err)
+		s.notifyError("Command failed: " + err.Error())
 		select {
 		case eventCh <- StreamEvent{Type: EventTypeError, Message: "Command failed: " + err.Error()}:
 		default:
@@ -263,6 +271,7 @@ func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, p
 
 	// 最終結果がない場合は完了イベントを送信
 	if finalResult == nil {
+		s.notifyComplete("")
 		eventCh <- StreamEvent{
 			Type:      EventTypeComplete,
 			SessionID: currentSessionID,
@@ -550,6 +559,7 @@ func (s *claudeServiceImpl) executeCommand(ctx context.Context, project, prompt,
 		// コンテキストキャンセルの場合は特別なエラーメッセージ
 		if ctx.Err() == context.DeadlineExceeded {
 			log.Printf("[ClaudeService] Command timeout: project=%s", project)
+			s.notifyError("Command timeout")
 			return nil, fmt.Errorf("execution timeout after %v: %w", s.timeout, err)
 		}
 		if ctx.Err() == context.Canceled {
@@ -562,11 +572,13 @@ func (s *claudeServiceImpl) executeCommand(ctx context.Context, project, prompt,
 			result, parseErr := s.parseResponse(stdoutStr)
 			if parseErr == nil {
 				log.Printf("[ClaudeService] Parsed response from error state: sessionID=%s, questions=%d", result.SessionID, len(result.Questions))
+				s.notifyComplete(result.Output)
 				return result, nil
 			}
 		}
 
 		log.Printf("[ClaudeService] Command failed: project=%s, error=%v, stdout=%s, stderr=%s", project, err, stdoutStr, stderrStr)
+		s.notifyError("Command execution failed")
 		return nil, fmt.Errorf("claude cli execution failed: %w", err)
 	}
 
@@ -582,6 +594,9 @@ func (s *claudeServiceImpl) executeCommand(ctx context.Context, project, prompt,
 	}
 
 	log.Printf("[ClaudeService] Command completed: sessionID=%s, questions=%d, completed=%v", result.SessionID, len(result.Questions), result.Completed)
+	if result.Completed {
+		s.notifyComplete(result.Output)
+	}
 	return result, nil
 }
 
@@ -774,4 +789,24 @@ func buildPromptWithImages(command, args string, imagePaths []string) string {
 	}
 
 	return basePrompt + imageInfo
+}
+
+// notifyComplete はコマンド完了時にntfy通知を送信します
+func (s *claudeServiceImpl) notifyComplete(output string) {
+	if s.ntfyService == nil {
+		return
+	}
+	message := "Command completed successfully"
+	if output != "" {
+		message = truncateLog(output, 100)
+	}
+	s.ntfyService.Notify("Claude Code - Complete", message)
+}
+
+// notifyError はエラー発生時にntfy通知を送信します
+func (s *claudeServiceImpl) notifyError(message string) {
+	if s.ntfyService == nil {
+		return
+	}
+	s.ntfyService.NotifyError("Claude Code - Error", message)
 }

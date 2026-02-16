@@ -1,0 +1,88 @@
+// Package service はビジネスロジックを提供します
+package service
+
+import (
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+)
+
+// NtfyService はntfy.sh通知操作のインターフェースを定義します
+type NtfyService interface {
+	// Notify は通常の通知を送信します（完了通知など）
+	Notify(title, message string)
+	// NotifyError はエラー通知を送信します
+	NotifyError(title, message string)
+}
+
+// ntfyServiceImpl はNtfyServiceの実装です
+type ntfyServiceImpl struct {
+	topicURL   string
+	httpClient *http.Client
+}
+
+// NewNtfyService は新しいNtfyServiceを生成します
+// 環境変数 NTFY_TOPIC が未設定の場合は nil を返します（オプショナル機能）
+func NewNtfyService() NtfyService {
+	topic := os.Getenv("NTFY_TOPIC")
+	if topic == "" {
+		log.Printf("[NtfyService] NTFY_TOPIC is not set, ntfy notification will not be available")
+		return nil
+	}
+
+	topicURL := fmt.Sprintf("https://ntfy.sh/%s", topic)
+
+	log.Printf("[NtfyService] Initialized with topic: %s", topicURL)
+	return &ntfyServiceImpl{
+		topicURL: topicURL,
+		httpClient: &http.Client{
+			Timeout: 10 * time.Second,
+		},
+	}
+}
+
+// Notify は通常の通知を送信します（fire-and-forget）
+func (s *ntfyServiceImpl) Notify(title, message string) {
+	go s.send(title, message, "default", "white_check_mark")
+}
+
+// NotifyError はエラー通知を送信します（fire-and-forget）
+func (s *ntfyServiceImpl) NotifyError(title, message string) {
+	go s.send(title, message, "high", "x")
+}
+
+// send はntfy.shへHTTP POSTで通知を送信します
+func (s *ntfyServiceImpl) send(title, message, priority, tags string) {
+	log.Printf("[NtfyService] Sending notification: title=%s, priority=%s", title, priority)
+
+	req, err := http.NewRequest(http.MethodPost, s.topicURL, strings.NewReader(message))
+	if err != nil {
+		log.Printf("[NtfyService] Failed to create request: %v", err)
+		return
+	}
+
+	req.Header.Set("Title", title)
+	req.Header.Set("Priority", priority)
+	req.Header.Set("Tags", tags)
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		log.Printf("[NtfyService] Failed to send notification: %v", err)
+		return
+	}
+	defer func() {
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("[NtfyService] Unexpected response status: %d", resp.StatusCode)
+		return
+	}
+
+	log.Printf("[NtfyService] Notification sent successfully: title=%s", title)
+}

@@ -15,7 +15,8 @@ func main() {
 	log.Println("[Server] Starting Ghostrunner API server...")
 
 	// 依存性の組み立て
-	claudeService := service.NewClaudeService()
+	ntfyService := service.NewNtfyService() // nil の場合がある（NTFY_TOPIC 未設定時）
+	claudeService := service.NewClaudeService(ntfyService)
 	geminiService := service.NewGeminiService() // nil の場合がある（API キー未設定時）
 	openaiService := service.NewOpenAIService() // nil の場合がある（API キー未設定時）
 	planHandler := handler.NewPlanHandler(claudeService)

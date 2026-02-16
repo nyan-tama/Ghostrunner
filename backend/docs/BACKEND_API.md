@@ -16,6 +16,16 @@ Server-Sent Events (SSE) によるストリーミング出力とセッション�
 
 ---
 
+## 環境変数
+
+| 環境変数 | 必須 | 説明 |
+|----------|------|------|
+| `GEMINI_API_KEY` | No | Gemini API のAPIキー。未設定時はGemini関連エンドポイントが503を返す |
+| `OPENAI_API_KEY` | No | OpenAI API のAPIキー（sk-xxx形式）。未設定時はOpenAI関連エンドポイントが503を返す |
+| `NTFY_TOPIC` | No | ntfy.shのトピック名。設定するとコマンド完了・エラー時にプッシュ通知を送信する。未設定時は通知機能が無効になる |
+
+---
+
 ## エンドポイント一覧
 
 | エンドポイント | メソッド | 説明 |
@@ -605,3 +615,28 @@ OpenAI Realtime API 用のエフェメラルキーを発行する。
 | `header` | string | ヘッダーテキスト |
 | `options` | array | 選択肢の配列 |
 | `multiSelect` | boolean | 複数選択可能かどうか |
+
+---
+
+## ntfy 通知
+
+コマンド実行の完了・エラー時に [ntfy.sh](https://ntfy.sh) を使ってプッシュ通知を送信する機能。
+環境変数 `NTFY_TOPIC` が設定されている場合のみ有効になる。
+
+### 通知の仕組み
+
+- ntfy.sh の公開サーバー (`https://ntfy.sh/{NTFY_TOPIC}`) にHTTP POSTで通知を送信
+- 通知はfire-and-forget方式で非同期送信されるため、API レスポンスの遅延には影響しない
+- 通知送信の失敗はログに記録されるが、コマンド実行結果のエラーにはならない
+
+### 通知タイミング
+
+| タイミング | 通知タイプ | 優先度 |
+|-----------|----------|--------|
+| コマンド正常完了 | Notify | default |
+| コマンド実行エラー | NotifyError | high |
+| タイムアウト | NotifyError | high |
+
+### 受信方法
+
+ntfy.sh のモバイルアプリやブラウザで同じトピック名を購読することで通知を受信できる。

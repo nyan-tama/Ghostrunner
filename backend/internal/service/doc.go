@@ -38,6 +38,18 @@
 //   - discuss: アイデアや構想の対話形式での深掘り
 //   - research: 外部情報の調査・収集
 //
+// # NtfyService
+//
+// ntfy.sh を使ったプッシュ通知を担当するサービス。
+// NTFY_TOPIC 環境変数が設定されていない場合は nil を返し、通知機能が無効になる。
+// ClaudeServiceに注入され、コマンド完了時やエラー発生時にHTTP POSTで通知を送信する。
+// 通知送信はfire-and-forget方式（ゴルーチンで非同期実行）のため、
+// 通知の成否がコマンド実行の結果に影響を与えることはない。
+//
+// 主なメソッド:
+//   - Notify: 通常の通知を送信（完了通知など、優先度: default）
+//   - NotifyError: エラー通知を送信（優先度: high）
+//
 // # OpenAIService
 //
 // OpenAI Realtime API用のエフェメラルキー発行を担当するサービス。
@@ -72,6 +84,7 @@
 //   - AskUserQuestionの質問抽出とセッション継続
 //   - コマンドホワイトリストによるバリデーション
 //   - 画像データの一時ファイル保存とCLIへの引き渡し
+//   - ntfy.shによるコマンド完了・エラー通知（オプショナル）
 //
 // # ストリーミング
 //
@@ -99,7 +112,8 @@
 //
 // 同期実行（汎用コマンド、テキストのみ）:
 //
-//	svc := service.NewClaudeService()
+//	ntfy := service.NewNtfyService() // NTFY_TOPIC 未設定時は nil
+//	svc := service.NewClaudeService(ntfy)
 //	result, err := svc.ExecuteCommand(ctx, "/path/to/project", "fullstack", "implement feature X", nil)
 //	if err != nil {
 //	    // エラーハンドリング
@@ -119,7 +133,8 @@
 //
 // 同期実行（後方互換性）:
 //
-//	svc := service.NewClaudeService()
+//	ntfy := service.NewNtfyService()
+//	svc := service.NewClaudeService(ntfy)
 //	result, err := svc.ExecutePlan(ctx, "/path/to/project", "implement feature X")
 //	if err != nil {
 //	    // エラーハンドリング
