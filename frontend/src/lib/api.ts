@@ -1,9 +1,21 @@
-import type { FilesResponse, CommandRequest, ContinueRequest } from "@/types";
+import type { FilesResponse, ProjectsResponse, CommandRequest, ContinueRequest } from "@/types";
 import type { GeminiTokenResponse } from "@/types/gemini";
 import type { OpenAITokenResponse } from "@/types/openai";
 
 // ローカル開発時はバックエンド直接、本番はプロキシ経由
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
+
+export async function fetchProjects(): Promise<ProjectsResponse> {
+  try {
+    const response = await fetch(`${API_BASE}/api/projects`);
+    if (!response.ok) {
+      return { success: false, projects: [] };
+    }
+    return response.json();
+  } catch {
+    return { success: false, projects: [] };
+  }
+}
 
 export async function fetchFiles(project: string): Promise<FilesResponse> {
   const response = await fetch(

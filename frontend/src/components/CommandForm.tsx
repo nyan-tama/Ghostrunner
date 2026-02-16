@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import type { FileInfo, ImageData } from "@/types";
+import type { FileInfo, ImageData, ProjectInfo } from "@/types";
 import type { OpenAIConnectionStatus } from "@/types/openai";
 import { COMMANDS } from "@/lib/constants";
 import ImageUploader from "@/components/ImageUploader";
@@ -10,6 +10,7 @@ import VoiceNotificationSection from "@/components/VoiceNotificationSection";
 interface CommandFormProps {
   projectPath: string;
   onProjectChange: (path: string) => void;
+  projects: ProjectInfo[];
   projectHistory: string[];
   command: string;
   onCommandChange: (command: string) => void;
@@ -39,6 +40,7 @@ interface CommandFormProps {
 export default function CommandForm({
   projectPath,
   onProjectChange,
+  projects,
   projectHistory,
   command,
   onCommandChange,
@@ -89,14 +91,24 @@ export default function CommandForm({
           Project Path
         </label>
         <div className="flex gap-2">
-          <input
-            type="text"
+          <select
             value={projectPath}
             onChange={(e) => onProjectChange(e.target.value)}
-            placeholder="/Users/user/myproject"
             required
             className="flex-1 min-w-0 p-3 border border-gray-200 rounded-lg text-base bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-          />
+          >
+            <option value="" disabled>-- Select Project --</option>
+            {projectPath && !projects.some((p) => p.path === projectPath) && (
+              <option value={projectPath}>
+                {projectPath.split("/").pop()} (custom)
+              </option>
+            )}
+            {projects.map((project) => (
+              <option key={project.path} value={project.path}>
+                {project.name}
+              </option>
+            ))}
+          </select>
           {projectHistory.length > 0 && (
             <select
               value=""

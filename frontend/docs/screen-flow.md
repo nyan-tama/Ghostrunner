@@ -66,6 +66,34 @@ flowchart LR
     end
 ```
 
+## プロジェクト選択フロー
+
+ページ読み込み時にバックエンドからプロジェクト一覧を取得し、ドロップダウンで選択する。
+
+```mermaid
+flowchart TD
+    A[ページ読み込み] -->|fetchProjects| B[プロジェクト一覧取得<br>GET /api/projects]
+    B -->|成功| C[ドロップダウンに<br>プロジェクト一覧表示]
+    B -->|失敗| D[空のドロップダウン表示]
+    C -->|プロジェクト選択| E[projectPath 更新]
+    C -->|履歴ドロップダウンから選択| E
+    E -->|一覧にないパス| F[ドロップダウン内に<br>custom 表示]
+    E -->|onLoadFiles| G[ファイルリスト取得]
+```
+
+### プロジェクト選択の状態遷移
+
+| 現在の状態 | トリガー | 次の状態 | 処理 |
+|-----------|---------|---------|------|
+| 初期（未選択） | ページ読み込み | プロジェクト一覧表示 | fetchProjects でバックエンドからプロジェクト一覧を取得 |
+| 初期（未選択） | localStorage にパスあり | 選択済み | 前回のプロジェクトパスを復元 |
+| プロジェクト一覧表示 | ドロップダウンで選択 | 選択済み | onProjectChange でパスを更新、onLoadFiles でファイルリスト取得 |
+| プロジェクト一覧表示 | 履歴ドロップダウンで選択 | 選択済み | 履歴のパスを projectPath に設定 |
+| 選択済み | ドロップダウンで別プロジェクト選択 | 選択済み | パスを更新、ファイルリストを再取得 |
+| 選択済み | 履歴から一覧にないパスを選択 | 選択済み（カスタム） | ドロップダウン内に (custom) 付きで表示 |
+
+---
+
 ## 状態遷移詳細
 
 ### 1. 初期状態 -> 実行中
@@ -75,7 +103,7 @@ flowchart LR
 | Execute Command ボタンクリック | executeCommandStream API呼び出し、SSEストリーム開始 |
 
 **渡すデータ**:
-- `project`: プロジェクトパス
+- `project`: プロジェクトパス（ドロップダウンで選択した値）
 - `command`: 選択したコマンド（plan, research, etc.）
 - `args`: 引数（選択ファイル群 + 入力テキスト）
   - 複数ファイル選択時: `file1.md file2.md file3.md 引数テキスト`
@@ -171,6 +199,11 @@ sequenceDiagram
     participant Frontend
     participant Backend
 
+    Note over Frontend,Backend: ページ読み込み時
+    Frontend->>Backend: GET /api/projects
+    Backend-->>Frontend: プロジェクト一覧
+
+    User->>Frontend: プロジェクト選択（ドロップダウン）
     User->>Frontend: Execute Command
     Note over User,Frontend: 画像がある場合は Base64 データを含む
     Frontend->>Backend: POST /api/command/stream

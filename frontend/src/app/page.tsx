@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
-import type { StreamEvent, DisplayEvent, Question, ToolInput, RestartStatus, ImageData } from "@/types";
+import { useState, useCallback, useRef, useEffect } from "react";
+import type { StreamEvent, DisplayEvent, Question, ToolInput, RestartStatus, ImageData, ProjectInfo } from "@/types";
 import {
   PLAN_APPROVAL_KEYWORDS,
   BACKEND_HEALTH_URL,
   LOCAL_STORAGE_GIT_WORKFLOW_KEY,
   GIT_WORKFLOW_INSTRUCTION,
 } from "@/lib/constants";
-import { executeCommandStream, continueSessionStream } from "@/lib/api";
+import { executeCommandStream, continueSessionStream, fetchProjects } from "@/lib/api";
 import { useSSEStream } from "@/hooks/useSSEStream";
 import { useSessionManagement } from "@/hooks/useSessionManagement";
 import { useFileSelector } from "@/hooks/useFileSelector";
@@ -49,6 +49,16 @@ export default function Home() {
     refreshFiles,
     getGroupedFiles,
   } = useFileSelector();
+
+  const [projects, setProjects] = useState<ProjectInfo[]>([]);
+
+  useEffect(() => {
+    fetchProjects().then((result) => {
+      if (result.success && result.projects) {
+        setProjects(result.projects);
+      }
+    });
+  }, []);
 
   const [command, setCommand] = useState("plan");
   const [args, setArgs] = useState("");
@@ -360,7 +370,6 @@ export default function Home() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    setProjectPath(projectPath);
     addToHistory(projectPath);
     resetSession();
     resetProgress();
@@ -398,7 +407,6 @@ export default function Home() {
     selectedFiles,
     images,
     gitWorkflow,
-    setProjectPath,
     addToHistory,
     resetSession,
     resetProgress,
@@ -542,6 +550,7 @@ export default function Home() {
       <CommandForm
         projectPath={projectPath}
         onProjectChange={setProjectPath}
+        projects={projects}
         projectHistory={projectHistory}
         command={command}
         onCommandChange={setCommand}

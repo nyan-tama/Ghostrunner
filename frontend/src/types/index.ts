@@ -67,6 +67,17 @@ export interface FilesResponse {
   error?: string;
 }
 
+export interface ProjectInfo {
+  name: string;
+  path: string;
+}
+
+export interface ProjectsResponse {
+  success: boolean;
+  projects?: ProjectInfo[];
+  error?: string;
+}
+
 export interface ImageData {
   name: string;
   data: string;

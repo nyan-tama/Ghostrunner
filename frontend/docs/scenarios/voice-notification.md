@@ -21,7 +21,7 @@ Ghost Runner の音声通知機能を利用するユーザー操作シナリオ�
 
 1. **Voice notification** トグルを ON にする
 2. 接続状態ドットが黄色（Connecting...）から緑（Connected）に変わるのを確認
-3. **Project Path**、**Command**、**Arguments** を入力
+3. **Project Path** ドロップダウンからプロジェクトを選択し、**Command**、**Arguments** を入力
 4. **Execute Command** ボタンをクリック
 5. 別の作業をしながら待機
 6. コマンド完了時に音声で「処理が完了しました。[結果の要約]」と通知される
