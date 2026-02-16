@@ -5,8 +5,7 @@
 `/Users/user/` 直下のディレクトリ一覧をバックエンドAPIで取得し、フロントエンドのProject Path入力をドロップダウン選択に変更する。
 
 - バックエンド: `GET /api/projects` API新規追加
-- フロントエンド: テキスト入力+履歴セレクト -> ドロップダウン選択に変更
-- 履歴管理機能は不要になるため削除
+- フロントエンド: テキスト入力をプロジェクト一覧ドロップダウンに変更（履歴機能は維持）
 
 仕様書: `開発/検討中/2026-02-16_ProjectPath候補表示.md`
 
@@ -91,7 +90,7 @@
 
 ### 1. 仕様サマリー
 
-バックエンドの `GET /api/projects` API からプロジェクト一覧を取得し、現在の「テキスト入力 + 履歴セレクト」による Project Path 指定 UI を、プロジェクト一覧のドロップダウン `<select>` に置き換える。表示はディレクトリ名のみ、value はフルパス。localStorage に保存済みの前回パスがあれば初期選択する。履歴管理機能は不要になるため削除する。
+バックエンドの `GET /api/projects` API からプロジェクト一覧を取得し、現在のテキスト入力をプロジェクト一覧のドロップダウン `<select>` に置き換える。表示はディレクトリ名のみ、value はフルパス。localStorage に保存済みの前回パスがあれば初期選択する。既存の履歴ドロップダウンは維持し、ドロップダウン + 履歴の横並びレイアウトとする。
 
 ### 2. 修正範囲の全体像
 
@@ -103,8 +102,6 @@ flowchart TD
     subgraph "Frontend"
         TYPES["types/index.ts<br>型追加"]
         APITS["lib/api.ts<br>fetchProjects追加"]
-        CONST["lib/constants.ts<br>定数削除"]
-        HOOK["hooks/useSessionManagement.ts<br>履歴管理削除"]
         PAGE["app/page.tsx<br>プロジェクト取得・受け渡し"]
         FORM["components/CommandForm.tsx<br>UI変更"]
     end
@@ -112,8 +109,6 @@ flowchart TD
     APITS --> PAGE
     TYPES --> APITS
     TYPES --> FORM
-    CONST --> HOOK
-    HOOK --> PAGE
     PAGE --> FORM
 ```
 
@@ -123,10 +118,8 @@ flowchart TD
 |---------|---------|-------|
 | `frontend/src/types/index.ts` | `ProjectInfo`, `ProjectsResponse` 型追加 | 低 |
 | `frontend/src/lib/api.ts` | `fetchProjects()` 関数追加 | 低 |
-| `frontend/src/lib/constants.ts` | `LOCAL_STORAGE_HISTORY_KEY`, `MAX_PROJECT_HISTORY` 削除 | 低 |
-| `frontend/src/hooks/useSessionManagement.ts` | `projectHistory`, `addToHistory` 関連のコード削除 | 中 |
-| `frontend/src/components/CommandForm.tsx` | テキスト入力+履歴セレクト -> ドロップダウンに置換、Props変更 | 高 |
-| `frontend/src/app/page.tsx` | プロジェクト一覧の取得と受け渡し、履歴関連の参照削除 | 高 |
+| `frontend/src/components/CommandForm.tsx` | テキスト入力をドロップダウンに置換、`projects` prop追加（履歴は維持） | 中 |
+| `frontend/src/app/page.tsx` | プロジェクト一覧の取得と `CommandForm` への受け渡し | 中 |
 
 ### 4. 実装ステップ
 
@@ -144,64 +137,51 @@ flowchart TD
 
 **追加するもの**:
 - 関数 `fetchProjects`: `GET /api/projects` を呼び出し `ProjectsResponse` を返す
-- 既存の `fetchFiles` と同様のパターン（`API_BASE` 使用、エラー時は `{ success: false, error: "..." }` 返却）
-- ネットワークエラー時は `try-catch` で `{ success: false, projects: [] }` を返却（`fetchFiles` と同様のエラーハンドリング）
+- `fetchFiles` のパターンをベースに `API_BASE` 使用、`response.ok` チェック
+- ネットワークエラー時は `try-catch` で `{ success: false, projects: [] }` を返却（`fetchFiles` にはない追加のエラーハンドリング）
 
-#### Step 3: 履歴管理コードの削除
-
-**注意: Step 3 と Step 5 は同時に実施する。** Step 3 で `useSessionManagement` から `addToHistory` を削除すると、Step 5 の修正前の `page.tsx` がコンパイルエラーになるため。
-
-**対象**: `frontend/src/lib/constants.ts`
-
-**削除するもの**:
-- `LOCAL_STORAGE_HISTORY_KEY`
-- `MAX_PROJECT_HISTORY`
-
-**対象**: `frontend/src/hooks/useSessionManagement.ts`
-
-**削除するもの**:
-- `LOCAL_STORAGE_HISTORY_KEY`, `MAX_PROJECT_HISTORY` のインポート
-- `getStoredHistory` 関数
-- `projectHistory` state と `useEffect`
-- `addToHistory` コールバック
-- 返却オブジェクトから `projectHistory`, `addToHistory` を除去
-
-#### Step 4: CommandForm の UI 変更
+#### Step 3: CommandForm の UI 変更
 
 **対象**: `frontend/src/components/CommandForm.tsx`
 
 **修正するもの**:
-- Props `CommandFormProps` から `projectHistory` を削除し、`projects` (ProjectInfo[]) を追加
-- `handleHistorySelect` を削除
-- Project Path セクションを以下に置換:
-  - テキスト入力 + 履歴セレクトの横並び -> 単一の `<select>` ドロップダウン
+- Props `CommandFormProps` に `projects` (ProjectInfo[]) を追加（`projectHistory` は維持）
+- テキスト入力をプロジェクト一覧 `<select>` ドロップダウンに置換（履歴セレクトは維持）
+- レイアウト: `[▼ プロジェクト一覧ドロップダウン] [履歴▼]` の横並び（既存の `flex gap-2` を継続）
+- プロジェクト一覧ドロップダウンの仕様:
   - 先頭 option: `-- Select Project --`（value 空文字、disabled）。一度選択したら未選択には戻せない（意図的）
   - `<select>` に `required` 属性を付与（既存のテキスト入力と同じバリデーション）
   - 各 option: 表示は `project.name`（ディレクトリ名）、value は `project.path`（フルパス）
+  - `projectPath` が `projects` の `path` 一覧に含まれないかつ空文字でない場合、先頭 option の直後に `<option value={projectPath}>{ディレクトリ名} (custom)</option>` を動的に挿入する（履歴から一覧外のパスを選択した場合に、現在の選択を視覚的に表示するため）
   - `onChange` で `onProjectChange(e.target.value)` を呼び出し
   - `value` は `projectPath` をバインド
+  - CSS クラスは `flex-1 min-w-0`（既存テキスト入力と同じ比率）
 
 **削除するもの**:
-- `handleHistorySelect` 関数
-- テキスト入力要素
-- 履歴セレクト要素
+- テキスト入力要素（`<input type="text">`）のみ
 
-#### Step 5: page.tsx の修正
+**維持するもの**:
+- `handleHistorySelect` 関数
+- 履歴セレクト要素（`projectHistory.length > 0 && ...` ブロック）
+- `projectHistory` prop
+
+#### Step 4: page.tsx の修正
 
 **対象**: `frontend/src/app/page.tsx`
 
 **追加するもの**:
 - State: `projects` (型: `ProjectInfo[]`)
 - `useEffect`（依存配列: `[]`、マウント時のみ実行）で `fetchProjects()` を呼び出し、結果を `projects` にセット
-- プロジェクト一覧取得後、localStorage の保存パスが一覧に存在しない場合は `projectPath` を空文字にリセットする
 - `fetchProjects` のインポート
 
 **修正するもの**:
-- `useSessionManagement` の分割代入から `projectHistory`, `addToHistory` を除去
-- `handleSubmit` 内の `addToHistory(projectPath)` 呼び出しを削除
+- `CommandForm` への props に `projects={projects}` を追加
 - `handleSubmit` 内の `setProjectPath(projectPath)` は削除（ドロップダウン選択時に `onProjectChange` 経由で既に localStorage 保存済みのため冗長）
-- `handleSubmit` の `useCallback` 依存配列から `addToHistory` を除去
-- `CommandForm` への props 受け渡し: `projectHistory` -> `projects`
+
+**維持するもの**:
+- `useSessionManagement` の `projectHistory`, `addToHistory` はそのまま
+- `handleSubmit` 内の `addToHistory(projectPath)` はそのまま
+- `CommandForm` への `projectHistory={projectHistory}` はそのまま
 
 **注意点**:
 - `page.tsx` は Client Component（`"use client"`）なので、`useEffect` + `useState` でプロジェクト一覧を取得する
@@ -214,15 +194,16 @@ flowchart TD
 |-----|------------|------|----------|
 | 取得タイミング | マウント時に1回 `useEffect` で取得 | プロジェクト一覧は頻繁に変わらない | `onFocus` ごとに再取得（過剰） |
 | 取得場所 | `page.tsx` で取得して props で渡す | ファイル選択の `loadFiles` と同じパターン | CommandForm 内で取得（既存パターンと不一致） |
-| 履歴機能 | 完全削除 | プロジェクト一覧 API があるため不要 | 残して併用（複雑化するだけ） |
+| 履歴機能 | 維持（ドロップダウンと横並び） | 変更量が少なくリスクが低い。手入力で使った `/Users/user/` 直下以外のパスも履歴に残る | 完全削除（変更が多い割にメリットが小さい） |
 | 初期選択 | `<select>` の `value` に localStorage のパスをバインド | 既存の `storedPath` がそのまま使える | 別途ロジック追加（不要） |
 
 ### 6. 懸念点と対応方針
 
 | 懸念点 | 対応方針 |
 |-------|---------|
-| localStorage の保存パスが API 一覧に存在しない場合 | プロジェクト一覧取得後に `projectPath` が一覧に含まれるか検証し、存在しない場合は空文字にリセットする |
+| localStorage の保存パスや履歴選択が API 一覧に存在しない場合 | `<select>` に動的 option を挿入して現在の選択を視覚的に表示する（Step 3 参照）。localStorage の値はリセットしない（パスの消失を防ぐため） |
 | API 取得前のドロップダウン表示 | `projects` が空配列の間はプレースホルダーのみ表示。取得完了後にリストが反映される。ローディング表示は MVP 外とする |
+| API 取得失敗時 | `projects` が空配列のため、ドロップダウンにはプレースホルダーのみ表示。既存の localStorage パスがあれば履歴経由で submit 可能。初回起動かつ API ダウンの場合はバックエンドの起動を促す |
 | `handleSubmit` 内の `setProjectPath(projectPath)` | 削除する。ドロップダウン選択時に `onProjectChange` 経由で既に localStorage 保存済みのため冗長 |
 
 ---
@@ -251,8 +232,6 @@ flowchart TD
 | `doc.go` 更新 | ドキュメントのみの変更 |
 | `frontend/src/types/index.ts` 型追加 | TypeScript の型定義のみ。コンパイル時に検証される |
 | `frontend/src/lib/api.ts` の `fetchProjects` | 既存 `fetchFiles` と同一パターンの単純な fetch ラッパー。外部依存（fetch API）を呼ぶだけで独自ロジックなし |
-| `frontend/src/lib/constants.ts` 定数削除 | 2行の定数削除。削除漏れはコンパイルエラーで検出される |
-| `frontend/src/hooks/useSessionManagement.ts` 履歴管理削除 | コード削除のみ。削除漏れ・参照残りはコンパイルエラーで検出される |
 | `frontend/src/components/CommandForm.tsx` UI 変更 | テストフレームワーク（Jest/Vitest）未導入。UI の見た目テストはコスパが悪い。Props 変更はコンパイル時の型チェックで検証される |
 | `frontend/src/app/page.tsx` 修正 | テストフレームワーク未導入。状態管理の結合テストはコスト高。`useEffect` + `fetchProjects` の組み合わせは React の標準パターンで壊れにくい |
 
