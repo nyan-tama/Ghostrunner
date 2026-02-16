@@ -3,9 +3,7 @@ package handler
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 
@@ -212,10 +210,7 @@ func (h *CommandHandler) HandleStream(c *gin.Context) {
 	}
 
 	// SSEヘッダー設定
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no")
+	setSSEHeaders(c)
 
 	// イベントチャンネル作成
 	eventCh := make(chan service.StreamEvent, 100)
@@ -231,27 +226,8 @@ func (h *CommandHandler) HandleStream(c *gin.Context) {
 		}
 	}()
 
-	// イベントをSSEとして送信
-	c.Stream(func(w io.Writer) bool {
-		event, ok := <-eventCh
-		if !ok {
-			return false
-		}
-
-		data, err := json.Marshal(event)
-		if err != nil {
-			log.Printf("[CommandHandler] HandleStream marshal error: %v", err)
-			return true
-		}
-
-		log.Printf("[CommandHandler] SSE sending: type=%s, tool=%s", event.Type, event.ToolName)
-		if _, err := w.Write([]byte("data: " + string(data) + "\n\n")); err != nil {
-			log.Printf("[CommandHandler] SSE write error: %v", err)
-			return false
-		}
-		c.Writer.Flush()
-		return true
-	})
+	// イベントをSSEとして送信（selectベースのループで確実にコンテキストキャンセルを検出）
+	writeSSEEvents(c, eventCh, "CommandHandler")
 
 	log.Printf("[CommandHandler] HandleStream completed: project=%s, command=%s", req.Project, req.Command)
 }
@@ -371,10 +347,7 @@ func (h *CommandHandler) HandleContinueStream(c *gin.Context) {
 	}
 
 	// SSEヘッダー設定
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no")
+	setSSEHeaders(c)
 
 	// イベントチャンネル作成
 	eventCh := make(chan service.StreamEvent, 100)
@@ -387,27 +360,8 @@ func (h *CommandHandler) HandleContinueStream(c *gin.Context) {
 		}
 	}()
 
-	// イベントをSSEとして送信
-	c.Stream(func(w io.Writer) bool {
-		event, ok := <-eventCh
-		if !ok {
-			return false
-		}
-
-		data, err := json.Marshal(event)
-		if err != nil {
-			log.Printf("[CommandHandler] HandleContinueStream marshal error: %v", err)
-			return true
-		}
-
-		log.Printf("[CommandHandler] SSE sending: type=%s, tool=%s", event.Type, event.ToolName)
-		if _, err := w.Write([]byte("data: " + string(data) + "\n\n")); err != nil {
-			log.Printf("[CommandHandler] SSE write error: %v", err)
-			return false
-		}
-		c.Writer.Flush()
-		return true
-	})
+	// イベントをSSEとして送信（selectベースのループで確実にコンテキストキャンセルを検出）
+	writeSSEEvents(c, eventCh, "CommandHandler")
 
 	log.Printf("[CommandHandler] HandleContinueStream completed: project=%s, sessionID=%s", req.Project, req.SessionID)
 }

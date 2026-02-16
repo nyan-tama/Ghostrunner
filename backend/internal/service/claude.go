@@ -165,6 +165,12 @@ func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, p
 	var currentSessionID string
 
 	for scanner.Scan() {
+		// コンテキストキャンセルをチェック（クライアント切断時にループを早期終了）
+		if ctx.Err() != nil {
+			log.Printf("[ClaudeService] Context canceled during scanning, stopping stream")
+			break
+		}
+
 		line := scanner.Text()
 		log.Printf("[ClaudeService] Stream line received: %s", truncateLog(line, 200))
 		if line == "" {
@@ -192,19 +198,33 @@ func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, p
 				if event.Result != nil {
 					event.Result.SessionID = currentSessionID
 				}
-				eventCh <- event
+				select {
+				case eventCh <- event:
+				case <-ctx.Done():
+					log.Printf("[ClaudeService] Context canceled while sending question event")
+					return nil
+				}
 				log.Printf("[ClaudeService] AskUserQuestion detected, killing process to wait for user input: sessionID=%s", currentSessionID)
 				cmd.Process.Kill()
 				return nil
 			}
 
-			eventCh <- event
+			select {
+			case eventCh <- event:
+			case <-ctx.Done():
+				log.Printf("[ClaudeService] Context canceled while sending event, stopping stream")
+				return nil
+			}
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		log.Printf("[ClaudeService] Scanner error: %v", err)
-		eventCh <- StreamEvent{Type: EventTypeError, Message: "Stream read error: " + err.Error()}
+		select {
+		case eventCh <- StreamEvent{Type: EventTypeError, Message: "Stream read error: " + err.Error()}:
+		case <-ctx.Done():
+			log.Printf("[ClaudeService] Context canceled, skipping scanner error event")
+		}
 	}
 
 	// コマンド終了を待つ
@@ -213,12 +233,19 @@ func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, p
 	if err != nil {
 		// コンテキストキャンセルの場合
 		if ctx.Err() == context.DeadlineExceeded {
-			eventCh <- StreamEvent{Type: EventTypeError, Message: "Execution timeout"}
+			select {
+			case eventCh <- StreamEvent{Type: EventTypeError, Message: "Execution timeout"}:
+			default:
+			}
 			return fmt.Errorf("execution timeout after %v", s.timeout)
 		}
 		if ctx.Err() == context.Canceled {
-			eventCh <- StreamEvent{Type: EventTypeError, Message: "Execution canceled"}
-			return fmt.Errorf("execution canceled")
+			log.Printf("[ClaudeService] Context canceled detected: client likely disconnected")
+			select {
+			case eventCh <- StreamEvent{Type: EventTypeError, Message: "Client disconnected"}:
+			default:
+			}
+			return fmt.Errorf("execution canceled: client disconnected")
 		}
 
 		// エラーでも結果がある場合は返す
@@ -227,7 +254,10 @@ func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, p
 		}
 
 		log.Printf("[ClaudeService] Command failed: error=%v", err)
-		eventCh <- StreamEvent{Type: EventTypeError, Message: "Command failed: " + err.Error()}
+		select {
+		case eventCh <- StreamEvent{Type: EventTypeError, Message: "Command failed: " + err.Error()}:
+		default:
+		}
 		return fmt.Errorf("claude cli execution failed: %w", err)
 	}
 

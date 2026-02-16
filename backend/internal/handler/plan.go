@@ -2,8 +2,6 @@
 package handler
 
 import (
-	"encoding/json"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -145,10 +143,7 @@ func (h *PlanHandler) HandleStream(c *gin.Context) {
 	}
 
 	// SSEヘッダー設定
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no")
+	setSSEHeaders(c)
 
 	// イベントチャンネル作成
 	eventCh := make(chan service.StreamEvent, 100)
@@ -161,29 +156,8 @@ func (h *PlanHandler) HandleStream(c *gin.Context) {
 		}
 	}()
 
-	// イベントをSSEとして送信
-	c.Stream(func(w io.Writer) bool {
-		event, ok := <-eventCh
-		if !ok {
-			return false
-		}
-
-		data, err := json.Marshal(event)
-		if err != nil {
-			log.Printf("[PlanHandler] HandleStream marshal error: %v", err)
-			return true
-		}
-
-		log.Printf("[PlanHandler] SSE sending: type=%s, tool=%s", event.Type, event.ToolName)
-		// c.SSEventは "event: message\ndata: ..." 形式で出力するが、
-		// フロントエンドは "data: ..." のみを期待しているため直接書き込む
-		if _, err := w.Write([]byte("data: " + string(data) + "\n\n")); err != nil {
-			log.Printf("[PlanHandler] SSE write error: %v", err)
-			return false
-		}
-		c.Writer.Flush()
-		return true
-	})
+	// イベントをSSEとして送信（selectベースのループで確実にコンテキストキャンセルを検出）
+	writeSSEEvents(c, eventCh, "PlanHandler")
 
 	log.Printf("[PlanHandler] HandleStream completed: project=%s, args=%s", req.Project, req.Args)
 }
@@ -303,10 +277,7 @@ func (h *PlanHandler) HandleContinueStream(c *gin.Context) {
 	}
 
 	// SSEヘッダー設定
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no")
+	setSSEHeaders(c)
 
 	// イベントチャンネル作成
 	eventCh := make(chan service.StreamEvent, 100)
@@ -319,29 +290,8 @@ func (h *PlanHandler) HandleContinueStream(c *gin.Context) {
 		}
 	}()
 
-	// イベントをSSEとして送信
-	c.Stream(func(w io.Writer) bool {
-		event, ok := <-eventCh
-		if !ok {
-			return false
-		}
-
-		data, err := json.Marshal(event)
-		if err != nil {
-			log.Printf("[PlanHandler] HandleContinueStream marshal error: %v", err)
-			return true
-		}
-
-		log.Printf("[PlanHandler] SSE sending: type=%s, tool=%s", event.Type, event.ToolName)
-		// c.SSEventは "event: message\ndata: ..." 形式で出力するが、
-		// フロントエンドは "data: ..." のみを期待しているため直接書き込む
-		if _, err := w.Write([]byte("data: " + string(data) + "\n\n")); err != nil {
-			log.Printf("[PlanHandler] SSE write error: %v", err)
-			return false
-		}
-		c.Writer.Flush()
-		return true
-	})
+	// イベントをSSEとして送信（selectベースのループで確実にコンテキストキャンセルを検出）
+	writeSSEEvents(c, eventCh, "PlanHandler")
 
 	log.Printf("[PlanHandler] HandleContinueStream completed: project=%s, sessionID=%s", req.Project, req.SessionID)
 }
