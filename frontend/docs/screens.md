@@ -111,7 +111,8 @@ Ghost Runner は単一ページアプリケーション（SPA）として構成�
 | ProgressContainer | `components/ProgressContainer.tsx` | 進捗表示全体のコンテナ |
 | LoadingIndicator | `components/LoadingIndicator.tsx` | 処理中のスピナーとテキスト表示 |
 | EventList | `components/EventList.tsx` | イベントリストの表示（自動スクロール） |
-| EventItem | `components/EventItem.tsx` | 個別イベントの表示（展開可能） |
+| EventItem | `components/EventItem.tsx` | 個別イベントの表示（Markdown レンダリング） |
+| OutputText | `components/OutputText.tsx` | テキスト出力の Markdown レンダリング（太字、コード、リスト、テーブル等） |
 | QuestionSection | `components/QuestionSection.tsx` | AIからの質問への回答UI（逐次表示） |
 | PlanApproval | `components/PlanApproval.tsx` | 計画の承認/拒否ボタン |
 
@@ -121,7 +122,7 @@ Ghost Runner は単一ページアプリケーション（SPA）として構成�
 2. **実行中**: ローディング表示 + イベントリスト + 中断ボタン（Abort）
 3. **質問待ち**: QuestionSection を表示（中断ボタンは非表示）
 4. **計画承認待ち**: PlanApproval を表示（中断ボタンは非表示）
-5. **完了**: 結果出力を表示（成功は緑、エラーは赤）
+5. **完了**: 結果出力を Markdown レンダリングして表示（成功は緑、エラーは赤）
 6. **中断**: 結果出力に "Execution aborted by user" を表示（赤背景）
 
 ### 質問の逐次表示

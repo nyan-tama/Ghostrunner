@@ -6,6 +6,7 @@ import EventList from "./EventList";
 import QuestionSection from "./QuestionSection";
 import PlanApproval from "./PlanApproval";
 import ContinueSession from "./ContinueSession";
+import OutputText from "./OutputText";
 
 interface ProgressContainerProps {
   visible: boolean;
@@ -96,8 +97,8 @@ export default function ProgressContainer({
             resultType === "success" ? "bg-green-100" : "bg-red-100"
           }`}
         >
-          <div className="bg-white p-3 rounded-md font-mono text-sm whitespace-pre-wrap break-words max-h-96 overflow-y-auto">
-            {resultOutput}
+          <div className="bg-white p-3 rounded-md max-h-96 overflow-y-auto">
+            <OutputText text={resultOutput} />
           </div>
         </div>
       )}
