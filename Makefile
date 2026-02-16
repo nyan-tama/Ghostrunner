@@ -44,6 +44,11 @@ help:
 	@echo "  make frontend-external - フロントエンドのみ外部公開モードで起動"
 	@echo "  ※外部からアクセスする場合は tailscale ip -4 でIPを確認"
 	@echo ""
+	@echo "ntfy 通知（Mac デスクトップ通知）:"
+	@echo "  make setup-ntfy       - ntfy 通知受信をセットアップ"
+	@echo "  make uninstall-ntfy   - ntfy 通知受信をアンインストール"
+	@echo "  make status-ntfy      - ntfy 通知の状態確認"
+	@echo ""
 
 # 起動（フォアグラウンド、ログ直接表示）
 .PHONY: backend frontend dev
@@ -240,3 +245,28 @@ dev-external:
 	echo "※制限事項: サーバー再起動機能は外部からは使用できません"; \
 	echo ""
 	@make -j2 backend frontend-external
+
+# ntfy 通知（Mac デスクトップ通知）
+.PHONY: setup-ntfy uninstall-ntfy status-ntfy
+
+setup-ntfy:
+	@bash $(PROJECT_ROOT)/scripts/setup-ntfy.sh
+
+uninstall-ntfy:
+	@bash $(PROJECT_ROOT)/scripts/uninstall-ntfy.sh
+
+status-ntfy:
+	@echo "=== ntfy 通知 状態確認 ==="
+	@echo ""
+	@echo "--- LaunchAgent ---"
+	@launchctl list | grep sh.ntfy.subscriber || echo "  未登録"
+	@echo ""
+	@echo "--- プロセス ---"
+	@pgrep -f "ntfy subscribe" > /dev/null 2>&1 && echo "  ntfy subscribe: 実行中 (PID: $$(pgrep -f 'ntfy subscribe'))" || echo "  ntfy subscribe: 停止中"
+	@echo ""
+	@echo "--- 設定ファイル ---"
+	@[ -f "$(HOME)/Library/Application Support/ntfy/client.yml" ] && echo "  client.yml: 存在" || echo "  client.yml: なし"
+	@[ -f "$(HOME)/Library/LaunchAgents/sh.ntfy.subscriber.plist" ] && echo "  plist: 存在" || echo "  plist: なし"
+	@echo ""
+	@echo "--- ログ（末尾10行） ---"
+	@[ -f /tmp/ntfy-subscriber.log ] && tail -10 /tmp/ntfy-subscriber.log || echo "  ログファイルなし"
