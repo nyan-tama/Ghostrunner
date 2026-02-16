@@ -56,8 +56,8 @@ func NewOpenAIService() OpenAIService {
 
 // openAIClientSecretsRequest はGA版client_secrets作成リクエストの構造体
 type openAIClientSecretsRequest struct {
-	ExpiresAfter openAIExpiresAfter       `json:"expires_after"`
-	Session      openAISessionConfig      `json:"session"`
+	ExpiresAfter openAIExpiresAfter  `json:"expires_after"`
+	Session      openAISessionConfig `json:"session"`
 }
 
 // openAIExpiresAfter は有効期限の設定
@@ -68,9 +68,9 @@ type openAIExpiresAfter struct {
 
 // openAISessionConfig はセッション設定
 type openAISessionConfig struct {
-	Type  string              `json:"type"`
-	Model string              `json:"model"`
-	Audio *openAIAudioConfig  `json:"audio,omitempty"`
+	Type  string             `json:"type"`
+	Model string             `json:"model"`
+	Audio *openAIAudioConfig `json:"audio,omitempty"`
 }
 
 // openAIAudioConfig は音声設定
@@ -85,8 +85,8 @@ type openAIAudioOutput struct {
 
 // openAIClientSecretsResponse はGA版client_secrets作成レスポンスの構造体
 type openAIClientSecretsResponse struct {
-	Value     string `json:"value"`
-	ExpiresAt int64  `json:"expires_at"`
+	Value     string               `json:"value"`
+	ExpiresAt int64                `json:"expires_at"`
 	Error     *openAIErrorResponse `json:"error,omitempty"`
 }
 

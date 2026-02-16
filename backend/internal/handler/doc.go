@@ -12,6 +12,7 @@
 //   - PlanHandler: /api/plan 関連のエンドポイントを処理（後方互換性維持）
 //   - CommandHandler: /api/command 関連のエンドポイントを処理（汎用コマンド実行）
 //   - FilesHandler: /api/files 関連のエンドポイントを処理（ファイル一覧取得）
+//   - ProjectsHandler: /api/projects 関連のエンドポイントを処理（プロジェクト一覧取得）
 //   - OpenAIHandler: /api/openai 関連のエンドポイントを処理（音声対話用エフェメラルキー発行）
 //
 // ClaudeServiceへの依存性注入によりテスタビリティを確保する。
@@ -46,6 +47,13 @@
 //   - 検討中
 //   - 資料
 //   - アーカイブ
+//
+// # ProjectsHandler
+//
+// /Users/user/ 直下のディレクトリ一覧を取得するエンドポイント。
+// フロントエンドのProjectPath選択ドロップダウンの候補を提供する。
+// 外部サービスへの依存がなく、ローカルファイルシステムのみを参照する。
+// 隠しディレクトリ、ファイル、シンボリックリンクは除外する。
 //
 // # PlanHandler
 //
@@ -96,6 +104,20 @@
 //	        "資料": [],
 //	        "アーカイブ": []
 //	    }
+//	}
+//
+// ## Projects API (プロジェクト一覧取得)
+//
+// GET /api/projects - プロジェクト候補のディレクトリ一覧取得
+//
+// レスポンス:
+//
+//	{
+//	    "success": true,
+//	    "projects": [
+//	        {"name": "ProjectA", "path": "/Users/user/ProjectA"},
+//	        {"name": "ProjectB", "path": "/Users/user/ProjectB"}
+//	    ]
 //	}
 //
 // ## Command API (汎用コマンド実行)
@@ -253,6 +275,10 @@
 //	// FilesHandler
 //	filesHandler := handler.NewFilesHandler()
 //	api.GET("/files", filesHandler.Handle)
+//
+//	// ProjectsHandler
+//	projectsHandler := handler.NewProjectsHandler()
+//	api.GET("/projects", projectsHandler.Handle)
 //
 //	// OpenAIHandler
 //	openaiService := service.NewOpenAIService()

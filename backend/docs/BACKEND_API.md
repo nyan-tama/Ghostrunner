@@ -26,6 +26,7 @@ Server-Sent Events (SSE) によるストリーミング出力とセッション�
 | `/api/command/continue` | POST | セッション継続 |
 | `/api/command/continue/stream` | POST | セッション継続のストリーミング実行 (SSE) |
 | `/api/files` | GET | 開発フォルダ内のmdファイル一覧取得 |
+| `/api/projects` | GET | プロジェクト候補のディレクトリ一覧取得 |
 | `/api/plan` | POST | /planコマンドの同期実行（後方互換性） |
 | `/api/plan/stream` | POST | /planコマンドのストリーミング実行（後方互換性） |
 | `/api/plan/continue` | POST | セッション継続（後方互換性） |
@@ -312,6 +313,78 @@ GET /api/files?project=/path/to/project
 | 400 | リクエスト不正（projectパラメータ未指定、パスが絶対パスでない等） |
 | 404 | 開発ディレクトリが存在しない |
 | 500 | サーバー内部エラー（フォルダ読み取り失敗等） |
+
+---
+
+## Projects API
+
+### GET /api/projects
+
+プロジェクト候補のディレクトリ一覧を取得する。
+
+`/Users/user/` 直下のディレクトリをスキャンし、プロジェクト候補として返却する。
+フロントエンドのProjectPath選択ドロップダウンの候補データを提供するためのエンドポイント。
+
+フィルタリング条件:
+- 隠しディレクトリ（`.` で始まるもの）を除外
+- ファイルを除外
+- シンボリックリンクを除外
+
+結果はディレクトリ名のアルファベット順でソートされる。
+
+#### リクエスト
+
+```
+GET /api/projects
+```
+
+パラメータなし。認証不要。
+
+#### レスポンス（成功）
+
+```json
+{
+    "success": true,
+    "projects": [
+        {
+            "name": "ProjectA",
+            "path": "/Users/user/ProjectA"
+        },
+        {
+            "name": "ProjectB",
+            "path": "/Users/user/ProjectB"
+        }
+    ]
+}
+```
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `success` | boolean | 成功フラグ |
+| `projects` | array | プロジェクトディレクトリ情報の配列 |
+
+#### ProjectInfo オブジェクト
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `name` | string | ディレクトリ名 |
+| `path` | string | ディレクトリの絶対パス |
+
+#### レスポンス（エラー）
+
+```json
+{
+    "success": false,
+    "error": "ディレクトリ一覧の取得に失敗しました"
+}
+```
+
+#### HTTPステータスコード
+
+| コード | 説明 |
+|--------|------|
+| 200 | 正常完了 |
+| 500 | ディレクトリ読み取りエラー |
 
 ---
 

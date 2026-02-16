@@ -288,3 +288,110 @@ npm run build
 - バックエンドのルーティング追加（`main.go`）: 2行の定型コード追加であり、Gin フレームワークの機能をテストすることになる
 - バックエンドの型定義・コンストラクタ: 構造体定義とインスタンス生成のみで、ロジックがない
 - `fetchProjects` API 関数: 既存の `fetchFiles` と完全に同一パターン。`fetch` を呼んで結果を返すだけの委譲関数であり、独自ロジックがない
+
+---
+
+## バックエンド実装完了レポート
+
+### 実装サマリー
+
+- **実装日**: 2026-02-16
+- **スコープ**: バックエンド（`backend/` 配下）のみ
+- **変更ファイル数**: 5 files（新規2、修正3）
+- **実装内容**: `GET /api/projects` エンドポイントを新規追加。`/Users/user/` 直下のディレクトリ一覧を返すAPIで、フロントエンドのProjectPath選択ドロップダウンの候補データを提供する。隠しディレクトリ、ファイル、シンボリックリンクを除外し、アルファベット順でソートされた結果を返却する。
+
+### 変更ファイル一覧
+
+| ファイル | 種別 | 変更内容 |
+|---------|------|---------|
+| `backend/internal/handler/projects.go` | 新規 | `ProjectsHandler` 構造体、`ProjectInfo`/`ProjectsResponse` 型、`NewProjectsHandler` コンストラクタ、`Handle` メソッド（ディレクトリスキャン+フィルタリング+JSON返却）、`baseDir` ヘルパーメソッド。計100行 |
+| `backend/internal/handler/projects_test.go` | 新規 | テーブル駆動テスト5ケース。`t.TempDir()` による一時ディレクトリ構築、`gin.CreateTestContext` + `httptest.NewRecorder` によるHTTPテスト。計175行 |
+| `backend/cmd/server/main.go` | 修正 | `projectsHandler := handler.NewProjectsHandler()` の初期化（26行目）と `api.GET("/projects", projectsHandler.Handle)` のルーティング追加（64行目）。計2行追加 |
+| `backend/internal/handler/doc.go` | 修正 | パッケージドキュメントに `ProjectsHandler` の説明追加（15行目、52-57行目）、`GET /api/projects` のリクエスト/レスポンス仕様追記（109-121行目）、使用例に `ProjectsHandler` の初期化・ルーティングコード追加（279-281行目） |
+| `backend/docs/BACKEND_API.md` | 修正 | エンドポイント一覧テーブルに `/api/projects` 行追加（29行目）、Projects API セクション新設（319-388行目）。リクエスト/レスポンス形式、ProjectInfoオブジェクト仕様、HTTPステータスコード一覧を記載 |
+
+### 計画からの変更点
+
+特になし。バックエンド計画の Step 1 - Step 3 の全項目を計画通りに実装した。
+
+- `ProjectsHandler` の設計（`BaseDir` フィールドによるテスト時の差し替え方式）は計画の (A) 方式を採用
+- `os.ReadDir` のデフォルトソート順序に依存する方針は計画通り
+- サービス層を挟まずハンドラー直接実装（`FilesHandler`/`HealthHandler` と同じパターン）は計画通り
+- ログフォーマット `[ProjectsHandler]` は既存フォーマットに準拠
+- テストプランの5ケースを全て実装
+
+### 実装時の課題
+
+特になし。
+
+### 残存する懸念点
+
+- **ベースパスのハードコード**: `/Users/user/` が `projects.go` 内にハードコードされている。macOS 前提のローカル開発ツールであり現時点では問題ないが、将来的に環境変数や設定ファイルで管理する必要が生じる可能性がある（計画書の懸念点に記載済み）
+- **フロントエンド未実装**: 本レポートはバックエンドのみのスコープ。フロントエンド側（ドロップダウンUI、`fetchProjects` 関数、`page.tsx` の修正）は別途実装が必要
+
+### 検証結果
+
+#### ビルド・静的解析
+
+| 検証項目 | 結果 |
+|---------|------|
+| `go build ./...` | PASS |
+| `go vet ./...` | PASS |
+| `go fmt ./...` | PASS（フォーマット差分なし） |
+
+#### テスト結果
+
+```
+go test ./internal/handler/ -run TestProjectsHandler -v
+```
+
+| # | テストケース | 結果 |
+|---|------------|------|
+| 1 | 正常系_複数ディレクトリがアルファベット順で返される | PASS |
+| 2 | 隠しディレクトリが除外される | PASS |
+| 3 | ファイルが除外されディレクトリのみ返される | PASS |
+| 4 | 空ディレクトリの場合に空配列が返される | PASS |
+| 5 | ベースディレクトリが存在しない場合に500エラー | PASS |
+
+全5件 PASS。テスト計画で定義した必須4件 + 推奨1件の全ケースをカバー。
+
+#### コードレビュー
+
+- Critical: なし
+- Warning: なし
+
+### 動作確認フロー
+
+```
+1. バックエンドサーバーを起動する
+   $ cd /Users/user/Ghostrunner
+   $ make restart-backend-logs
+
+2. サーバーが起動したことをヘルスチェックで確認する
+   $ curl http://localhost:8080/api/health
+   期待: {"status":"ok"}
+
+3. プロジェクト一覧APIを呼び出す
+   $ curl http://localhost:8080/api/projects
+   期待: {"success":true,"projects":[{"name":"...","path":"/Users/user/..."},...]}}
+   - success が true であること
+   - projects 配列にディレクトリ一覧が含まれること
+   - 各要素に name（ディレクトリ名）と path（絶対パス）があること
+   - 隠しディレクトリ（.で始まるもの）が含まれていないこと
+   - ファイルが含まれていないこと
+   - アルファベット順でソートされていること
+
+4. レスポンスの path を確認する
+   - 全ての path が /Users/user/ で始まること
+   - path が name と一致すること（path = /Users/user/ + name）
+
+5. サーバーを停止する
+   $ make stop-backend
+```
+
+### デプロイ後の確認事項
+
+- [ ] `curl http://localhost:8080/api/projects` で 200 レスポンスが返ること
+- [ ] レスポンスの `projects` 配列に `/Users/user/` 直下のディレクトリが含まれていること
+- [ ] 隠しディレクトリ（`.Trash`, `.ssh` など）が結果に含まれていないこと
+- [ ] フロントエンド実装後にドロップダウンから正しくプロジェクトを選択できること

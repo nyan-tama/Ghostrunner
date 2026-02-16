@@ -23,6 +23,7 @@ func main() {
 	geminiHandler := handler.NewGeminiHandler(geminiService)
 	openaiHandler := handler.NewOpenAIHandler(openaiService)
 	filesHandler := handler.NewFilesHandler()
+	projectsHandler := handler.NewProjectsHandler()
 	healthHandler := handler.NewHealthHandler()
 
 	// Ginエンジン初期化
@@ -58,6 +59,9 @@ func main() {
 
 		// ファイル一覧API
 		api.GET("/files", filesHandler.Handle)
+
+		// プロジェクト一覧API
+		api.GET("/projects", projectsHandler.Handle)
 
 		// 汎用コマンドAPI（推奨）
 		api.POST("/command", commandHandler.Handle)
