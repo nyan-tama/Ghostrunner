@@ -255,7 +255,8 @@
 //
 // ハンドラーの初期化とルーティング:
 //
-//	claudeService := service.NewClaudeService()
+//	ntfyService := service.NewNtfyService()
+//	claudeService := service.NewClaudeService(ntfyService)
 //
 //	// CommandHandler
 //	commandHandler := handler.NewCommandHandler(claudeService)

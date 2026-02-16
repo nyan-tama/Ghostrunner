@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -186,6 +187,88 @@ func TestNtfyService_Send(t *testing.T) {
 			// メッセージ本文の検証
 			if captured.Body != tt.message {
 				t.Errorf("Body: got %q, want %q", captured.Body, tt.message)
+			}
+		})
+	}
+}
+
+// mockNtfyService はnotifyCompleteのテスト用モックです
+type mockNtfyService struct {
+	mu      sync.Mutex
+	title   string
+	message string
+	called  bool
+}
+
+func (m *mockNtfyService) Notify(title, message string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.title = title
+	m.message = message
+	m.called = true
+}
+
+func (m *mockNtfyService) NotifyError(title, message string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.title = title
+	m.message = message
+	m.called = true
+}
+
+func TestNotifyComplete_MessageTruncation(t *testing.T) {
+	longOutput := strings.Repeat("a", 150) // 150文字の文字列
+
+	tests := []struct {
+		name        string
+		output      string
+		wantMessage string
+	}{
+		{
+			name:        "空文字の場合はデフォルトメッセージが使われる",
+			output:      "",
+			wantMessage: "Command completed successfully",
+		},
+		{
+			name:        "100文字以下の場合はそのまま渡される",
+			output:      strings.Repeat("b", 80),
+			wantMessage: strings.Repeat("b", 80),
+		},
+		{
+			name:        "ちょうど100文字の場合はそのまま渡される",
+			output:      strings.Repeat("c", 100),
+			wantMessage: strings.Repeat("c", 100),
+		},
+		{
+			name:        "100文字を超える場合は100文字に切り詰められて省略記号が付く",
+			output:      longOutput,
+			wantMessage: strings.Repeat("a", 100) + "...",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockNtfyService{}
+			svc := &claudeServiceImpl{
+				ntfyService: mock,
+			}
+
+			svc.notifyComplete(tt.output)
+
+			mock.mu.Lock()
+			defer mock.mu.Unlock()
+
+			if !mock.called {
+				t.Fatal("Notify was not called")
+			}
+
+			if mock.title != "Claude Code - Complete" {
+				t.Errorf("title: got %q, want %q", mock.title, "Claude Code - Complete")
+			}
+
+			if mock.message != tt.wantMessage {
+				t.Errorf("message: got %q (len=%d), want %q (len=%d)",
+					mock.message, len(mock.message), tt.wantMessage, len(tt.wantMessage))
 			}
 		})
 	}
