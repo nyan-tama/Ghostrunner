@@ -13,7 +13,8 @@ import (
 )
 
 // sseKeepaliveInterval はSSEキープアライブコメントの送信間隔
-const sseKeepaliveInterval = 30 * time.Second
+// クライアントやプロキシのアイドルタイムアウトを防止するため15秒に設定
+const sseKeepaliveInterval = 15 * time.Second
 
 // setSSEHeaders はSSEレスポンスに必要なHTTPヘッダーを設定します
 func setSSEHeaders(c *gin.Context) {

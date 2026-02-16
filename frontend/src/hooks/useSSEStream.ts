@@ -56,7 +56,9 @@ export function useSSEStream({ onEvent, onError, onComplete }: UseSSEStreamOptio
           onComplete();
           return;
         }
-        onError(error instanceof Error ? error.message : "Stream error");
+        // ネットワーク切断やストリーム中断の場合、ユーザーに分かりやすいメッセージを表示
+        const message = error instanceof Error ? error.message : "Stream error";
+        onError(`Stream disconnected: ${message}`);
         onComplete();
       }
     },
