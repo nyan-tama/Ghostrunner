@@ -254,6 +254,12 @@ AbortController.abort()
     +---> SSE接続を切断
     +---> "Execution aborted" イベント追加
     +---> 結果表示に "Execution aborted by user"
+
+通知経路:
+コマンド完了/エラー
+    |
+    +---> フロントエンド: useVoiceNotification (音声通知、トグル ON 時)
+    +---> バックエンド: ntfy.sh (プッシュ通知、NTFY_TOPIC 設定時)
 ```
 
 ## 永続化データ

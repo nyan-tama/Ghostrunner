@@ -174,6 +174,10 @@ flowchart TD
 | complete イベント（質問なし、承認不要） | resultOutput を設定、resultType を "success" に |
 | error イベント | resultOutput を設定、resultType を "error" に |
 
+**通知**:
+- **音声通知（フロントエンド）**: Voice notification トグルが ON の場合、OpenAI Realtime API 経由で音声通知を送信
+- **プッシュ通知（バックエンド）**: 環境変数 `NTFY_TOPIC` が設定されている場合、バックエンドが ntfy.sh 経由でスマートフォン等にプッシュ通知を送信（フロントエンドの関与なし）
+
 ### 7. 実行中 -> 中断
 
 | トリガー | 処理 |
