@@ -506,7 +506,7 @@ OpenAI Realtime API を使用したリアルタイム音声会話機能を提供
 |--------------|---------|------|
 | FolderList | `components/docs/FolderList.tsx` | フォルダ・ファイルの一覧表示、リンクに `?project=` を付与 |
 | Breadcrumb | `components/docs/Breadcrumb.tsx` | パンくずナビゲーション、リンクに `?project=` を付与 |
-| MarkdownViewer | `components/docs/MarkdownViewer.tsx` | Markdown ファイルのレンダリング |
+| MarkdownViewer | `components/docs/MarkdownViewer.tsx` | Markdown ファイルのレンダリング（Tailwind Typography による prose スタイリング、highlight.js による構文ハイライト） |
 | MermaidRenderer | `components/docs/MermaidRenderer.tsx` | Mermaid 図のレンダリング |
 
 ### パス解決とセキュリティ
@@ -523,7 +523,7 @@ OpenAI Realtime API を使用したリアルタイム音声会話機能を提供
 | パスの種別 | 表示内容 |
 |-----------|---------|
 | ディレクトリ | FolderList でフォルダ・ファイルの一覧を表示 |
-| ファイル（`.md`） | MarkdownViewer で Markdown の内容をレンダリング表示 |
+| ファイル（`.md`） | MarkdownViewer で Markdown の内容をレンダリング表示（見出し、テーブル、リスト、コードブロック（構文ハイライト付き）、引用、水平線、Mermaid 図に対応） |
 | 存在しないパス | 404 Not Found |
 
 ### 関連ファイル
@@ -537,3 +537,4 @@ OpenAI Realtime API を使用したリアルタイム音声会話機能を提供
 | `components/docs/MarkdownViewer.tsx` | Markdown レンダリングコンポーネント |
 | `components/docs/MermaidRenderer.tsx` | Mermaid 図レンダリングコンポーネント |
 | `lib/docs/fileSystem.ts` | ファイルシステム操作（パス解決、ディレクトリ取得、ファイル読み取り、パストラバーサル防止） |
+| `app/globals.css` | Tailwind Typography プラグイン（`@plugin "@tailwindcss/typography"`）と highlight.js テーマ（`@import "highlight.js/styles/github.css"`）の読み込み |
