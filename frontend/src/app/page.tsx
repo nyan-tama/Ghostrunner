@@ -13,6 +13,7 @@ import { useSSEStream } from "@/hooks/useSSEStream";
 import { useSessionManagement } from "@/hooks/useSessionManagement";
 import { useFileSelector } from "@/hooks/useFileSelector";
 import { useVoiceNotification } from "@/hooks/useVoiceNotification";
+import { useDesktopNotification } from "@/hooks/useDesktopNotification";
 import CommandForm from "@/components/CommandForm";
 import ProgressContainer from "@/components/ProgressContainer";
 
@@ -85,6 +86,8 @@ export default function Home() {
     startRecording: voiceStartRecording,
     stopRecording: voiceStopRecording,
   } = useVoiceNotification();
+
+  const { notify: desktopNotify } = useDesktopNotification();
 
   const handleVoiceNotificationChange = useCallback((enabled: boolean) => {
     setVoiceNotificationEnabled(enabled);
@@ -294,8 +297,9 @@ export default function Home() {
               setResultOutput(output);
               setResultType("success");
 
-              // 音声通知: 完了を通知
+              // 通知: 完了
               notifyCompletion(output);
+              desktopNotify("コマンド完了", truncate(output, 100));
 
               const needsApproval = PLAN_APPROVAL_KEYWORDS.some((keyword) =>
                 output.includes(keyword)
@@ -313,7 +317,7 @@ export default function Home() {
           break;
       }
     },
-    [addEvent, addCost, handleToolUse, setSessionId, setQuestionsWithReset, notifyCompletion]
+    [addEvent, addCost, handleToolUse, setSessionId, setQuestionsWithReset, notifyCompletion, desktopNotify]
   );
 
   const handleError = useCallback((error: string) => {
@@ -321,9 +325,10 @@ export default function Home() {
     setIsSubmitting(false);
     setResultOutput(error);
     setResultType("error");
-    // 音声通知: エラーを通知
+    // 通知: エラー
     notifyError(error);
-  }, [notifyError]);
+    desktopNotify("コマンドエラー", truncate(error, 100));
+  }, [notifyError, desktopNotify]);
 
   const handleComplete = useCallback(() => {
     setIsLoading(false);
