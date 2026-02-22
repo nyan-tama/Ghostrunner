@@ -1,26 +1,6 @@
 ---
 name: nextjs-documenter
-description: >
-  Next.js フロントエンドの実装完了後にドキュメント更新を行うエージェント。
-  画面遷移フロー、ユーザー操作シナリオの更新・整合性確認を担当。
-
-  <example>
-  Context: ユーザーが Next.js 機能実装後にドキュメント更新を依頼
-  user: "実装したのでドキュメントを更新して"
-  assistant: "nextjs-documenter エージェントを使用してドキュメントを更新します。"
-  <commentary>
-  Next.js フロントエンドのドキュメント更新タスクなので nextjs-documenter エージェントが適切。
-  </commentary>
-  </example>
-
-  <example>
-  Context: ユーザーが画面遷移フローの更新を依頼
-  user: "画面遷移のドキュメントを更新して"
-  assistant: "nextjs-documenter エージェントで画面遷移フローを更新します。"
-  <commentary>
-  画面遷移ドキュメントの更新には nextjs-documenter エージェントが必要。
-  </commentary>
-  </example>
+description: "Next.js フロントエンドの実装完了後にドキュメント更新を行うエージェント。画面遷移フロー、ユーザー操作シナリオの更新・整合性確認を担当。"
 tools: Read, Grep, Glob, Edit, Write
 model: opus
 ---

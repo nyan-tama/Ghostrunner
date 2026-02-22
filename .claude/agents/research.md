@@ -1,27 +1,6 @@
 ---
 name: research
-description: >
-  外部情報を収集し、構造化されたレポートを作成するエージェント。
-  公式ドキュメント、サンプルコード、不具合情報、コミュニティ事例を
-  多角的に調査し、/plan や /discuss の入力資料を作成する。
-
-  <example>
-  Context: ユーザーが技術比較を依頼
-  user: "JWT vs Session 認証の比較調査をして"
-  assistant: "research エージェントで多角的に調査し、比較レポートを作成します。"
-  <commentary>
-  技術比較調査なので research エージェントが適切。
-  </commentary>
-  </example>
-
-  <example>
-  Context: ユーザーが外部API調査を依頼
-  user: "Stripe API の Webhook 仕様を調べて"
-  assistant: "research エージェントで公式ドキュメントとコミュニティ事例を調査します。"
-  <commentary>
-  外部API調査なので research エージェントが適切。
-  </commentary>
-  </example>
+description: "外部情報を収集し、構造化されたレポートを作成するエージェント。公式ドキュメント、サンプルコード、不具合情報、コミュニティ事例を多角的に調査し、/plan や /discuss の入力資料を作成する。"
 tools: WebSearch, WebFetch, Read, Grep, Glob, Write, AskUserQuestion
 model: opus
 ---

@@ -5,6 +5,14 @@
 指定された仕様書を分析し、実装前に懸念点と実装内容を整理して提示してください。
 ユーザーの確認を得てから実装に進みます。
 
+## 計測: 開始
+
+最初に以下のコマンドを実行して開始時刻を記録する:
+
+```bash
+date +%s > /tmp/claude-timer-plan-start
+```
+
 ## 実行方法
 
 仕様書の内容に応じて適切な planner エージェントを使用する：
@@ -155,6 +163,14 @@ git push
 - 両方（フルスタック）: `/fullstack`
 - Go バックエンドのみ: `/go`
 - Next.js フロントエンドのみ: `/nextjs`
+
+## 計測: 終了
+
+全ステップ完了後に以下のコマンドを実行して所要時間を表示する:
+
+```bash
+start=$(cat /tmp/claude-timer-plan-start) && end=$(date +%s) && elapsed=$((end - start)) && minutes=$((elapsed / 60)) && seconds=$((elapsed % 60)) && echo "/plan 所要時間: ${minutes}分${seconds}秒" && echo "$(date +%Y-%m-%d),plan,$ARGUMENTS,${elapsed}秒,${minutes}分${seconds}秒" >> ~/ghostrunner-timing.csv
+```
 
 ## タスク
 

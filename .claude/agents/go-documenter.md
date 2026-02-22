@@ -1,26 +1,6 @@
 ---
 name: go-documenter
-description: >
-  Go バックエンドの実装完了後にドキュメント更新を行うエージェント。
-  doc.go ファイル、backend/docs/ 配下のドキュメント、GoDoc コメントの追加・更新を担当。
-
-  <example>
-  Context: ユーザーが Go 機能実装後にドキュメント更新を依頼
-  user: "実装したのでドキュメントを更新して"
-  assistant: "go-documenter エージェントを使用してドキュメントを更新します。"
-  <commentary>
-  Go バックエンドのドキュメント更新タスクなので go-documenter エージェントが適切。
-  </commentary>
-  </example>
-
-  <example>
-  Context: ユーザーがパッケージの doc.go 更新を依頼
-  user: "serviceパッケージのdoc.goを更新して"
-  assistant: "go-documenter エージェントでパッケージドキュメントを更新します。"
-  <commentary>
-  パッケージドキュメントの更新には go-documenter エージェントが必要。
-  </commentary>
-  </example>
+description: "Go バックエンドの実装完了後にドキュメント更新を行うエージェント。doc.go ファイル、backend/docs/ 配下のドキュメント、GoDoc コメントの追加・更新を担当。"
 tools: Read, Grep, Glob, Edit, Write
 model: opus
 ---

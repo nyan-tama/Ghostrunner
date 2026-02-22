@@ -1,26 +1,6 @@
 ---
 name: go-impl
-description: >
-  Go バックエンドの設計・実装・最適化に使用するエージェント。
-  API エンドポイント作成、サービス層実装、リポジトリパターン、プロジェクト規約に沿った実装を担当。
-
-  <example>
-  Context: ユーザーが新しいAPIエンドポイントの追加を依頼
-  user: "新しい返却処理のAPIを追加して"
-  assistant: "go-impl エージェントでプロジェクトのハンドラーパターンに沿ったAPIを実装します。"
-  <commentary>
-  Go バックエンド開発と API 実装なので go-impl エージェントが適切。
-  </commentary>
-  </example>
-
-  <example>
-  Context: ユーザーがビジネスロジックの追加を依頼
-  user: "メール送信のサービスを作成して"
-  assistant: "go-impl エージェントで既存のサービス層パターンに沿ったメールサービスを実装します。"
-  <commentary>
-  サービス層実装にはプロジェクトのアーキテクチャ知識が必要なので go-impl エージェントが最適。
-  </commentary>
-  </example>
+description: "Go バックエンドの設計・実装・最適化に使用するエージェント。API エンドポイント作成、サービス層実装、リポジトリパターン、プロジェクト規約に沿った実装を担当。"
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: opus
 ---

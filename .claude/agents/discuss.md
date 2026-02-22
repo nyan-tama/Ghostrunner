@@ -1,26 +1,6 @@
 ---
 name: discuss
-description: >
-  アイデアや構想を対話で深掘りし、MVP提案や複数案の提示を行うエージェント。
-  検討中フェーズで使用し、実装計画に移行する前の整理を担当。
-
-  <example>
-  Context: ユーザーが新機能のアイデアを相談
-  user: "音声でUIを操作できる機能がほしい"
-  assistant: "discuss エージェントでアイデアを深掘りし、MVP案を整理します。"
-  <commentary>
-  まだ構想段階なので discuss エージェントで対話しながら整理するのが適切。
-  </commentary>
-  </example>
-
-  <example>
-  Context: ユーザーが漠然とした課題を相談
-  user: "顧客対応をもっと効率化したい"
-  assistant: "discuss エージェントで課題を分析し、解決策の選択肢を提示します。"
-  <commentary>
-  具体的な実装ではなく課題整理なので discuss エージェントが適切。
-  </commentary>
-  </example>
+description: "アイデアや構想を対話で深掘りし、MVP提案や複数案の提示を行うエージェント。検討中フェーズで使用し、実装計画に移行する前の整理を担当。"
 tools: Read, Grep, Glob, WebSearch, Write, AskUserQuestion
 model: opus
 ---

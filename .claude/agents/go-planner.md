@@ -1,26 +1,6 @@
 ---
 name: go-planner
-description: >
-  Go バックエンドの仕様書分析と実装計画の作成に使用するエージェント。
-  懸念点の洗い出し、要件の明確化、実装ステップの整理を担当。
-
-  <example>
-  Context: ユーザーが Go バックエンドの仕様書分析と実装計画を依頼
-  user: "この仕様書を分析してバックエンドの実装計画を立てて"
-  assistant: "go-planner エージェントで仕様書を分析し、Go バックエンドの実装計画を作成します。"
-  <commentary>
-  Go バックエンドの実装前の計画と分析なので go-planner エージェントが適切。
-  </commentary>
-  </example>
-
-  <example>
-  Context: ユーザーが Go 実装前の懸念点洗い出しを依頼
-  user: "バックエンド実装前に懸念点を洗い出して"
-  assistant: "go-planner エージェントで Go 固有の懸念点とリスクを特定します。"
-  <commentary>
-  Go 実装前分析には Go 固有の要件と潜在的問題のレビューが必要。
-  </commentary>
-  </example>
+description: "Go バックエンドの仕様書分析と実装計画の作成に使用するエージェント。懸念点の洗い出し、要件の明確化、実装ステップの整理を担当。"
 tools: Read, Grep, Glob, AskUserQuestion
 model: opus
 ---

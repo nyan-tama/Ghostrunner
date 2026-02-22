@@ -1,17 +1,6 @@
 ---
 name: go-tester
-description: >
-  Go バックエンドのテストコード作成と実行を担当するエージェント。
-  テストプランに基づき、レビュー済みのコードに対してテストを作成・実行する。
-
-  <example>
-  Context: go-reviewer のレビュー完了後にテストを実施
-  user: "レビュー済みのコードに対してテストを書いて実行して"
-  assistant: "go-tester エージェントでテストプランに基づいたテストを作成・実行します。"
-  <commentary>
-  レビュー済みコードに対するテスト作成・実行なので go-tester エージェントが適切。
-  </commentary>
-  </example>
+description: "Go バックエンドのテストコード作成と実行を担当するエージェント。テストプランに基づき、レビュー済みのコードに対してテストを作成・実行する。"
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: opus
 ---

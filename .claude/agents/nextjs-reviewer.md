@@ -1,26 +1,6 @@
 ---
 name: nextjs-reviewer
-description: >
-  Next.js フロントエンドのコードレビュー、品質チェック、セキュリティ監査に使用するエージェント。
-  TypeScript/React 固有の規約遵守、型検証、コンポーネント設計の検証を担当。
-
-  <example>
-  Context: ユーザーが Next.js フロントエンド実装後にレビューを依頼
-  user: "実装したフロントエンドコードをレビューして"
-  assistant: "nextjs-reviewer エージェントで TypeScript/React 固有の規約に基づいたコードレビューを実行します。"
-  <commentary>
-  Next.js フロントエンドのコードレビューなので nextjs-reviewer エージェントが適切。
-  </commentary>
-  </example>
-
-  <example>
-  Context: ユーザーがフロントエンドのデプロイ前チェックを依頼
-  user: "フロントエンドをデプロイ前にチェックして"
-  assistant: "nextjs-reviewer エージェントでビルド、型チェック、ESLint を実行します。"
-  <commentary>
-  Next.js フロントエンドの品質保証なので nextjs-reviewer エージェントが最適。
-  </commentary>
-  </example>
+description: "Next.js フロントエンドのコードレビュー、品質チェック、セキュリティ監査に使用するエージェント。TypeScript/React 固有の規約遵守、型検証、コンポーネント設計の検証を担当。"
 tools: Read, Grep, Glob, Bash
 model: opus
 ---

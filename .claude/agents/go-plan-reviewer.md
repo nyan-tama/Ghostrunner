@@ -1,17 +1,6 @@
 ---
 name: go-plan-reviewer
-description: >
-  Go バックエンドの実装計画書をレビューし、技術的な懸念点を洗い出すエージェント。
-  API設計、データ構造、実装配置の観点から計画の品質を検証する。
-
-  <example>
-  Context: /plan で Go バックエンドの計画書を作成後、自動レビュー
-  user: "計画書をレビューして懸念点を洗い出して"
-  assistant: "go-plan-reviewer エージェントで計画書の技術的懸念を検証します。"
-  <commentary>
-  Go バックエンドの計画書レビューなので go-plan-reviewer エージェントが適切。
-  </commentary>
-  </example>
+description: "Go バックエンドの実装計画書をレビューし、技術的な懸念点を洗い出すエージェント。API設計、データ構造、実装配置の観点から計画の品質を検証する。"
 tools: Read, Grep, Glob
 model: opus
 ---

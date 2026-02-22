@@ -1,26 +1,6 @@
 ---
 name: test-planner
-description: >
-  実装計画書を分析し、その計画に最適なテストプランを作成するエージェント。
-  必要十分なテストを見極め、過剰テストと不足テストの両方を防ぐ。プランごとにカスタマイズされたテスト戦略を立案する。
-
-  <example>
-  Context: /plan で実装計画書を作成後、テストプランを作成
-  user: "この計画に必要なテストを考えて"
-  assistant: "test-planner エージェントで計画に最適なテストプランを作成します。"
-  <commentary>
-  実装計画に対するカスタムテストプラン作成なので test-planner エージェントが適切。
-  </commentary>
-  </example>
-
-  <example>
-  Context: 実装前にテスト戦略を確認したい
-  user: "この実装でどんなテストが必要？"
-  assistant: "test-planner エージェントで必要十分なテストを洗い出します。"
-  <commentary>
-  コスト効率の良いテスト戦略の策定には test-planner エージェントが最適。
-  </commentary>
-  </example>
+description: "実装計画書を分析し、その計画に最適なテストプランを作成するエージェント。必要十分なテストを見極め、過剰テストと不足テストの両方を防ぐ。プランごとにカスタマイズされたテスト戦略を立案する。"
 tools: Read, Grep, Glob, Edit
 model: opus
 ---

@@ -1,35 +1,6 @@
 ---
 name: nextjs-impl
-description: >
-  Next.js フロントエンドの設計・実装・最適化に使用するエージェント。
-  コンポーネント作成、Server Actions、API連携、プロジェクト規約に沿った実装を担当。
-
-  <example>
-  Context: ユーザーが新しいUIコンポーネントの追加を依頼
-  user: "入金確認ボタンを追加して"
-  assistant: "nextjs-impl エージェントでプロジェクトのパターンに沿ったボタンを実装します。"
-  <commentary>
-  Next.js フロントエンド開発とコンポーネント実装なので nextjs-impl エージェントが適切。
-  </commentary>
-  </example>
-
-  <example>
-  Context: ユーザーがバックエンドAPIとの連携を依頼
-  user: "新しいAPIエンドポイントをフロントエンドから呼び出せるようにして"
-  assistant: "nextjs-impl エージェントで Server Actions を使った API 連携を実装します。"
-  <commentary>
-  API連携にはプロジェクトのデータ取得アーキテクチャの知識が必要なので nextjs-impl エージェントが最適。
-  </commentary>
-  </example>
-
-  <example>
-  Context: ユーザーが新しいページの作成を依頼
-  user: "顧客の履歴ページを作成して"
-  assistant: "nextjs-impl エージェントで適切なルーティングとデータ取得パターンでページを作成します。"
-  <commentary>
-  ページ作成には App Router と Server Components の知識が必要なので nextjs-impl エージェントが適切。
-  </commentary>
-  </example>
+description: "Next.js フロントエンドの設計・実装・最適化に使用するエージェント。コンポーネント作成、Server Actions、API連携、プロジェクト規約に沿った実装を担当。"
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: opus
 ---

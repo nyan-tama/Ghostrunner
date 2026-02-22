@@ -1,26 +1,6 @@
 ---
 name: reporter
-description: >
-  タスク完了後の実装レポート作成に使用するエージェント。
-  実装内容、変更点、発生した課題を文書化した構造化レポートを生成。
-
-  <example>
-  Context: ユーザーが機能実装後にレポート作成を依頼
-  user: "実装レポートを作成して"
-  assistant: "reporter エージェントで実装レポートを作成します。"
-  <commentary>
-  実装ドキュメントの作成なので reporter エージェントが適切。
-  </commentary>
-  </example>
-
-  <example>
-  Context: ユーザーが実装内容の文書化を依頼
-  user: "実装完了したので報告書を書いて"
-  assistant: "reporter エージェントで実装を文書化します。"
-  <commentary>
-  実装レポートには reporter エージェントが必要。
-  </commentary>
-  </example>
+description: "タスク完了後の実装レポート作成に使用するエージェント。実装内容、変更点、発生した課題を文書化した構造化レポートを生成。"
 tools: Read, Grep, Glob, Edit, Write
 model: opus
 ---

@@ -1,26 +1,6 @@
 ---
 name: go-reviewer
-description: >
-  Go バックエンドのコードレビュー、品質チェック、セキュリティ監査に使用するエージェント。
-  Go 固有の規約遵守、静的解析、アーキテクチャ整合性の検証を担当。
-
-  <example>
-  Context: ユーザーが Go バックエンド実装後にレビューを依頼
-  user: "実装した Go コードをレビューして"
-  assistant: "go-reviewer エージェントで Go 固有の規約に基づいたコードレビューを実行します。"
-  <commentary>
-  Go バックエンドのコードレビューなので go-reviewer エージェントが適切。
-  </commentary>
-  </example>
-
-  <example>
-  Context: ユーザーがバックエンドのデプロイ前チェックを依頼
-  user: "バックエンドをデプロイ前にチェックして"
-  assistant: "go-reviewer エージェントでビルド、静的解析、セキュリティ分析を実行します。"
-  <commentary>
-  Go バックエンドの品質保証なので go-reviewer エージェントが最適。
-  </commentary>
-  </example>
+description: "Go バックエンドのコードレビュー、品質チェック、セキュリティ監査に使用するエージェント。Go 固有の規約遵守、静的解析、アーキテクチャ整合性の検証を担当。"
 tools: Read, Grep, Glob, Bash
 model: opus
 ---

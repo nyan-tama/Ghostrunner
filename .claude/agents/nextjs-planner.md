@@ -1,26 +1,6 @@
 ---
 name: nextjs-planner
-description: >
-  Next.js フロントエンドの仕様書分析と実装計画の作成に使用するエージェント。
-  懸念点の洗い出し、要件の明確化、実装ステップの整理を担当。
-
-  <example>
-  Context: ユーザーが Next.js フロントエンドの仕様書分析と実装計画を依頼
-  user: "この仕様書を分析してフロントエンドの実装計画を立てて"
-  assistant: "nextjs-planner エージェントで仕様書を分析し、Next.js フロントエンドの実装計画を作成します。"
-  <commentary>
-  Next.js フロントエンドの実装前の計画と分析なので nextjs-planner エージェントが適切。
-  </commentary>
-  </example>
-
-  <example>
-  Context: ユーザーが Next.js 実装前の懸念点洗い出しを依頼
-  user: "フロントエンド実装前に懸念点を洗い出して"
-  assistant: "nextjs-planner エージェントで Next.js/React 固有の懸念点とリスクを特定します。"
-  <commentary>
-  Next.js 実装前分析には TypeScript/React 固有の要件と潜在的問題のレビューが必要。
-  </commentary>
-  </example>
+description: "Next.js フロントエンドの仕様書分析と実装計画の作成に使用するエージェント。懸念点の洗い出し、要件の明確化、実装ステップの整理を担当。"
 tools: Read, Grep, Glob, AskUserQuestion
 model: opus
 ---

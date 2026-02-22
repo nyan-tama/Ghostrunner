@@ -1,17 +1,6 @@
 ---
 name: nextjs-plan-reviewer
-description: >
-  Next.js フロントエンドの実装計画書をレビューし、技術的な懸念点を洗い出すエージェント。
-  コンポーネント設計、状態管理、API連携の観点から計画の品質を検証する。
-
-  <example>
-  Context: /plan で Next.js フロントエンドの計画書を作成後、自動レビュー
-  user: "計画書をレビューして懸念点を洗い出して"
-  assistant: "nextjs-plan-reviewer エージェントで計画書の技術的懸念を検証します。"
-  <commentary>
-  Next.js フロントエンドの計画書レビューなので nextjs-plan-reviewer エージェントが適切。
-  </commentary>
-  </example>
+description: "Next.js フロントエンドの実装計画書をレビューし、技術的な懸念点を洗い出すエージェント。コンポーネント設計、状態管理、API連携の観点から計画の品質を検証する。"
 tools: Read, Grep, Glob
 model: opus
 ---

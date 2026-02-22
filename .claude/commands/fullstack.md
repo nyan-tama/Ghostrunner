@@ -5,6 +5,14 @@
 指定されたタスクに対して、バックエンドとフロントエンドの両方を実装してください。
 各フェーズで問題があれば、該当フェーズに戻って修正を行います。
 
+## 計測: 開始
+
+最初に以下のコマンドを実行して開始時刻を記録する:
+
+```bash
+date +%s > /tmp/claude-timer-fullstack-start
+```
+
 **スキップ条件:**
 - タスクがバックエンドのみの場合: フェーズ2をスキップ
 - タスクがフロントエンドのみの場合: フェーズ1をスキップ
@@ -234,6 +242,14 @@ git commit -m "docs: move completed spec to 完了 folder"
 - 各フェーズでコミットが完了している
 - **main にマージ → deploy.sh → 本番確認 → git push が完了している**
 - **仕様書が `保守/実装/完了/` に移動されている**
+
+## 計測: 終了
+
+全ステップ完了後に以下のコマンドを実行して所要時間を表示する:
+
+```bash
+start=$(cat /tmp/claude-timer-fullstack-start) && end=$(date +%s) && elapsed=$((end - start)) && minutes=$((elapsed / 60)) && seconds=$((elapsed % 60)) && echo "/fullstack 所要時間: ${minutes}分${seconds}秒" && echo "$(date +%Y-%m-%d),fullstack,$ARGUMENTS,${elapsed}秒,${minutes}分${seconds}秒" >> ~/ghostrunner-timing.csv
+```
 
 ## タスク
 
