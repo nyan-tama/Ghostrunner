@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
     ];
   },
   devIndicators: false,
-  allowedDevOrigins: ["usermac-mini.tail85f9ea.ts.net"],
+  allowedDevOrigins: ["usermac-mini.tail85f9ea.ts.net", "100.68.245.31", "100.104.204.15"],
   experimental: {
     // Next.js 16 の global-error プリレンダリング問題を回避
     preloadEntriesOnStart: false,
