@@ -77,74 +77,35 @@ cd /Users/user/<プロジェクト名>/frontend && npm install
 
 ### Step 6: .claude/ 資産の生成
 
-生成先プロジェクトに `.claude/` ディレクトリを作成し、以下のファイルをAIが生成する。
-Ghostrunnerの対応ファイルを参照し、構造・パターンを踏襲しつつ、新プロジェクトの文脈に合わせて書き換える。
+Ghostrunnerの `.claude/` 資産を一括コピーし、CLAUDE.md だけ新プロジェクト用に生成する。
 
-#### 6.1 CLAUDE.md
+#### 6.1 一括コピー
 
-Ghostrunnerの `.claude/CLAUDE.md` (`/Users/user/Ghostrunner/.claude/CLAUDE.md`) の構造を参考に生成する。
+```bash
+mkdir -p /Users/user/<プロジェクト名>/.claude/agents /Users/user/<プロジェクト名>/.claude/commands
+
+# agents/ と commands/ を一括コピー
+cp /Users/user/Ghostrunner/.claude/agents/*.md /Users/user/<プロジェクト名>/.claude/agents/
+cp /Users/user/Ghostrunner/.claude/commands/*.md /Users/user/<プロジェクト名>/.claude/commands/
+
+# settings.json をコピー
+cp /Users/user/Ghostrunner/.claude/settings.json /Users/user/<プロジェクト名>/.claude/settings.json
+```
+
+DB未選択時は pg 系エージェントを削除:
+```bash
+rm -f /Users/user/<プロジェクト名>/.claude/agents/pg-*.md
+```
+
+#### 6.2 CLAUDE.md 生成
+
+Ghostrunnerの `.claude/CLAUDE.md` (`/Users/user/Ghostrunner/.claude/CLAUDE.md`) の構造を参考に、新プロジェクト用に生成する。
 
 含めるセクション:
 - **プロジェクト概要**: ユーザーが入力した概要を反映。技術スタック（Go + Gin, Next.js, Tailwind CSS）を記載。DB選択時は PostgreSQL + GORM も記載
 - **Backend (Go)**: コード構成、コードスタイル、エラーハンドリング、テスト、ファイル構造、ビルド・実行コマンド
 - **Frontend (Next.js)**: 技術スタック、コード構成、コードスタイル、テスト、ファイル構造、ビルド・実行コマンド
 - **共通ルール**: セキュリティ、Gitワークフロー（日本語コミットメッセージ）、Makefileコマンド
-
-#### 6.2 agents/
-
-各エージェントはGhostrunnerの対応ファイル (`/Users/user/Ghostrunner/.claude/agents/`) を参照し、ドメイン固有の記述を新プロジェクトに合わせて書き換える。
-
-**常に含める:**
-- `discuss.md` - 参照: `/Users/user/Ghostrunner/.claude/agents/discuss.md`
-- `research.md` - 参照: `/Users/user/Ghostrunner/.claude/agents/research.md`
-- `reporter.md` - 参照: `/Users/user/Ghostrunner/.claude/agents/reporter.md`
-- `fix-judge.md` - 参照: `/Users/user/Ghostrunner/.claude/agents/fix-judge.md`
-- `test-planner.md` - 参照: `/Users/user/Ghostrunner/.claude/agents/test-planner.md`
-
-**Go + Next.js 構成（常に含める）:**
-- `go-impl.md`, `go-reviewer.md`, `go-tester.md`, `go-planner.md`, `go-documenter.md`, `go-plan-reviewer.md`
-- `nextjs-impl.md`, `nextjs-reviewer.md`, `nextjs-tester.md`, `nextjs-planner.md`, `nextjs-documenter.md`, `nextjs-plan-reviewer.md`
-- 各ファイル参照元: `/Users/user/Ghostrunner/.claude/agents/<対応ファイル>`
-
-**Cloud Run 構成（常に含める）:**
-- `staging-manager.md` - 参照: `/Users/user/Ghostrunner/.claude/agents/staging-manager.md`
-- `release-manager.md` - 参照: `/Users/user/Ghostrunner/.claude/agents/release-manager.md`
-
-**DB選択時のみ追加:**
-- `pg-impl.md`, `pg-reviewer.md`, `pg-planner.md`, `pg-tester.md`
-- 各ファイル参照元: `/Users/user/Ghostrunner/.claude/agents/<対応ファイル>`
-
-#### 6.3 commands/
-
-各コマンドはGhostrunnerの対応ファイル (`/Users/user/Ghostrunner/.claude/commands/`) を参照し、パスやプロジェクト名を書き換える。
-
-**常に含める:**
-- `discuss.md` - 参照: `/Users/user/Ghostrunner/.claude/commands/discuss.md`
-- `research.md` - 参照: `/Users/user/Ghostrunner/.claude/commands/research.md`
-- `plan.md` - 参照: `/Users/user/Ghostrunner/.claude/commands/plan.md`
-- `fix.md` - 参照: `/Users/user/Ghostrunner/.claude/commands/fix.md`
-
-**Go + Next.js 構成（常に含める）:**
-- `go.md` - 参照: `/Users/user/Ghostrunner/.claude/commands/go.md`
-- `nextjs.md` - 参照: `/Users/user/Ghostrunner/.claude/commands/nextjs.md`
-- `fullstack.md` - 参照: `/Users/user/Ghostrunner/.claude/commands/fullstack.md`
-
-**Cloud Run 構成（常に含める）:**
-- `stage.md` - 参照: `/Users/user/Ghostrunner/.claude/commands/stage.md`
-- `release.md` - 参照: `/Users/user/Ghostrunner/.claude/commands/release.md`
-- `hotfix.md` - 参照: `/Users/user/Ghostrunner/.claude/commands/hotfix.md`
-
-#### 6.4 settings.json
-
-PostToolUseフックを含む settings.json を生成する:
-
-- `.go` ファイル編集後: `gofmt -w` で自動フォーマット
-- `.go` ファイル編集後: `go vet` でチェック
-- `.go` ファイル編集後: `fmt.Print` の警告
-- `.ts/.tsx` ファイル編集後: `tsc --noEmit` で型チェック
-- `.ts/.tsx/.js/.jsx` ファイル編集後: `console.log` の警告
-
-参照: `/Users/user/Ghostrunner/.claude/settings.json`
 
 ### Step 7: Git 初期化
 
