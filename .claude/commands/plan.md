@@ -18,10 +18,13 @@ date +%s > /tmp/claude-timer-plan-start
 仕様書の内容に応じて適切な planner エージェントを使用する：
 
 - **Go バックエンド** の実装計画 → `go-planner` エージェント
+- **Go + PostgreSQL** の実装計画 → `go-planner` + `pg-planner` エージェントを並行実行
 - **Next.js フロントエンド** の実装計画 → `nextjs-planner` エージェント
-- **フルスタック（両方）** の実装計画 → 両方のエージェントを並行して実行し、1つの計画ファイルにまとめる
+- **フルスタック（両方）** の実装計画 → `go-planner` + `nextjs-planner` を並行実行し、1つの計画ファイルにまとめる
+- **フルスタック + DB変更** の実装計画 → `go-planner` + `nextjs-planner` + `pg-planner` を並行実行
 
 仕様書からどちらの実装が必要か判断できない場合は、ユーザーに確認する。
+DB変更（テーブル追加・カラム変更等）が含まれる場合は `pg-planner` も必ず含める。
 
 ## 出力ルール
 
@@ -78,6 +81,9 @@ date +%s > /tmp/claude-timer-plan-start
 ```markdown
 # 機能名 実装計画
 
+## DB計画（DB変更ありの場合）
+（pg-planner の出力）
+
 ## バックエンド計画
 （go-planner の出力）
 
@@ -93,6 +99,7 @@ date +%s > /tmp/claude-timer-plan-start
 
 **レビューエージェントの選択:**
 - **Go バックエンド** の計画 → `go-plan-reviewer` エージェント
+- **Go + PostgreSQL** の計画 → `go-plan-reviewer` エージェント（GORM/SQL領域もカバー）
 - **Next.js フロントエンド** の計画 → `nextjs-plan-reviewer` エージェント
 - **フルスタック** の計画 → 両方のエージェントを並行して実行
 

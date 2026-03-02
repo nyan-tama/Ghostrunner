@@ -35,7 +35,7 @@ flowchart TD
     GO_CYCLE --> COMMIT["コミット"]
     NJ_CYCLE --> COMMIT
     BOTH --> COMMIT
-    COMMIT --> MERGE["main マージ → deploy → 確認"]
+    COMMIT --> DONE["完了 - 次は /stage"]
 
     ADVISE --> END_PLAN["ここで終了（/plan → /fullstack はユーザーが別途実行）"]
 ```
@@ -167,18 +167,16 @@ git checkout -b fix/修正内容
 
 修正内容をコミットする。
 
-### 2A.7 main マージ・デプロイ・確認
+### 2A.7 実装完了後
 
-```bash
-git checkout main
-git merge fix/修正内容
-./scripts/deploy.sh
+コミットが完了したら、以下を表示する:
+
 ```
+修正が完了しました。
 
-ユーザーに本番確認を依頼する。
-
-- **問題なし:** `git push` で GitHub にバックアップ
-- **問題あり:** 再度 `/fix` で修正サイクルを実行
+fix ブランチへのコミットが完了しています。
+次は `/stage` でステージング環境にデプロイしてください。
+```
 
 ---
 
@@ -208,7 +206,7 @@ fix-judge の判定結果に基づき、以下を具体的に提示する:
 - フルサイクル（impl → reviewer → tester → documenter → reporter）が完了している
 - レビューで Critical / Warning の指摘がない
 - 計画書に「追加実施計画」と「追加修正レポート」が追記されている
-- main にマージ → deploy → 本番確認 → git push が完了している
+- **fix ブランチへのコミットが完了している（次は `/stage`）**
 
 ## 計測: 終了
 
