@@ -58,7 +58,7 @@ cp -r /Users/user/Ghostrunner/templates/with-db/. /Users/user/<プロジェク�
 ```bash
 cd /Users/user/<プロジェクト名>
 find . -type f \( \
-  -name "*.go" -o -name "*.json" -o -name "*.tsx" -o -name "*.ts" \
+  -name "*.go" -o -name "*.mod" -o -name "*.json" -o -name "*.tsx" -o -name "*.ts" \
   -o -name "*.css" -o -name "*.yml" -o -name "*.yaml" -o -name "*.md" \
   -o -name "*.mjs" -o -name "*.sql" -o -name "Makefile" \
   -o -name "Dockerfile" -o -name ".gitignore" \
