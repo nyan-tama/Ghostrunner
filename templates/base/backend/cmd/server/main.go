@@ -7,13 +7,15 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
-	"{{PROJECT_NAME}}/backend/internal/handler"
+	"{{PROJECT_NAME}}/backend/internal/registry"
 )
 
 func main() {
-	// ハンドラーの初期化
-	healthHandler := handler.NewHealthHandler()
-	helloHandler := handler.NewHelloHandler()
+	// 機能の初期化（DB接続など、各 registry で登録された処理を実行）
+	if err := registry.RunInit(); err != nil {
+		log.Fatalf("[Server] Init failed: %v", err)
+	}
+	defer registry.RunCleanup()
 
 	// Gin エンジン初期化
 	r := gin.Default()
@@ -30,12 +32,9 @@ func main() {
 		AllowCredentials: true,
 	}))
 
-	// ルーティング
+	// ルーティング（各 registry で登録されたルートを一括設定）
 	api := r.Group("/api")
-	{
-		api.GET("/health", healthHandler.Handle)
-		api.GET("/hello", helloHandler.Handle)
-	}
+	registry.SetupRoutes(api)
 
 	// サーバー起動
 	port := os.Getenv("PORT")

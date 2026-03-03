@@ -1,0 +1,71 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main, staging]
+
+env:
+  REGION: asia-northeast1
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    env:
+      SUFFIX: ${{ github.ref_name == 'main' && '' || '-staging' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker --quiet
+
+      - name: Build and push backend image
+        run: |
+          docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/{{PROJECT_NAME}}-backend${{ env.SUFFIX }} ./backend
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/{{PROJECT_NAME}}-backend${{ env.SUFFIX }}
+
+      - name: Deploy backend to Cloud Run
+        run: |
+          gcloud run deploy {{PROJECT_NAME}}-backend${{ env.SUFFIX }} \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/{{PROJECT_NAME}}-backend${{ env.SUFFIX }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars "PORT=8080,ALLOWED_ORIGIN=${{ vars.FRONTEND_URL }}"
+
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    env:
+      SUFFIX: ${{ github.ref_name == 'main' && '' || '-staging' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker --quiet
+
+      - name: Build and push frontend image
+        run: |
+          docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/{{PROJECT_NAME}}-frontend${{ env.SUFFIX }} ./frontend
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/{{PROJECT_NAME}}-frontend${{ env.SUFFIX }}
+
+      - name: Deploy frontend to Cloud Run
+        run: |
+          gcloud run deploy {{PROJECT_NAME}}-frontend${{ env.SUFFIX }} \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/{{PROJECT_NAME}}-frontend${{ env.SUFFIX }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars "API_URL=${{ vars.BACKEND_URL }}"
