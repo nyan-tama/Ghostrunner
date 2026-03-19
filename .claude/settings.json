@@ -1,5 +1,13 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Read(//Users/user/.claude/**)"
+    ],
+    "additionalDirectories": [
+      "/Users/user/akiba-media/.claude"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -123,11 +131,6 @@
           }
         ]
       }
-    ]
-  },
-  "permissions": {
-    "allow": [
-      "Read(//Users/user/.claude/**)"
     ]
   }
 }
