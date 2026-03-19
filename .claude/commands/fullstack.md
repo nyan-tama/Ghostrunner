@@ -66,16 +66,26 @@ flowchart TD
 
 ---
 
-## フェーズ 0: ブランチ作成
+## フェーズ 0: 開発ドキュメントのコミット + ブランチ作成
 
-作業開始前に main を最新化し、機能ブランチを作成する。
+作業開始前に、`開発/` 配下の未コミットファイル（計画書など）を main にコミットしてからブランチを切る。
 
 ```bash
+# main を最新化
 git checkout main && git pull
+
+# 開発/ 配下に未コミットの変更があればコミット
+git add "開発/" 2>/dev/null
+git diff --cached --quiet || git commit -m "docs: 開発ドキュメントを更新"
+git push
+
+# feat ブランチを作成
 git checkout -b feat/機能名
 # または
 git checkout -b fix/修正内容
 ```
+
+**重要:** `開発/` 配下のファイル（計画書、検討資料など）は main ブランチに直接コミットする。feat ブランチに含めると並行開発時にコンフリクトの原因になる。
 
 **命名規則:**
 - 新機能: `feat/機能名`（例: `feat/reception-start-date`）

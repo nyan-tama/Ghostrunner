@@ -156,13 +156,20 @@ DB変更（テーブル追加・カラム変更等）が含まれる場合は `p
 
 **重要: このステップを絶対にスキップしないこと**
 
-計画ファイル作成後、以下のコマンドを実行してコミットする:
+`開発/` 配下のファイルは **main ブランチに直接コミット**する。feat ブランチに含めると並行開発時にコンフリクトの原因になるため。
 
 ```bash
-git add "開発/実装/実装待ち/"
-git commit -m "docs: add implementation plan for <機能名>"
+# 現在のブランチに関わらず、main に切り替えてコミット
+git stash --include-untracked
+git checkout main && git pull
+git stash pop
+
+git add "開発/"
+git commit -m "docs: <機能名>の実装計画を追加"
 git push
 ```
+
+**注意:** 実装開始（`/fullstack`, `/go`, `/nextjs`）の前に、計画ファイルが main にコミット済みであることを必ず確認する。
 
 ### 8. 実装への移行
 
