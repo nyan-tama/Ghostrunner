@@ -47,13 +47,15 @@ type CommandResponse struct {
 
 // CommandHandler はCommand関連のHTTPハンドラを提供します
 type CommandHandler struct {
-	claudeService service.ClaudeService
+	claudeService    service.ClaudeService
+	ghostrunnerRoot  string // initコマンドでproject未指定時に使用
 }
 
 // NewCommandHandler は新しいCommandHandlerを生成します
-func NewCommandHandler(claudeService service.ClaudeService) *CommandHandler {
+func NewCommandHandler(claudeService service.ClaudeService, ghostrunnerRoot string) *CommandHandler {
 	return &CommandHandler{
-		claudeService: claudeService,
+		claudeService:   claudeService,
+		ghostrunnerRoot: ghostrunnerRoot,
 	}
 }
 
@@ -68,6 +70,11 @@ func (h *CommandHandler) Handle(c *gin.Context) {
 			Error:   "リクエストが不正です",
 		})
 		return
+	}
+
+	// initコマンドでproject未指定の場合、Ghostrunnerルートを自動設定
+	if req.Command == "init" && req.Project == "" {
+		req.Project = h.ghostrunnerRoot
 	}
 
 	log.Printf("[CommandHandler] Handle started: project=%s, command=%s, args=%s", req.Project, req.Command, req.Args)
@@ -156,6 +163,11 @@ func (h *CommandHandler) HandleStream(c *gin.Context) {
 			Error:   "リクエストが不正です",
 		})
 		return
+	}
+
+	// initコマンドでproject未指定の場合、Ghostrunnerルートを自動設定
+	if req.Command == "init" && req.Project == "" {
+		req.Project = h.ghostrunnerRoot
 	}
 
 	log.Printf("[CommandHandler] HandleStream started: project=%s, command=%s, args=%s", req.Project, req.Command, req.Args)

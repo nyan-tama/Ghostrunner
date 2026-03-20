@@ -22,8 +22,12 @@ func main() {
 	claudeService := service.NewClaudeService(ntfyService)
 	geminiService := service.NewGeminiService() // nil の場合がある（API キー未設定時）
 	openaiService := service.NewOpenAIService() // nil の場合がある（API キー未設定時）
+	// Ghostrunnerリポジトリルートを取得（devtools/backend/cmd/server/main.go から4階層上）
+	_, thisFile, _, _ := runtime.Caller(0)
+	ghostrunnerRoot := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..")
+
 	planHandler := handler.NewPlanHandler(claudeService)
-	commandHandler := handler.NewCommandHandler(claudeService)
+	commandHandler := handler.NewCommandHandler(claudeService, ghostrunnerRoot)
 	geminiHandler := handler.NewGeminiHandler(geminiService)
 	openaiHandler := handler.NewOpenAIHandler(openaiService)
 	filesHandler := handler.NewFilesHandler()
@@ -31,9 +35,6 @@ func main() {
 	healthHandler := handler.NewHealthHandler()
 
 	// プロジェクト生成関連の依存性組み立て
-	// Ghostrunnerリポジトリルートを取得（devtools/backend/cmd/server/main.go から4階層上）
-	_, thisFile, _, _ := runtime.Caller(0)
-	ghostrunnerRoot := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..")
 	templateService := service.NewTemplateService(ghostrunnerRoot)
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
