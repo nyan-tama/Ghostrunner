@@ -282,6 +282,17 @@ cp -r ./.claude/skills/ ~/<プロジェクト名>/.claude/skills/
 
 # settings.json をコピー
 cp ./.claude/settings.json ~/<プロジェクト名>/.claude/settings.json
+
+# settings.local.json を動的生成（環境依存のパスを解決）
+HOME_DIR=$(eval echo ~)
+cat > ~/<プロジェクト名>/.claude/settings.local.json << SETTINGS_EOF
+{
+  "permissions": {
+    "allow": ["Bash(*)", "Edit", "Write", "WebFetch(*)", "Skill(*)", "Read(*)"],
+    "additionalDirectories": ["/tmp", "${HOME_DIR}"]
+  }
+}
+SETTINGS_EOF
 ```
 
 未選択のオプションに対応するエージェントを削除:
