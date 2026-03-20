@@ -55,7 +55,7 @@ backend:
 frontend:
 	cd $(DEVTOOLS_ROOT)/frontend && npm run dev
 
-dev:
+dev: stop
 	@echo "両サーバーを起動..."
 	@make -j2 backend frontend
 
