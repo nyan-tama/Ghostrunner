@@ -2,10 +2,8 @@
 
 import { useEffect } from "react";
 import type { FileInfo, ImageData, ProjectInfo } from "@/types";
-import type { OpenAIConnectionStatus } from "@/types/openai";
 import { COMMANDS } from "@/lib/constants";
 import ImageUploader from "@/components/ImageUploader";
-import VoiceNotificationSection from "@/components/VoiceNotificationSection";
 
 interface CommandFormProps {
   projectPath: string;
@@ -26,15 +24,6 @@ interface CommandFormProps {
   onRefreshFiles: (project: string) => void;
   onSubmit: () => void;
   isSubmitting: boolean;
-  gitWorkflow: boolean;
-  onGitWorkflowChange: (enabled: boolean) => void;
-  voiceNotificationEnabled: boolean;
-  onVoiceNotificationChange: (enabled: boolean) => void;
-  voiceConnectionStatus: OpenAIConnectionStatus;
-  voiceIsRecording: boolean;
-  voiceError: string | null;
-  onVoiceStartRecording: () => void;
-  onVoiceStopRecording: () => void;
 }
 
 export default function CommandForm({
@@ -56,15 +45,6 @@ export default function CommandForm({
   onRefreshFiles,
   onSubmit,
   isSubmitting,
-  gitWorkflow,
-  onGitWorkflowChange,
-  voiceNotificationEnabled,
-  onVoiceNotificationChange,
-  voiceConnectionStatus,
-  voiceIsRecording,
-  voiceError,
-  onVoiceStartRecording,
-  onVoiceStopRecording,
 }: CommandFormProps) {
   useEffect(() => {
     if (projectPath) {
@@ -88,7 +68,7 @@ export default function CommandForm({
     <form onSubmit={handleSubmit}>
       <div className="mb-4">
         <label className="block mb-2 font-semibold text-gray-800">
-          Project Path
+          プロジェクト
         </label>
         <div className="flex gap-2">
           <select
@@ -97,7 +77,7 @@ export default function CommandForm({
             required
             className="flex-1 min-w-0 p-3 border border-gray-200 rounded-lg text-base bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
-            <option value="" disabled>-- Select Project --</option>
+            <option value="" disabled>-- プロジェクトを選択 --</option>
             {projectPath && !projects.some((p) => p.path === projectPath) && (
               <option value={projectPath}>
                 {projectPath.split("/").pop()} (custom)
@@ -128,7 +108,7 @@ export default function CommandForm({
       </div>
 
       <div className="mb-4">
-        <label className="block mb-2 font-semibold text-gray-800">Command</label>
+        <label className="block mb-2 font-semibold text-gray-800">コマンド</label>
         <select
           value={command}
           onChange={(e) => onCommandChange(e.target.value)}
@@ -144,7 +124,7 @@ export default function CommandForm({
 
       <div className="mb-4">
         <label className="block mb-2 font-semibold text-gray-800">
-          File (optional)
+          ファイル（任意）
         </label>
         <select
           value=""
@@ -156,7 +136,7 @@ export default function CommandForm({
           onFocus={() => onRefreshFiles(projectPath)}
           className="w-full p-3 border border-gray-200 rounded-lg text-base bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         >
-          <option value="">-- Select files to add --</option>
+          <option value="">-- ファイルを追加 --</option>
           {groupedFiles.map((group) => (
             <optgroup key={group.folder} label={group.folder}>
               {group.files.map((file) => {
@@ -186,7 +166,7 @@ export default function CommandForm({
                   type="button"
                   onClick={() => onRemoveFile(file)}
                   className="text-gray-500 hover:text-red-600 focus:outline-none"
-                  title="Remove file"
+                  title="削除"
                 >
                   x
                 </button>
@@ -197,40 +177,13 @@ export default function CommandForm({
       </div>
 
       <div className="mb-4">
-        <label className="block mb-2 font-semibold text-gray-800">Arguments</label>
+        <label className="block mb-2 font-semibold text-gray-800">内容</label>
         <textarea
           value={args}
           onChange={(e) => onArgsChange(e.target.value)}
-          placeholder="Describe what you want to implement..."
+          placeholder="実装したい内容を入力..."
           required
           className="w-full p-3 border border-gray-200 rounded-lg text-base bg-white min-h-20 resize-y focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-        />
-      </div>
-
-      <div className="mb-4 flex items-center gap-3">
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={gitWorkflow}
-            onChange={(e) => onGitWorkflowChange(e.target.checked)}
-            className="sr-only peer"
-          />
-          <div className="w-9 h-5 bg-gray-300 rounded-full peer peer-checked:bg-blue-500 peer-focus:ring-2 peer-focus:ring-blue-100 after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white" />
-        </label>
-        <span className="text-sm text-gray-700">
-          PR workflow (develop branch + Pull Request)
-        </span>
-      </div>
-
-      <div className="mb-4">
-        <VoiceNotificationSection
-          enabled={voiceNotificationEnabled}
-          onEnabledChange={onVoiceNotificationChange}
-          connectionStatus={voiceConnectionStatus}
-          isRecording={voiceIsRecording}
-          error={voiceError}
-          onStartRecording={onVoiceStartRecording}
-          onStopRecording={onVoiceStopRecording}
         />
       </div>
 
@@ -241,7 +194,7 @@ export default function CommandForm({
         disabled={isSubmitting}
         className="w-full py-3.5 px-6 bg-blue-500 text-white rounded-lg font-semibold text-base cursor-pointer transition-colors hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed border-none"
       >
-        Execute Command
+        実行
       </button>
     </form>
   );

@@ -559,15 +559,6 @@ export default function Home() {
         onRefreshFiles={refreshFiles}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
-        gitWorkflow={gitWorkflow}
-        onGitWorkflowChange={handleGitWorkflowChange}
-        voiceNotificationEnabled={voiceNotificationEnabled}
-        onVoiceNotificationChange={handleVoiceNotificationChange}
-        voiceConnectionStatus={voiceConnectionStatus}
-        voiceIsRecording={voiceIsRecording}
-        voiceError={voiceError}
-        onVoiceStartRecording={voiceStartRecording}
-        onVoiceStopRecording={voiceStopRecording}
       />
 
       <ProgressContainer
