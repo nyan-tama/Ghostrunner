@@ -183,9 +183,12 @@ func (s *TemplateService) CopyClaudeAssets(destDir string) error {
 
 	log.Printf("[TemplateService] CopyClaudeAssets started: src=%s, dest=%s", srcDir, destClaudeDir)
 
-	// agents と commands をコピー
-	for _, subDir := range []string{"agents", "commands"} {
+	// agents と skills をコピー（存在するもののみ）
+	for _, subDir := range []string{"agents", "skills"} {
 		src := filepath.Join(srcDir, subDir)
+		if _, err := os.Stat(src); os.IsNotExist(err) {
+			continue
+		}
 		dest := filepath.Join(destClaudeDir, subDir)
 		if err := copyDir(src, dest); err != nil {
 			return fmt.Errorf("failed to copy .claude/%s: %w", subDir, err)
