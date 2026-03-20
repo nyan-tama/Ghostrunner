@@ -62,6 +62,47 @@
 //   - model: 使用するモデル（未指定時: gpt-4o-realtime-preview-2024-12-17）
 //   - voice: 音声タイプ（未指定時: verse）
 //
+// # CreateProjectService
+//
+// GUIからのプロジェクト生成を担当するサービス。
+// CreateProjectServiceインターフェースがプロジェクト生成操作を抽象化する。
+// CreateServiceがその実装を提供する。
+//
+// 主なメソッド:
+//   - ValidateProjectName: プロジェクト名のバリデーション（命名規則、重複チェック）
+//   - CreateProject: プロジェクト生成のオーケストレーション（10ステップ、チャンネル経由の進捗通知）
+//   - OpenInVSCode: 生成されたプロジェクトをVS Codeで開く
+//   - ProjectBaseDir: プロジェクト生成先のベースディレクトリを取得
+//
+// プロジェクト生成の10ステップ:
+//   - template_copy: baseテンプレート + 選択サービスのテンプレートコピー + docker-compose.ymlマージ
+//   - placeholder_replace: {{PROJECT_NAME}} プレースホルダーの置換
+//   - env_create: .envファイル生成（サービスに応じた環境変数を追加）
+//   - dependency_install: go mod tidy + npm install
+//   - claude_assets: .claude/ ディレクトリのコピーと不要エージェントの削除
+//   - claude_md: プロジェクト用 CLAUDE.md の生成
+//   - devtools_link: devtools フロントエンドへのシンボリックリンク作成
+//   - git_init: git init + 初回コミット
+//   - server_start: バックエンドサーバーの起動
+//   - health_check: ヘルスチェックによる動作確認
+//
+// # TemplateService
+//
+// テンプレートのコピーと加工を担当するサービス。
+// Ghostrunnerリポジトリの templates/ ディレクトリからプロジェクト雛形を
+// 指定先にコピーし、プレースホルダー置換やdocker-compose.ymlマージを行う。
+//
+// 主なメソッド:
+//   - CopyBase: baseテンプレートのコピー
+//   - CopyServiceTemplate: オプションサービス（database, storage, cache）のテンプレートコピー
+//   - ReplacePlaceholders: {{PROJECT_NAME}} の一括置換
+//   - MergeDockerCompose: 複数サービスのdocker-compose.ymlをマージ
+//   - CopyClaudeAssets: .claude/ ディレクトリ（agents, commands, settings.json）のコピー
+//   - RemoveUnusedAgents: 選択されていないサービスのエージェントファイルを削除
+//   - GenerateClaudeMD: プロジェクト用CLAUDE.mdの生成
+//   - CreateEnvFile: .envファイルの生成
+//   - CreateDevtoolsLink: devtoolsフロントエンドへのシンボリックリンク作成
+//
 // # 画像サポート
 //
 // ExecuteCommandとExecuteCommandStreamは画像データを受け取り、

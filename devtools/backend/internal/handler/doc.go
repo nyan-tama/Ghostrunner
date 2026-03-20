@@ -14,6 +14,7 @@
 //   - FilesHandler: /api/files 関連のエンドポイントを処理（ファイル一覧取得）
 //   - ProjectsHandler: /api/projects 関連のエンドポイントを処理（プロジェクト一覧取得）
 //   - OpenAIHandler: /api/openai 関連のエンドポイントを処理（音声対話用エフェメラルキー発行）
+//   - CreateHandler: /api/projects/validate, /api/projects/create/stream, /api/projects/open を処理（プロジェクト生成）
 //
 // ClaudeServiceへの依存性注入によりテスタビリティを確保する。
 //
@@ -54,6 +55,26 @@
 // フロントエンドのProjectPath選択ドロップダウンの候補を提供する。
 // 外部サービスへの依存がなく、ローカルファイルシステムのみを参照する。
 // 隠しディレクトリ、ファイル、シンボリックリンクは除外する。
+//
+// # CreateHandler
+//
+// GUIからのプロジェクト生成を処理するエンドポイント群。
+// CreateProjectServiceインターフェースに依存し、プロジェクト名バリデーション、
+// テンプレートベースのプロジェクト生成（SSEによる進捗配信）、VS Code起動を提供する。
+//
+// エンドポイント:
+//   - GET /api/projects/validate?name={name}: プロジェクト名のバリデーション
+//   - POST /api/projects/create/stream: SSEでプロジェクト生成（10ステップの進捗配信）
+//   - POST /api/projects/open: 生成されたプロジェクトをVS Codeで開く
+//
+// プロジェクト名の制約:
+//   - 小文字英数字とハイフンのみ使用可能（例: my-project）
+//   - 同名のディレクトリが存在しないこと
+//
+// 選択可能なサービス:
+//   - database: PostgreSQL + GORM
+//   - storage: MinIO（S3互換オブジェクトストレージ）
+//   - cache: Redis
 //
 // # PlanHandler
 //
@@ -118,6 +139,47 @@
 //	        {"name": "ProjectA", "path": "/Users/user/ProjectA"},
 //	        {"name": "ProjectB", "path": "/Users/user/ProjectB"}
 //	    ]
+//	}
+//
+// ## Create API (プロジェクト生成)
+//
+// GET /api/projects/validate?name={name} - プロジェクト名バリデーション
+//
+// レスポンス:
+//
+//	{
+//	    "valid": true,
+//	    "path": "/Users/user/my-project"
+//	}
+//
+// POST /api/projects/create/stream - SSEでプロジェクト生成
+//
+// リクエスト:
+//
+//	{
+//	    "name": "my-project",
+//	    "description": "プロジェクト概要",
+//	    "services": ["database", "cache"]
+//	}
+//
+// レスポンス: Server-Sent Events形式でCreateEventを送信
+//
+//	data: {"type":"progress","step":"template_copy","message":"テンプレートをコピー中...","progress":10}
+//	data: {"type":"complete","step":"done","message":"プロジェクトの作成が完了しました","progress":100,"path":"/Users/user/my-project"}
+//
+// POST /api/projects/open - VS Codeでプロジェクトを開く
+//
+// リクエスト:
+//
+//	{
+//	    "path": "/Users/user/my-project"
+//	}
+//
+// レスポンス:
+//
+//	{
+//	    "success": true,
+//	    "message": "VS Codeでプロジェクトを開きました"
 //	}
 //
 // ## Command API (汎用コマンド実行)
@@ -287,6 +349,14 @@
 //	    openaiHandler := handler.NewOpenAIHandler(openaiService)
 //	    api.POST("/openai/realtime/session", openaiHandler.HandleSession)
 //	}
+//
+//	// CreateHandler
+//	templateService := service.NewTemplateService(ghostrunnerRoot)
+//	createService := service.NewCreateService(templateService, projectBaseDir)
+//	createHandler := handler.NewCreateHandler(createService)
+//	api.GET("/projects/validate", createHandler.HandleValidate)
+//	api.POST("/projects/create/stream", createHandler.HandleCreateStream)
+//	api.POST("/projects/open", createHandler.HandleOpen)
 //
 //	// HealthHandler
 //	healthHandler := handler.NewHealthHandler()

@@ -94,6 +94,89 @@ flowchart TD
 
 ---
 
+## New Project: プロジェクト作成フロー
+
+`/new` はプロジェクトを新規作成するページ。フォーム入力、SSE 進捗表示、完了の3フェーズで構成され、エラー時はフォームに戻る。
+
+### ページ間遷移
+
+```mermaid
+flowchart LR
+    A["メインページ<br>/"] -->|New Project リンク| B["/new<br>プロジェクト作成"]
+    B -->|Back リンク| A
+```
+
+#### 遷移詳細
+
+| 遷移元 | 遷移先 | トリガー | 遷移方法 | 渡すデータ |
+|-------|-------|---------|---------|-----------|
+| メインページ (`/`) | New Project (`/new`) | New Project リンククリック | `<a>` タグ | なし |
+| New Project (`/new`) | メインページ (`/`) | Back リンククリック | Link | なし |
+
+### フェーズ遷移
+
+```mermaid
+flowchart TD
+    A[Form フェーズ<br>入力フォーム表示] -->|Create Project ボタン| B[Creating フェーズ<br>進捗チェックリスト表示]
+    B -->|complete イベント受信| C[Complete フェーズ<br>成功画面表示]
+    B -->|error イベント受信| D[Error フェーズ<br>エラー表示 + フォーム]
+    D -->|再入力して Create Project| B
+    C -->|Create Another ボタン| A
+```
+
+### フェーズ遷移詳細
+
+| 現在のフェーズ | トリガー | 次のフェーズ | 処理 |
+|-------------|---------|------------|------|
+| form | Create Project ボタンクリック | creating | SSE ストリーム開始、ステップチェックリスト表示 |
+| creating | SSE progress イベント受信 | creating | 該当ステップを active に、前のステップを done に |
+| creating | SSE complete イベント受信 | complete | 全ステップを done に、成功画面を表示 |
+| creating | SSE error イベント受信 | error | 該当ステップを error に、エラーメッセージを表示 |
+| creating | HTTP エラー | error | エラーメッセージを表示 |
+| error | Create Project ボタンクリック | creating | 入力値を保持したまま再実行 |
+| complete | Create Another ボタンクリック | form | 入力値をクリアしてフォームに戻る |
+
+### バリデーションフロー
+
+```mermaid
+flowchart TD
+    A[プロジェクト名入力] -->|300ms デバウンス| B[GET /api/projects/validate]
+    B -->|valid: true| C[パス表示<br>Create Project 有効]
+    B -->|valid: false| D[エラー表示<br>Create Project 無効]
+    A -->|空文字| E[初期状態<br>Create Project 無効]
+```
+
+### API 通信フロー
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Backend
+
+    User->>Frontend: プロジェクト名入力
+    Note over Frontend: 300ms デバウンス
+    Frontend->>Backend: GET /api/projects/validate?name=xxx
+    Backend-->>Frontend: {valid, path, error?}
+    Frontend->>User: バリデーション結果表示
+
+    User->>Frontend: Create Project ボタンクリック
+    Frontend->>Backend: POST /api/projects/create/stream
+    Note right of Frontend: {name, description, services}
+    Backend-->>Frontend: SSE progress (template_copy)
+    Backend-->>Frontend: SSE progress (placeholder_replace)
+    Backend-->>Frontend: SSE progress (...)
+    Backend-->>Frontend: SSE complete
+    Frontend->>User: 完了画面表示
+
+    User->>Frontend: Open in VS Code ボタンクリック
+    Frontend->>Backend: POST /api/projects/open
+    Note right of Frontend: {path}
+    Backend-->>Frontend: {success, message}
+```
+
+---
+
 ## 状態遷移詳細
 
 ### 1. 初期状態 -> 実行中
@@ -563,4 +646,132 @@ flowchart LR
     C --> D
     D -->|検証OK| E[ファイル/ディレクトリ操作]
     D -->|検証NG| F[アクセス拒否<br>空配列 or null 返却]
+```
+
+---
+
+## New Project: プロジェクト作成フロー
+
+`/new` は新規プロジェクトを作成するページ。単一ページ内で form / creating / complete / error の4フェーズを切り替える。
+
+### ページ間遷移
+
+```mermaid
+flowchart LR
+    A["メインページ<br>/"] -->|New Project リンク| B["/new<br>プロジェクト作成"]
+    B -->|Back リンク| A
+```
+
+### 遷移詳細
+
+| 遷移元 | 遷移先 | トリガー | 遷移方法 | 渡すデータ |
+|-------|-------|---------|---------|-----------|
+| メインページ (`/`) | New Project (`/new`) | New Project リンククリック | `<a>` タグ | なし |
+| New Project (`/new`) | メインページ (`/`) | Back リンククリック | Link | なし |
+
+### フェーズ遷移
+
+```mermaid
+flowchart TD
+    A[form<br>フォーム入力] -->|Create Project ボタン| B[creating<br>進捗表示]
+    B -->|全ステップ完了| C[complete<br>完了画面]
+    B -->|エラー発生| D[error<br>エラー表示 + フォーム]
+    D -->|フォーム再送信| B
+    C -->|Create Another ボタン| A
+    C -->|Open in VS Code ボタン| E[VS Code 起動]
+```
+
+### フェーズ遷移詳細
+
+| 現在のフェーズ | トリガー | 次のフェーズ | 処理 |
+|-------------|---------|------------|------|
+| form | Create Project ボタンクリック | creating | createProjectStream API 呼び出し、SSE ストリーム開始 |
+| creating | complete イベント受信 | complete | 全ステップを done に、createdProject を設定 |
+| creating | error イベント受信 | error | 該当ステップを error に、エラーメッセージを表示 |
+| creating | HTTP エラー / 接続エラー | error | エラーメッセージを設定 |
+| error | Create Project ボタン再クリック | creating | 入力値を保持したまま再実行 |
+| complete | Create Another ボタンクリック | form | 全状態をリセット（入力値もクリア） |
+| complete | Open in VS Code ボタンクリック | complete | openInVSCode API 呼び出し（フェーズは変わらない） |
+
+### バリデーションフロー
+
+```mermaid
+flowchart TD
+    A[プロジェクト名入力] -->|300ms デバウンス| B[GET /api/projects/validate]
+    B -->|valid: true| C[パス表示<br>ボタン有効化]
+    B -->|valid: false| D[エラー表示<br>ボタン無効化]
+    A -->|入力変更| E[前回リクエスト中断]
+    E --> A
+    A -->|空文字| F[バリデーション結果クリア<br>ボタン無効化]
+```
+
+### バリデーション状態遷移
+
+| 現在の状態 | トリガー | 次の状態 | 処理 |
+|-----------|---------|---------|------|
+| 未入力 | 文字入力 | バリデーション中 | 300ms タイマー開始 |
+| バリデーション中 | 追加入力 | バリデーション中 | 前回のタイマーとリクエストをキャンセル、新しいタイマー開始 |
+| バリデーション中 | タイマー発火 | API 呼び出し中 | validateProjectName API 呼び出し |
+| API 呼び出し中 | 成功（valid: true） | 有効 | パスを表示、Create Project ボタンを有効化 |
+| API 呼び出し中 | 成功（valid: false） | 無効 | エラーメッセージを表示 |
+| API 呼び出し中 | エラー | 無効 | エラーメッセージを表示 |
+| 任意 | 入力を空にする | 未入力 | バリデーション結果をクリア |
+
+### API 通信フロー
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Backend
+
+    Note over Frontend,Backend: バリデーション（入力中に随時）
+    User->>Frontend: プロジェクト名入力
+    Frontend->>Frontend: 300ms デバウンス
+    Frontend->>Backend: GET /api/projects/validate?name={name}
+    Backend-->>Frontend: {valid, path, error?}
+    Frontend->>User: バリデーション結果表示
+
+    Note over Frontend,Backend: プロジェクト作成
+    User->>Frontend: Create Project ボタンクリック
+    Frontend->>Backend: POST /api/projects/create/stream
+    Note right of Frontend: {name, description, services}
+    Backend-->>Frontend: SSE progress (template_copy)
+    Backend-->>Frontend: SSE progress (placeholder_replace)
+    Backend-->>Frontend: SSE progress (env_create)
+    Backend-->>Frontend: SSE progress (dependency_install)
+    Backend-->>Frontend: SSE progress (claude_assets)
+    Backend-->>Frontend: SSE progress (claude_md)
+    Backend-->>Frontend: SSE progress (devtools_link)
+    Backend-->>Frontend: SSE progress (git_init)
+    Backend-->>Frontend: SSE progress (server_start)
+    Backend-->>Frontend: SSE progress (health_check)
+    Backend-->>Frontend: SSE complete {path}
+    Frontend->>User: 完了画面表示
+
+    Note over Frontend,Backend: VS Code 起動（任意）
+    User->>Frontend: Open in VS Code ボタンクリック
+    Frontend->>Backend: POST /api/projects/open
+    Note right of Frontend: {path}
+    Backend-->>Frontend: {success, message}
+```
+
+### エラー時のフロー
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Backend
+
+    User->>Frontend: Create Project ボタンクリック
+    Frontend->>Backend: POST /api/projects/create/stream
+    Backend-->>Frontend: SSE progress (template_copy)
+    Backend-->>Frontend: SSE progress (placeholder_replace)
+    Backend-->>Frontend: SSE error {step, error}
+    Frontend->>User: エラー表示 + フォーム（入力値保持）
+
+    User->>Frontend: Create Project ボタン再クリック
+    Frontend->>Backend: POST /api/projects/create/stream
+    Note right of Frontend: 同じ入力値で再実行
 ```

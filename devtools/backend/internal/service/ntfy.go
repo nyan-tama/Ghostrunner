@@ -22,8 +22,8 @@ type NtfyService interface {
 
 // ntfyServiceImpl はNtfyServiceの実装です
 type ntfyServiceImpl struct {
-	topicURL            string
-	httpClient          *http.Client
+	topicURL             string
+	httpClient           *http.Client
 	terminalNotifierPath string
 }
 

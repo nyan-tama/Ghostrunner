@@ -113,7 +113,7 @@ backend/
 |   |-- server/       # メインエントリーポイント
 |-- internal/
 |   |-- handler/      # HTTPハンドラー（リクエスト受信、レスポンス返却）
-|   |-- service/      # ビジネスロジック（Claude CLI実行、外部API連携、通知）
+|   |-- service/      # ビジネスロジック（Claude CLI実行、外部API連携、通知、プロジェクト生成）
 |-- docs/             # ドキュメント
 ```
 
@@ -129,6 +129,11 @@ main.go
   |           |-- Claude CLI (外部プロセス)
   |           |-- OpenAI API (外部API)
   |           |-- Gemini API (外部API)
+  |-- handler/CreateHandler
+  |     |-- service/CreateProjectService (プロジェクト生成)
+  |           |-- TemplateService (テンプレートコピー・加工)
+  |           |-- git, go, npm (外部コマンド)
+  |           |-- code (VS Code起動)
 ```
 
 ### NtfyService の注入パターン
@@ -148,6 +153,51 @@ func (s *claudeServiceImpl) notifyComplete(output string) {
     s.ntfyService.Notify("Claude Code - Complete", message)
 }
 ```
+
+### CreateProjectService の注入パターン
+
+CreateProjectService はプロジェクト生成のインターフェースを定義する。CreateService がその実装を提供し、内部でTemplateServiceに委譲する。
+
+```go
+// main.go での初期化
+ghostrunnerRoot := "/path/to/Ghostrunner"
+projectBaseDir := "/Users/user"
+
+templateService := service.NewTemplateService(ghostrunnerRoot)
+createService := service.NewCreateService(templateService, projectBaseDir)
+createHandler := handler.NewCreateHandler(createService)
+```
+
+CreateProjectService インターフェース:
+
+```go
+type CreateProjectService interface {
+    ValidateProjectName(name string) *ValidateResult
+    CreateProject(ctx context.Context, req *CreateRequest, eventCh chan<- CreateEvent)
+    OpenInVSCode(path string) error
+    ProjectBaseDir() string
+}
+```
+
+CreateProject メソッドはチャンネル経由で進捗イベントを送信する。ハンドラーはこのチャンネルからイベントを読み取り、SSE形式でクライアントに配信する。チャンネルは CreateProject 内で close される。
+
+### TemplateService の責務
+
+TemplateService はテンプレートファイルのコピーと加工に特化したサービス。CreateService から呼び出され、以下の操作を担当する。
+
+- テンプレートディレクトリの再帰コピー（バイナリファイル判定付き）
+- `{{PROJECT_NAME}}` プレースホルダーの一括置換
+- 複数サービスの `docker-compose.yml` マージ（services と volumes キーを結合）
+- `.claude/` ディレクトリのコピーとカスタマイズ
+- プロジェクト用 `CLAUDE.md` の動的生成
+
+サービス名からテンプレートディレクトリへのマッピング:
+
+| サービス名 | テンプレートディレクトリ |
+|-----------|----------------------|
+| `database` | `templates/with-db` |
+| `storage` | `templates/with-storage` |
+| `cache` | `templates/with-redis` |
 
 ## コーディング規約
 

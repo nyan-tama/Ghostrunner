@@ -206,6 +206,70 @@ make restart-backend-logs
 - 通知送信はfire-and-forget方式のため、送信失敗がコマンド実行には影響しない
 - 一時的なネットワーク問題の場合は自然に回復する
 
+### プロジェクト生成が途中で失敗する
+
+**症状**: `/api/projects/create/stream` のSSEで `error` イベントが送信される
+
+**確認事項**:
+
+1. 失敗したステップIDをSSEイベントの `step` フィールドで特定する
+2. サーバーログで `[CreateService]` または `[TemplateService]` のエラーを確認する
+   ```bash
+   make logs-backend
+   # [CreateService] Step failed: step=dependency_install, error=...
+   ```
+
+**ステップ別の対処**:
+
+| ステップ | よくある原因 | 対処 |
+|---------|------------|------|
+| `template_copy` | テンプレートディレクトリが見つからない | Ghostrunnerリポジトリの `templates/` ディレクトリの存在を確認 |
+| `placeholder_replace` | ファイルの読み書き権限不足 | 生成先ディレクトリのパーミッションを確認 |
+| `env_create` | `.env.example` がbaseテンプレートに存在しない | `templates/base/backend/.env.example` の存在を確認 |
+| `dependency_install` | `go` や `npm` がPATHにない | `go version` と `npm --version` で確認 |
+| `claude_assets` | `.claude/` ディレクトリが見つからない | Ghostrunnerリポジトリの `.claude/` ディレクトリの存在を確認 |
+| `claude_md` | 書き込み権限不足 | 生成先の `.claude/` ディレクトリのパーミッションを確認 |
+| `devtools_link` | シンボリックリンク作成権限がない、または同名ファイルが存在 | 生成先の `.devtools` の存在を確認 |
+| `git_init` | `git` がPATHにない | `git --version` で確認 |
+| `server_start` | ポート8080が使用中 | `lsof -i :8080` で確認し、プロセスを停止 |
+| `health_check` | バックエンドの起動に時間がかかっている | 10回（約20秒）のリトライ後にタイムアウト。ログで起動エラーを確認 |
+
+**生成途中のディレクトリの削除**:
+
+エラーで中断した場合、生成途中のディレクトリが残る。手動で削除する。
+
+```bash
+# 生成先はホームディレクトリ直下
+rm -rf ~/my-project
+```
+
+### プロジェクト名のバリデーションエラー
+
+**症状**: `/api/projects/validate` で `valid: false` が返る
+
+**原因と対処**:
+
+| エラーメッセージ | 原因 | 対処 |
+|----------------|------|------|
+| プロジェクト名を入力してください | 名前が空 | 名前を入力する |
+| プロジェクト名は小文字英数字とハイフンのみ使用できます | 大文字・アンダースコア・特殊文字を含んでいる | 小文字英数字とハイフンのみ使用する（例: `my-project`） |
+| 同名のディレクトリが既に存在します | 生成先に同名ディレクトリがある | 別の名前を使用するか、既存ディレクトリを削除する |
+
+---
+
+### VS Codeでプロジェクトが開かない
+
+**症状**: `/api/projects/open` が500エラーを返す
+
+**確認事項**:
+1. `code` コマンドがPATHに存在するか: `which code`
+2. VS Code がインストールされているか
+
+**対処**:
+- VS Code のコマンドパレット（Cmd+Shift+P）から "Shell Command: Install 'code' command in PATH" を実行
+
+---
+
 ### コマンドがタイムアウトする
 
 **症状**: 60分後にタイムアウトエラーが返る

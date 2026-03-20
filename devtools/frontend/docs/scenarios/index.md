@@ -8,6 +8,7 @@ Ghost Runner の主要なユーザー操作シナリオを記載する。
 |---------|---------|------|
 | コマンド実行 | [command-execution.md](./command-execution.md) | コマンドの入力と実行 |
 | 音声通知 | [voice-notification.md](./voice-notification.md) | 音声通知機能の利用 |
+| プロジェクト作成 | [project-create.md](./project-create.md) | プロジェクトの新規作成 |
 
 ## 基本フロー
 

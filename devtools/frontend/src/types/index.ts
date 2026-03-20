@@ -108,3 +108,35 @@ export interface DisplayEvent {
 }
 
 export type RestartStatus = "idle" | "restarting" | "success" | "error" | "timeout";
+
+// プロジェクト作成関連の型
+
+export type DataService = "database" | "storage" | "cache";
+
+export interface CreateProjectRequest {
+  name: string;
+  description: string;
+  services: DataService[];
+}
+
+export interface CreateProgressEvent {
+  type: "progress" | "complete" | "error";
+  step: string;
+  message: string;
+  progress: number;
+  path?: string;
+  error?: string;
+}
+
+export interface CreateStep {
+  id: string;
+  label: string;
+  status: "pending" | "active" | "done" | "error";
+}
+
+export interface CreatedProject {
+  name: string;
+  path: string;
+}
+
+export type CreatePhase = "form" | "creating" | "complete" | "error";
