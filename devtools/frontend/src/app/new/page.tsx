@@ -3,27 +3,10 @@
 import { useRef, useEffect, useState } from "react";
 import Link from "next/link";
 import { useProjectChat } from "@/hooks/useProjectChat";
-import { openInVSCode } from "@/lib/createApi";
 import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 
-function CompleteView({ createdPath, onReset }: { createdPath: string | null; onReset: () => void }) {
-  const [isOpening, setIsOpening] = useState(false);
-  const [openError, setOpenError] = useState("");
-
-  const handleOpenVSCode = async () => {
-    if (!createdPath) return;
-    setIsOpening(true);
-    setOpenError("");
-    try {
-      await openInVSCode(createdPath);
-    } catch (err) {
-      setOpenError(err instanceof Error ? err.message : "VS Codeの起動に失敗しました");
-    } finally {
-      setIsOpening(false);
-    }
-  };
-
+function CompleteView({ createdPath }: { createdPath: string | null }) {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
       <div className="text-center mb-6">
@@ -39,27 +22,9 @@ function CompleteView({ createdPath, onReset }: { createdPath: string | null; on
         </div>
       )}
 
-      <div className="flex gap-3 justify-center">
-        <button
-          type="button"
-          onClick={handleOpenVSCode}
-          disabled={!createdPath || isOpening}
-          className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {isOpening ? "起動中..." : "VS Codeで開く"}
-        </button>
-        <button
-          type="button"
-          onClick={onReset}
-          className="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-300 transition-colors"
-        >
-          もう1つ作る
-        </button>
-      </div>
-
-      {openError && (
-        <p className="mt-3 text-center text-xs text-red-600">{openError}</p>
-      )}
+      <p className="text-sm text-gray-500 text-center">
+        VS Code でプロジェクトを開いて開発を始めましょう。
+      </p>
     </div>
   );
 }
@@ -222,7 +187,7 @@ export default function NewProjectPage() {
 
       {/* complete: 完了画面 */}
       {phase === "complete" && (
-        <CompleteView createdPath={createdPath} onReset={reset} />
+        <CompleteView createdPath={createdPath} />
       )}
 
       {/* error: エラー画面 */}
