@@ -48,8 +48,8 @@ func main() {
 	// CORS設定（ローカル開発時およびTailscale経由のアクセスを許可）
 	r.Use(cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
-			// localhost を許可
-			if origin == "http://localhost:3000" {
+			// localhost を許可（3000: プロジェクト用, 3001: devtools用）
+			if origin == "http://localhost:3000" || origin == "http://localhost:3001" {
 				return true
 			}
 			// Tailscale IP (100.x.x.x) を許可
