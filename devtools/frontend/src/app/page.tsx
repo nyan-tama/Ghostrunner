@@ -477,6 +477,13 @@ export default function Home() {
         <h1 className="text-gray-800 text-2xl font-bold">Ghost Runner</h1>
         <div className="flex gap-2 items-center">
           <a
+            href="/patrol"
+            className="px-3 py-1 text-xs bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition-colors"
+            title="巡回ダッシュボード"
+          >
+            巡回
+          </a>
+          <a
             href="/new"
             className="px-3 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors"
             title="Create a new project"

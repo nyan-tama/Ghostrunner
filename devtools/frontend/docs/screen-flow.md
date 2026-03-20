@@ -589,6 +589,129 @@ flowchart LR
 
 ---
 
+## 巡回ダッシュボード: 自動巡回フロー
+
+`/patrol` は複数プロジェクトの自動巡回を管理するダッシュボード。SSE でリアルタイムにプロジェクト状態を受信し、承認待ちの質問に回答できる。
+
+### ページ間遷移
+
+```mermaid
+flowchart LR
+    A["メインページ<br>/"] -->|巡回リンク| B["/patrol<br>巡回ダッシュボード"]
+    B -->|Back リンク| A
+```
+
+#### 遷移詳細
+
+| 遷移元 | 遷移先 | トリガー | 遷移方法 | 渡すデータ |
+|-------|-------|---------|---------|-----------|
+| メインページ (`/`) | 巡回ダッシュボード (`/patrol`) | 「巡回」リンククリック | `<a>` タグ | なし |
+| 巡回ダッシュボード (`/patrol`) | メインページ (`/`) | Back リンククリック | Link | なし |
+
+### プロジェクト登録フロー
+
+```mermaid
+flowchart TD
+    A[プロジェクト未登録] -->|追加ボタンクリック| B[プロジェクト一覧取得<br>GET /api/projects]
+    B -->|プロジェクト選択| C[巡回対象に登録<br>POST /api/patrol/projects]
+    C -->|登録成功| D[プロジェクトカード表示]
+    D -->|解除ボタンクリック| E[巡回対象から解除<br>POST /api/patrol/projects/remove]
+    E --> A
+```
+
+### 巡回制御フロー
+
+```mermaid
+flowchart TD
+    A[停止中] -->|巡回開始ボタン| B[巡回中<br>SSE でリアルタイム更新]
+    B -->|巡回停止ボタン| A
+    B -->|SSE: project_started| C[プロジェクト実行中]
+    C -->|SSE: project_question| D[承認待ち<br>回答フォーム表示]
+    C -->|SSE: project_completed| E[プロジェクト完了]
+    C -->|SSE: project_error| F[プロジェクトエラー]
+    D -->|回答送信| C
+```
+
+### 巡回制御の状態遷移
+
+| 現在の状態 | トリガー | 次の状態 | 処理 |
+|-----------|---------|---------|------|
+| 停止中 | 巡回開始ボタンクリック | 巡回中 | `POST /api/patrol/start` を呼び出し、isRunning を true に |
+| 巡回中 | 巡回停止ボタンクリック | 停止中 | `POST /api/patrol/stop` を呼び出し、isRunning を false に |
+| 巡回中 | SSE `project_started` イベント | 巡回中 | 該当プロジェクトの状態を更新 |
+| 巡回中 | SSE `project_question` イベント | 巡回中 | 該当プロジェクトに回答フォームを表示 |
+| 巡回中 | SSE `project_completed` イベント | 巡回中 | 該当プロジェクトの状態を完了に更新 |
+| 巡回中 | SSE `project_error` イベント | 巡回中 | 該当プロジェクトの状態をエラーに更新 |
+| 任意 | ポーリングチェックボックス ON | ポーリング有効 | `POST /api/patrol/polling/start` を呼び出し |
+| ポーリング有効 | ポーリングチェックボックス OFF | ポーリング無効 | `POST /api/patrol/polling/stop` を呼び出し |
+
+### 承認待ち回答フロー
+
+```mermaid
+flowchart TD
+    A[プロジェクトカード<br>waiting_approval] -->|回答フォーム表示| B{回答方法}
+    B -->|選択肢クリック<br>単一選択| C[即座に回答送信]
+    B -->|選択肢選択<br>複数選択| D[選択をトグル]
+    D -->|送信ボタンクリック| C
+    B -->|テキスト入力 + Enter/送信| C
+    C -->|POST /api/patrol/resume| E[プロジェクト状態を<br>running に更新]
+```
+
+### SSE 接続フロー
+
+```mermaid
+flowchart TD
+    A[ページマウント] -->|EventSource 接続| B[connecting]
+    B -->|接続成功| C[connected<br>イベント受信中]
+    B -->|接続失敗| D{リトライ回数<br>< 10?}
+    C -->|接続断| D
+    D -->|はい| E[指数バックオフ待機]
+    E -->|再接続| B
+    D -->|いいえ| F[disconnected<br>接続断]
+```
+
+### API 通信フロー
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Backend
+
+    Note over Frontend,Backend: ページマウント時
+    Frontend->>Backend: EventSource /api/patrol/stream
+    par 初期データ取得
+        Frontend->>Backend: GET /api/patrol/projects
+        Backend-->>Frontend: {projects}
+        and
+        Frontend->>Backend: GET /api/patrol/states
+        Backend-->>Frontend: {states}
+    end
+
+    Note over Frontend,Backend: プロジェクト登録
+    User->>Frontend: プロジェクト選択
+    Frontend->>Backend: POST /api/patrol/projects
+    Backend-->>Frontend: {success}
+    Frontend->>Backend: GET /api/patrol/projects
+    Backend-->>Frontend: 更新済み一覧
+
+    Note over Frontend,Backend: 巡回実行
+    User->>Frontend: 巡回開始ボタン
+    Frontend->>Backend: POST /api/patrol/start
+    Backend-->>Frontend: {success}
+    Backend-->>Frontend: SSE project_started
+    Backend-->>Frontend: SSE project_question
+    Frontend->>User: 回答フォーム表示
+
+    User->>Frontend: 回答入力・送信
+    Frontend->>Backend: POST /api/patrol/resume
+    Note right of Frontend: {projectPath, answer}
+    Backend-->>Frontend: {success}
+    Backend-->>Frontend: SSE project_completed
+```
+
+---
+
 ## Docs: ドキュメント閲覧フロー
 
 `/docs` はプロジェクトの `開発/` フォルダ内のドキュメントを閲覧するページ。クエリパラメータ `?project=` で任意のプロジェクトパスを指定でき、ページ内遷移でもパラメータが引き回される。
