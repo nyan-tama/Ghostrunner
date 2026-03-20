@@ -57,7 +57,7 @@ export default async function DocsPathPage({ params, searchParams }: Props) {
           href="/"
           className="px-3 py-1 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 transition-colors"
         >
-          Home
+          ホーム
         </Link>
       </div>
       <Breadcrumb path={relativePath} project={project} />

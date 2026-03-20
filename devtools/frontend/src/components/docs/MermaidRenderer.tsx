@@ -65,7 +65,7 @@ export default function MermaidRenderer({ chart }: Props) {
 
   return (
     <div
-      className="my-4 overflow-x-auto"
+      className="my-4 overflow-x-auto bg-white p-4 rounded"
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );

@@ -48,7 +48,7 @@ backend:
 	cd $(DEVTOOLS_ROOT)/backend && [ -f .env ] && set -a && . ./.env && set +a; go run ./cmd/server
 
 frontend:
-	cd $(DEVTOOLS_ROOT)/frontend && npm run dev -H 0.0.0.0
+	cd $(DEVTOOLS_ROOT)/frontend && npm run dev -- -H 0.0.0.0
 
 dev: stop
 	@echo "両サーバーを起動..."

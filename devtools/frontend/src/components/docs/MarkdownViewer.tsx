@@ -45,8 +45,7 @@ export default function MarkdownViewer({ content, title }: Props) {
   };
 
   return (
-    <article className="prose prose-lg max-w-none prose-headings:text-gray-800 prose-a:text-blue-600 prose-code:before:content-none prose-code:after:content-none">
-      <h1>{title.replace(/_/g, " ")}</h1>
+    <article className="prose prose-base max-w-none prose-headings:text-gray-800 prose-a:text-blue-600 prose-code:before:content-none prose-code:after:content-none">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw, rehypeHighlight]}
