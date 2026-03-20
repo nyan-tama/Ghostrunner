@@ -20,6 +20,7 @@ interface UseProjectChatReturn {
   sessionId: string | null;
   phase: ChatPhase;
   currentQuestion: Question | null;
+  createdPath: string | null;
   startChat: () => void;
   sendAnswer: (answer: string) => void;
   reset: () => void;
@@ -35,6 +36,7 @@ export function useProjectChat(): UseProjectChatReturn {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [phase, setPhase] = useState<ChatPhase>("idle");
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
+  const [createdPath, setCreatedPath] = useState<string | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   // 連続する text イベントをマージするための参照
@@ -133,6 +135,11 @@ export function useProjectChat(): UseProjectChatReturn {
                   type: "ai",
                   content: output,
                 });
+              }
+              // output からプロジェクトパスを抽出
+              const pathMatch = output.match(/生成先:\s*(\/Users\/\S+)/);
+              if (pathMatch) {
+                setCreatedPath(pathMatch[1].replace(/\/$/, ""));
               }
               setPhase("complete");
             }
@@ -267,6 +274,7 @@ export function useProjectChat(): UseProjectChatReturn {
     setSessionId(null);
     setPhase("idle");
     setCurrentQuestion(null);
+    setCreatedPath(null);
     lastTextIdRef.current = null;
   }, []);
 
@@ -276,6 +284,7 @@ export function useProjectChat(): UseProjectChatReturn {
     sessionId,
     phase,
     currentQuestion,
+    createdPath,
     startChat,
     sendAnswer,
     reset,

@@ -3,8 +3,66 @@
 import { useRef, useEffect, useState } from "react";
 import Link from "next/link";
 import { useProjectChat } from "@/hooks/useProjectChat";
+import { openInVSCode } from "@/lib/createApi";
 import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
+
+function CompleteView({ createdPath, onReset }: { createdPath: string | null; onReset: () => void }) {
+  const [isOpening, setIsOpening] = useState(false);
+  const [openError, setOpenError] = useState("");
+
+  const handleOpenVSCode = async () => {
+    if (!createdPath) return;
+    setIsOpening(true);
+    setOpenError("");
+    try {
+      await openInVSCode(createdPath);
+    } catch (err) {
+      setOpenError(err instanceof Error ? err.message : "VS Codeの起動に失敗しました");
+    } finally {
+      setIsOpening(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+      <div className="text-center mb-6">
+        <h2 className="text-lg font-semibold text-green-700 mb-2">
+          プロジェクトの作成が完了しました
+        </h2>
+      </div>
+
+      {createdPath && (
+        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+          <div className="text-xs text-gray-500 mb-1">生成先</div>
+          <div className="text-sm font-mono text-gray-800">{createdPath}</div>
+        </div>
+      )}
+
+      <div className="flex gap-3 justify-center">
+        <button
+          type="button"
+          onClick={handleOpenVSCode}
+          disabled={!createdPath || isOpening}
+          className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {isOpening ? "起動中..." : "VS Codeで開く"}
+        </button>
+        <button
+          type="button"
+          onClick={onReset}
+          className="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-300 transition-colors"
+        >
+          もう1つ作る
+        </button>
+      </div>
+
+      {openError && (
+        <p className="mt-3 text-center text-xs text-red-600">{openError}</p>
+      )}
+    </div>
+  );
+}
 
 export default function NewProjectPage() {
   const {
@@ -15,6 +73,7 @@ export default function NewProjectPage() {
     startChat,
     sendAnswer,
     reset,
+    createdPath,
   } = useProjectChat();
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -163,43 +222,7 @@ export default function NewProjectPage() {
 
       {/* complete: 完了画面 */}
       {phase === "complete" && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-          <div className="text-center mb-6">
-            <h2 className="text-lg font-semibold text-green-700 mb-2">
-              プロジェクトの作成が完了しました
-            </h2>
-            <p className="text-sm text-gray-500">
-              対話の内容に基づいてプロジェクトが生成されました。
-            </p>
-          </div>
-
-          {/* 最後のAIメッセージを表示（完了メッセージ） */}
-          {messages.length > 0 && (
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg text-sm text-gray-700 whitespace-pre-wrap max-h-60 overflow-y-auto">
-              {messages
-                .filter((m) => m.type === "ai")
-                .slice(-1)
-                .map((m) => m.content)
-                .join("")}
-            </div>
-          )}
-
-          <div className="flex gap-3 justify-center">
-            <button
-              type="button"
-              onClick={reset}
-              className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
-            >
-              もう1つ作る
-            </button>
-            <Link
-              href="/"
-              className="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-300 transition-colors"
-            >
-              ダッシュボードに戻る
-            </Link>
-          </div>
-        </div>
+        <CompleteView createdPath={createdPath} onReset={reset} />
       )}
 
       {/* error: エラー画面 */}
