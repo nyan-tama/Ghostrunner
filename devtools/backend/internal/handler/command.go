@@ -101,8 +101,8 @@ func (h *CommandHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	// argsのバリデーション
-	if req.Args == "" {
+	// argsのバリデーション（initコマンドはargs空を許容）
+	if req.Args == "" && req.Command != "init" {
 		log.Printf("[CommandHandler] Handle failed: args is empty, project=%s", req.Project)
 		c.JSON(http.StatusBadRequest, CommandResponse{
 			Success: false,
@@ -189,8 +189,8 @@ func (h *CommandHandler) HandleStream(c *gin.Context) {
 		return
 	}
 
-	// argsのバリデーション
-	if req.Args == "" {
+	// argsのバリデーション（initコマンドはargs空を許容）
+	if req.Args == "" && req.Command != "init" {
 		log.Printf("[CommandHandler] HandleStream failed: args is empty, project=%s", req.Project)
 		c.JSON(http.StatusBadRequest, CommandResponse{
 			Success: false,
