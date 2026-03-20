@@ -177,7 +177,7 @@ find . -type f \( \
   -name "*.go" -o -name "*.mod" -o -name "*.json" -o -name "*.tsx" -o -name "*.ts" \
   -o -name "*.css" -o -name "*.yml" -o -name "*.yaml" -o -name "*.md" \
   -o -name "*.mjs" -o -name "*.sql" -o -name "Makefile" \
-  -o -name "Dockerfile" -o -name ".gitignore" \
+  -o -name "Dockerfile" -o -name ".gitignore" -o -name ".env*" \
 \) -exec sed -i '' \
   -e "s/{{PROJECT_NAME}}/<プロジェクト名>/g" \
   -e "s/{{PORT_BACKEND}}/${PORT_BACKEND}/g" \
