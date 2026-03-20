@@ -114,7 +114,7 @@ stop-frontend:
 	-pkill -f "next dev" || true
 	-pkill -f "npm.*dev" || true
 	-pkill -f "npm.*start" || true
-	-lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+	-lsof -ti:3333 | xargs kill -9 2>/dev/null || true
 
 stop: stop-backend stop-frontend
 
@@ -183,7 +183,7 @@ build:
 
 health:
 	@curl -s http://localhost:8080/api/health || echo "Backend: NG"
-	@curl -s http://localhost:3000 > /dev/null && echo "Frontend: OK" || echo "Frontend: NG"
+	@curl -s http://localhost:3333 > /dev/null && echo "Frontend: OK" || echo "Frontend: NG"
 
 # ログ確認
 .PHONY: logs-backend logs-frontend logs
@@ -235,7 +235,7 @@ dev-external:
 	@TAILSCALE_IP=$$(tailscale ip -4 2>/dev/null || echo "localhost"); \
 	echo "外部アクセス可能モードで両サーバーを起動します..."; \
 	echo "外部からのアクセスURL:"; \
-	echo "  フロントエンド: http://$$TAILSCALE_IP:3000"; \
+	echo "  フロントエンド: http://$$TAILSCALE_IP:3333"; \
 	echo "  バックエンド API: http://$$TAILSCALE_IP:8080"; \
 	echo ""; \
 	echo "※制限事項: サーバー再起動機能は外部からは使用できません"; \
