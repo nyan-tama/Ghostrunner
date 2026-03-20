@@ -134,6 +134,11 @@ main.go
   |           |-- TemplateService (テンプレートコピー・加工)
   |           |-- git, go, npm (外部コマンド)
   |           |-- code (VS Code起動)
+  |-- handler/PatrolHandler
+  |     |-- service/PatrolService (複数プロジェクト自動巡回)
+  |           |-- ClaudeService (CLI実行)
+  |           |-- NtfyService (承認待ち通知)
+  |           |-- JSONファイル (設定永続化)
 ```
 
 ### NtfyService の注入パターン
@@ -180,6 +185,41 @@ type CreateProjectService interface {
 ```
 
 CreateProject メソッドはチャンネル経由で進捗イベントを送信する。ハンドラーはこのチャンネルからイベントを読み取り、SSE形式でクライアントに配信する。チャンネルは CreateProject 内で close される。
+
+### PatrolService の注入パターン
+
+PatrolService は複数プロジェクトの自動巡回を担当する。ClaudeService と NtfyService に依存し、設定ファイルパスを受け取って初期化する。
+
+```go
+// main.go での初期化
+patrolConfigPath := filepath.Join(ghostrunnerRoot, "devtools", "backend", "patrol_projects.json")
+patrolService := service.NewPatrolService(claudeService, ntfyService, patrolConfigPath)
+patrolHandler := handler.NewPatrolHandler(patrolService)
+```
+
+PatrolService インターフェース:
+
+```go
+type PatrolService interface {
+    RegisterProject(path string) error
+    UnregisterProject(path string) error
+    ListProjects() []PatrolProject
+    ScanProjects() []ScanResult
+    StartPatrol() error
+    StopPatrol()
+    ResumeProject(projectPath, answer string) error
+    GetStates() map[string]*ProjectState
+    StartPolling()
+    StopPolling()
+    Subscribe() (<-chan PatrolEvent, func())
+}
+```
+
+主要な設計判断:
+- 並列実行数はセマフォ（バッファ付きチャンネル）で制御（最大5並列）
+- SSEイベントはSubscribe/broadcastパターンで配信（バッファ100件のチャンネル）
+- 設定ファイルへの保存はwrite-to-temp + renameパターンで安全に書き込み
+- 実行中または承認待ちのプロジェクトは巡回時にスキップ
 
 ### TemplateService の責務
 

@@ -270,6 +270,151 @@ rm -rf ~/my-project
 
 ---
 
+---
+
+## 巡回機能（Patrol）
+
+### 概要
+
+複数のGhostrunnerプロジェクトを自動巡回し、`開発/実装/実装待ち/` に未処理タスクがあれば `claude -p /coding` を最大5並列で実行する機能。プロジェクト一覧はJSONファイル（`devtools/backend/patrol_projects.json`）に永続化される。
+
+### プロジェクトの登録・解除
+
+```bash
+# プロジェクトを巡回対象に登録
+curl -X POST http://localhost:8888/api/patrol/projects \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/Users/user/my-project"}'
+
+# 登録済みプロジェクト一覧を確認
+curl http://localhost:8888/api/patrol/projects
+
+# プロジェクトを巡回対象から解除
+curl -X POST http://localhost:8888/api/patrol/projects/remove \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/Users/user/my-project"}'
+```
+
+### 手動で巡回を実行
+
+```bash
+# 全プロジェクトをスキャン（巡回は開始しない）
+curl http://localhost:8888/api/patrol/scan
+
+# 巡回を開始（未処理タスクのあるプロジェクトを自動実行）
+curl -X POST http://localhost:8888/api/patrol/start
+
+# 巡回を停止
+curl -X POST http://localhost:8888/api/patrol/stop
+
+# 全プロジェクトの実行状態を確認
+curl http://localhost:8888/api/patrol/states
+```
+
+### 定期ポーリング
+
+```bash
+# 5分間隔の定期ポーリングを開始
+curl -X POST http://localhost:8888/api/patrol/polling/start
+
+# 定期ポーリングを停止
+curl -X POST http://localhost:8888/api/patrol/polling/stop
+```
+
+### 承認待ちプロジェクトへの回答
+
+承認待ち（waiting_approval）状態のプロジェクトが発生すると、ntfy通知が送信される。ダッシュボードまたはAPIから回答を送信して実行を再開する。
+
+```bash
+# 承認待ちプロジェクトに回答を送信
+curl -X POST http://localhost:8888/api/patrol/resume \
+  -H "Content-Type: application/json" \
+  -d '{"projectPath": "/Users/user/my-project", "answer": "yes"}'
+```
+
+### SSEストリーミングの監視
+
+```bash
+# 巡回イベントをリアルタイムで監視
+curl -N http://localhost:8888/api/patrol/stream
+```
+
+イベントタイプ: `project_started`, `project_question`, `project_completed`, `project_error`, `scan_completed`
+
+### 設定ファイル
+
+巡回対象プロジェクトは `devtools/backend/patrol_projects.json` に保存される。
+
+```json
+{
+  "projects": [
+    {
+      "path": "/Users/user/project-a",
+      "name": "project-a"
+    },
+    {
+      "path": "/Users/user/project-b",
+      "name": "project-b"
+    }
+  ]
+}
+```
+
+手動で編集する場合はサーバーの再起動が必要。
+
+---
+
+## トラブルシューティング（巡回機能）
+
+### 巡回が開始できない
+
+**症状**: `/api/patrol/start` が409を返す
+
+**原因**: 巡回が既に実行中
+
+**対処**:
+```bash
+# 実行中の巡回を停止してから再開始
+curl -X POST http://localhost:8888/api/patrol/stop
+curl -X POST http://localhost:8888/api/patrol/start
+```
+
+### 承認待ちプロジェクトの再開に失敗する
+
+**症状**: `/api/patrol/resume` が400を返す
+
+**確認事項**:
+1. プロジェクトの状態が `waiting_approval` であることを確認
+   ```bash
+   curl http://localhost:8888/api/patrol/states
+   ```
+2. `projectPath` が正確であることを確認（登録時のパスと一致する必要がある）
+3. `answer` が空でないことを確認
+
+### 巡回でプロジェクトがスキップされる
+
+**症状**: 未処理タスクがあるのに実行されない
+
+**確認事項**:
+1. スキャン結果でタスクが検出されているか確認
+   ```bash
+   curl http://localhost:8888/api/patrol/scan
+   ```
+2. プロジェクトの状態が `running` または `waiting_approval` でないか確認（これらの状態はスキップ対象）
+3. `開発/実装/実装待ち/` ディレクトリが存在するか確認
+4. タスクファイルが隠しファイル（`.` で始まるファイル）でないか確認
+
+### 巡回の通知が届かない
+
+**確認事項**:
+1. `NTFY_TOPIC` 環境変数が設定されているか
+2. サーバーログで `[PatrolService]` のログを確認
+   ```bash
+   make logs-backend
+   ```
+
+---
+
 ### コマンドがタイムアウトする
 
 **症状**: 60分後にタイムアウトエラーが返る

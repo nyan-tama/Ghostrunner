@@ -103,6 +103,40 @@
 //   - CreateEnvFile: .envファイルの生成
 //   - CreateDevtoolsLink: devtoolsフロントエンドへのシンボリックリンク作成
 //
+// # PatrolService
+//
+// 複数プロジェクトの自動巡回を担当するサービス。
+// 登録されたプロジェクトをスキャンし、未処理タスクがあれば
+// ClaudeServiceを使って最大5並列で自動実行する。
+//
+// 主なメソッド:
+//   - RegisterProject: 巡回対象プロジェクトの登録
+//   - UnregisterProject: 巡回対象プロジェクトの解除
+//   - ListProjects: 登録済みプロジェクト一覧の取得
+//   - ScanProjects: 全プロジェクトのスキャン（git log, 未処理タスク）
+//   - StartPatrol: 巡回の開始（未処理タスクのあるプロジェクトを並列実行）
+//   - StopPatrol: 巡回の停止
+//   - ResumeProject: 承認待ちプロジェクトへの回答送信と再開
+//   - GetStates: 全プロジェクトの実行状態取得
+//   - StartPolling: 5分間隔の定期ポーリング開始
+//   - StopPolling: 定期ポーリング停止
+//   - Subscribe: SSEイベントのサブスクリプション取得
+//
+// プロジェクト状態遷移:
+//   - idle -> running: 巡回開始時
+//   - running -> waiting_approval: 質問（設計判断等）発生時
+//   - running -> completed: Claude CLI正常完了時
+//   - running -> error: エラー発生時
+//   - waiting_approval -> running: ユーザーが回答を送信した時
+//
+// 並列実行制御:
+//   - セマフォ（バッファ付きチャンネル、容量5）による並列数制限
+//   - 実行中・承認待ちのプロジェクトは巡回時にスキップ
+//
+// 永続化:
+//   - プロジェクト一覧をJSONファイルに保存
+//   - write-to-temp + rename パターンによる安全な書き込み
+//
 // # 画像サポート
 //
 // ExecuteCommandとExecuteCommandStreamは画像データを受け取り、

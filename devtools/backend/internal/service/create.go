@@ -118,7 +118,9 @@ func (s *CreateService) CreateProject(ctx context.Context, req *CreateRequest, e
 		{"env_create", "環境設定ファイルを作成中...", 30, func() error { return s.templateService.CreateEnvFile(projectPath, req.Name, req.Services) }},
 		{"dependency_install", "依存パッケージをインストール中...", 40, func() error { return s.stepDependencyInstall(ctx, projectPath) }},
 		{"claude_assets", "開発支援ツールを設定中...", 50, func() error { return s.stepClaudeAssets(projectPath, req.Services) }},
-		{"claude_md", "プロジェクト設定を生成中...", 60, func() error { return s.templateService.GenerateClaudeMD(projectPath, req.Name, req.Description, req.Services) }},
+		{"claude_md", "プロジェクト設定を生成中...", 60, func() error {
+			return s.templateService.GenerateClaudeMD(projectPath, req.Name, req.Description, req.Services)
+		}},
 		{"devtools_link", "devtools を接続中...", 70, func() error { return s.templateService.CreateDevtoolsLink(projectPath) }},
 		{"git_init", "バージョン管理を初期化中...", 80, func() error { return s.stepGitInit(ctx, projectPath) }},
 		{"server_start", "サーバーを起動中...", 90, func() error { return s.stepServerStart(ctx, projectPath) }},

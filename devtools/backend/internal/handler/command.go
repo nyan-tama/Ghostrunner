@@ -47,8 +47,8 @@ type CommandResponse struct {
 
 // CommandHandler はCommand関連のHTTPハンドラを提供します
 type CommandHandler struct {
-	claudeService    service.ClaudeService
-	ghostrunnerRoot  string // initコマンドでproject未指定時に使用
+	claudeService   service.ClaudeService
+	ghostrunnerRoot string // initコマンドでproject未指定時に使用
 }
 
 // NewCommandHandler は新しいCommandHandlerを生成します

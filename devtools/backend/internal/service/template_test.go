@@ -99,10 +99,10 @@ func TestIsBinaryFile(t *testing.T) {
 
 func TestMergeYAMLMaps(t *testing.T) {
 	tests := []struct {
-		name     string
-		dest     map[string]interface{}
-		src      map[string]interface{}
-		checkFn  func(t *testing.T, result map[string]interface{})
+		name    string
+		dest    map[string]interface{}
+		src     map[string]interface{}
+		checkFn func(t *testing.T, result map[string]interface{})
 	}{
 		{
 			name: "servicesがマージされる",

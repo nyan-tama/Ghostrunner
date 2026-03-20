@@ -15,6 +15,7 @@
 //   - ProjectsHandler: /api/projects 関連のエンドポイントを処理（プロジェクト一覧取得）
 //   - OpenAIHandler: /api/openai 関連のエンドポイントを処理（音声対話用エフェメラルキー発行）
 //   - CreateHandler: /api/projects/validate, /api/projects/create/stream, /api/projects/open を処理（プロジェクト生成）
+//   - PatrolHandler: /api/patrol 関連のエンドポイントを処理（複数プロジェクト自動巡回）
 //
 // ClaudeServiceへの依存性注入によりテスタビリティを確保する。
 //
@@ -75,6 +76,25 @@
 //   - database: PostgreSQL + GORM
 //   - storage: MinIO（S3互換オブジェクトストレージ）
 //   - cache: Redis
+//
+// # PatrolHandler
+//
+// 複数プロジェクト自動巡回のエンドポイント群を処理するハンドラー。
+// PatrolServiceインターフェースに依存し、プロジェクト登録・解除、巡回制御、
+// 状態取得、SSEストリーミング、定期ポーリングの11エンドポイントを提供する。
+//
+// エンドポイント:
+//   - POST /api/patrol/projects: 巡回対象プロジェクトの登録
+//   - POST /api/patrol/projects/remove: 巡回対象プロジェクトの解除
+//   - GET /api/patrol/projects: 登録済みプロジェクト一覧の取得
+//   - GET /api/patrol/scan: 全プロジェクトの状態スキャン
+//   - POST /api/patrol/start: 巡回の開始
+//   - POST /api/patrol/stop: 巡回の停止
+//   - POST /api/patrol/resume: 承認待ちプロジェクトの再開
+//   - GET /api/patrol/states: 全プロジェクトの実行状態取得
+//   - GET /api/patrol/stream: SSEイベントストリーミング
+//   - POST /api/patrol/polling/start: 定期ポーリングの開始
+//   - POST /api/patrol/polling/stop: 定期ポーリングの停止
 //
 // # PlanHandler
 //
@@ -240,6 +260,30 @@
 //	    "expireTime": "2025-01-27T12:34:56Z"  // 有効期限（ISO8601形式）
 //	}
 //
+// ## Patrol API (複数プロジェクト自動巡回)
+//
+// POST /api/patrol/projects - 巡回対象プロジェクトの登録
+//
+// POST /api/patrol/projects/remove - 巡回対象プロジェクトの解除
+//
+// GET /api/patrol/projects - 登録済みプロジェクト一覧の取得
+//
+// GET /api/patrol/scan - 全プロジェクトの状態スキャン
+//
+// POST /api/patrol/start - 巡回の開始
+//
+// POST /api/patrol/stop - 巡回の停止
+//
+// POST /api/patrol/resume - 承認待ちプロジェクトの再開
+//
+// GET /api/patrol/states - 全プロジェクトの実行状態取得
+//
+// GET /api/patrol/stream - SSEイベントストリーミング
+//
+// POST /api/patrol/polling/start - 定期ポーリングの開始
+//
+// POST /api/patrol/polling/stop - 定期ポーリングの停止
+//
 // ## Plan API (後方互換性)
 //
 // POST /api/plan - /planコマンドの同期実行
@@ -357,6 +401,23 @@
 //	api.GET("/projects/validate", createHandler.HandleValidate)
 //	api.POST("/projects/create/stream", createHandler.HandleCreateStream)
 //	api.POST("/projects/open", createHandler.HandleOpen)
+//
+//	// PatrolHandler
+//	patrolConfigPath := filepath.Join(ghostrunnerRoot, "devtools", "backend", "patrol_projects.json")
+//	patrolService := service.NewPatrolService(claudeService, ntfyService, patrolConfigPath)
+//	patrolHandler := handler.NewPatrolHandler(patrolService)
+//	patrol := api.Group("/patrol")
+//	patrol.POST("/projects", patrolHandler.HandleRegister)
+//	patrol.POST("/projects/remove", patrolHandler.HandleRemove)
+//	patrol.GET("/projects", patrolHandler.HandleListProjects)
+//	patrol.GET("/scan", patrolHandler.HandleScan)
+//	patrol.POST("/start", patrolHandler.HandleStart)
+//	patrol.POST("/stop", patrolHandler.HandleStop)
+//	patrol.POST("/resume", patrolHandler.HandleResume)
+//	patrol.GET("/states", patrolHandler.HandleStates)
+//	patrol.GET("/stream", patrolHandler.HandleStream)
+//	patrol.POST("/polling/start", patrolHandler.HandlePollingStart)
+//	patrol.POST("/polling/stop", patrolHandler.HandlePollingStop)
 //
 //	// HealthHandler
 //	healthHandler := handler.NewHealthHandler()

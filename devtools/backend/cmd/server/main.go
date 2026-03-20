@@ -34,6 +34,11 @@ func main() {
 	projectsHandler := handler.NewProjectsHandler()
 	healthHandler := handler.NewHealthHandler()
 
+	// 巡回サービスの依存性組み立て
+	patrolConfigPath := filepath.Join(ghostrunnerRoot, "devtools", "backend", "patrol_projects.json")
+	patrolService := service.NewPatrolService(claudeService, ntfyService, patrolConfigPath)
+	patrolHandler := handler.NewPatrolHandler(patrolService)
+
 	// プロジェクト生成関連の依存性組み立て
 	templateService := service.NewTemplateService(ghostrunnerRoot)
 	homeDir, err := os.UserHomeDir()
@@ -102,6 +107,22 @@ func main() {
 		api.GET("/projects/validate", createHandler.HandleValidate)
 		api.POST("/projects/create/stream", createHandler.HandleCreateStream)
 		api.POST("/projects/open", createHandler.HandleOpen)
+
+		// 巡回API
+		patrol := api.Group("/patrol")
+		{
+			patrol.POST("/projects", patrolHandler.HandleRegister)
+			patrol.POST("/projects/remove", patrolHandler.HandleRemove)
+			patrol.GET("/projects", patrolHandler.HandleListProjects)
+			patrol.GET("/scan", patrolHandler.HandleScan)
+			patrol.POST("/start", patrolHandler.HandleStart)
+			patrol.POST("/stop", patrolHandler.HandleStop)
+			patrol.POST("/resume", patrolHandler.HandleResume)
+			patrol.GET("/states", patrolHandler.HandleStates)
+			patrol.GET("/stream", patrolHandler.HandleStream)
+			patrol.POST("/polling/start", patrolHandler.HandlePollingStart)
+			patrol.POST("/polling/stop", patrolHandler.HandlePollingStop)
+		}
 	}
 
 	// サーバー起動（0.0.0.0で全インターフェースからアクセス可能に）

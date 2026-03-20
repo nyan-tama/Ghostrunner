@@ -3,13 +3,13 @@ package service
 
 // AllowedCommands は許可されたスラッシュコマンドのリストです
 var AllowedCommands = map[string]bool{
-	"plan":      true,
-	"coding":    true,
-	"go":        true,
-	"nextjs":    true,
-	"discuss":   true,
-	"research":  true,
-	"init":      true,
+	"plan":     true,
+	"coding":   true,
+	"go":       true,
+	"nextjs":   true,
+	"discuss":  true,
+	"research": true,
+	"init":     true,
 }
 
 // ClaudeResponse はClaude CLIのJSON出力を表します
