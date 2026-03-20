@@ -1,5 +1,6 @@
 # プロジェクトルート
 PROJECT_ROOT := $(shell pwd)
+DEVTOOLS_ROOT := $(PROJECT_ROOT)/devtools
 
 # デフォルトターゲット（ヘルプ表示）
 .DEFAULT_GOAL := help
@@ -49,10 +50,10 @@ help:
 .PHONY: backend frontend dev
 
 backend:
-	cd $(PROJECT_ROOT)/backend && [ -f .env ] && set -a && . ./.env && set +a; go run ./cmd/server
+	cd $(DEVTOOLS_ROOT)/backend && [ -f .env ] && set -a && . ./.env && set +a; go run ./cmd/server
 
 frontend:
-	cd $(PROJECT_ROOT)/frontend && npm run dev
+	cd $(DEVTOOLS_ROOT)/frontend && npm run dev
 
 dev:
 	@echo "両サーバーを起動..."
@@ -63,7 +64,7 @@ dev:
 
 start-backend:
 	@echo "Starting backend in background..."
-	@nohup sh -c 'cd $(PROJECT_ROOT)/backend && [ -f .env ] && set -a && . ./.env && set +a; go run ./cmd/server' > /tmp/backend.log 2>&1 &
+	@nohup sh -c 'cd $(DEVTOOLS_ROOT)/backend && [ -f .env ] && set -a && . ./.env && set +a; go run ./cmd/server' > /tmp/backend.log 2>&1 &
 	@sleep 2
 	@echo "Backend started. Showing logs (Ctrl+C to exit):"
 	@tail -f /tmp/backend.log | LC_ALL=C sed \
@@ -79,7 +80,7 @@ start-backend:
 
 start-frontend:
 	@echo "Starting frontend in background..."
-	@nohup sh -c 'cd $(PROJECT_ROOT)/frontend && npm run dev' > /tmp/frontend.log 2>&1 &
+	@nohup sh -c 'cd $(DEVTOOLS_ROOT)/frontend && npm run dev' > /tmp/frontend.log 2>&1 &
 	@sleep 2
 	@echo "Frontend started. Showing logs (Ctrl+C to exit):"
 	@tail -f /tmp/frontend.log | LC_ALL=C sed \
@@ -122,11 +123,11 @@ stop: stop-backend stop-frontend
 
 restart-backend: stop-backend
 	@sleep 1
-	@nohup sh -c 'cd $(PROJECT_ROOT)/backend && [ -f .env ] && set -a && . ./.env && set +a; go run ./cmd/server' > /tmp/backend.log 2>&1 &
+	@nohup sh -c 'cd $(DEVTOOLS_ROOT)/backend && [ -f .env ] && set -a && . ./.env && set +a; go run ./cmd/server' > /tmp/backend.log 2>&1 &
 
 restart-frontend: stop-frontend
 	@sleep 1
-	@nohup sh -c 'cd $(PROJECT_ROOT)/frontend && npm run dev' > /tmp/frontend.log 2>&1 &
+	@nohup sh -c 'cd $(DEVTOOLS_ROOT)/frontend && npm run dev' > /tmp/frontend.log 2>&1 &
 
 restart:
 	@make -j2 restart-backend restart-frontend
@@ -137,7 +138,7 @@ restart:
 restart-backend-logs: stop-backend
 	@echo "Restarting backend..."
 	@sleep 1
-	@nohup sh -c 'cd $(PROJECT_ROOT)/backend && [ -f .env ] && set -a && . ./.env && set +a; go run ./cmd/server' > /tmp/backend.log 2>&1 &
+	@nohup sh -c 'cd $(DEVTOOLS_ROOT)/backend && [ -f .env ] && set -a && . ./.env && set +a; go run ./cmd/server' > /tmp/backend.log 2>&1 &
 	@sleep 2
 	@echo "Backend restarted. Showing logs (Ctrl+C to exit):"
 	@tail -f /tmp/backend.log | LC_ALL=C sed \
@@ -154,7 +155,7 @@ restart-backend-logs: stop-backend
 restart-frontend-logs: stop-frontend
 	@echo "Restarting frontend..."
 	@sleep 1
-	@nohup sh -c 'cd $(PROJECT_ROOT)/frontend && npm run dev' > /tmp/frontend.log 2>&1 &
+	@nohup sh -c 'cd $(DEVTOOLS_ROOT)/frontend && npm run dev' > /tmp/frontend.log 2>&1 &
 	@sleep 2
 	@echo "Frontend restarted. Showing logs (Ctrl+C to exit):"
 	@tail -f /tmp/frontend.log | LC_ALL=C sed \
@@ -174,8 +175,8 @@ restart-frontend-logs: stop-frontend
 .PHONY: build
 
 build:
-	cd $(PROJECT_ROOT)/backend && go build -o server ./cmd/server
-	cd $(PROJECT_ROOT)/frontend && npm run build
+	cd $(DEVTOOLS_ROOT)/backend && go build -o server ./cmd/server
+	cd $(DEVTOOLS_ROOT)/frontend && npm run build
 
 # ヘルスチェック
 .PHONY: health
@@ -228,7 +229,7 @@ logs:
 frontend-external:
 	@TAILSCALE_IP=$$(tailscale ip -4 2>/dev/null || echo "localhost"); \
 	echo "Using API base: http://$$TAILSCALE_IP:8080"; \
-	cd $(PROJECT_ROOT)/frontend && NEXT_PUBLIC_API_BASE="http://$$TAILSCALE_IP:8080" npx next dev -H 0.0.0.0
+	cd $(DEVTOOLS_ROOT)/frontend && NEXT_PUBLIC_API_BASE="http://$$TAILSCALE_IP:8080" npx next dev -H 0.0.0.0
 
 dev-external:
 	@TAILSCALE_IP=$$(tailscale ip -4 2>/dev/null || echo "localhost"); \
