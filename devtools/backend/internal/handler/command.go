@@ -257,6 +257,11 @@ func (h *CommandHandler) HandleContinue(c *gin.Context) {
 		return
 	}
 
+	// project未指定の場合、Ghostrunnerルートを自動設定
+	if req.Project == "" {
+		req.Project = h.ghostrunnerRoot
+	}
+
 	log.Printf("[CommandHandler] HandleContinue started: project=%s, sessionID=%s, answer=%s", req.Project, req.SessionID, req.Answer)
 
 	// プロジェクトパスのバリデーション
@@ -324,6 +329,11 @@ func (h *CommandHandler) HandleContinueStream(c *gin.Context) {
 			Error:   "リクエストが不正です",
 		})
 		return
+	}
+
+	// project未指定の場合、Ghostrunnerルートを自動設定
+	if req.Project == "" {
+		req.Project = h.ghostrunnerRoot
 	}
 
 	log.Printf("[CommandHandler] HandleContinueStream started: project=%s, sessionID=%s", req.Project, req.SessionID)
