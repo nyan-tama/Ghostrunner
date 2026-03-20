@@ -1,7 +1,3 @@
----
-name: devtools
-description: 開発進捗ビューアを起動
----
 
 # /devtools - 開発進捗ビューア
 

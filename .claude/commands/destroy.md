@@ -1,7 +1,3 @@
----
-name: destroy
-description: プロジェクト削除
----
 
 # /destroy - プロジェクト削除
 

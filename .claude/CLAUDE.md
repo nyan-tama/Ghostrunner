@@ -1,15 +1,15 @@
 # プロジェクト CLAUDE.md
 
-Ghostrunner - Claude Code用フルスタック開発フレームワーク（Claude Code Plugin）。
+Ghostrunner - Claude Code用フルスタック開発フレームワーク。
 
 ## プロジェクト概要
 
-個人開発者向けのClaude Code Pluginとして、エージェント・スキル・テンプレート・devtoolsを統合し、`/plugin install ghostrunner` でどのプロジェクトからでも利用可能にする。
+個人開発者向けのClaude Code開発フレームワーク。Ghostrunnerを開いて `/init` を実行すると、エージェント・コマンド・テンプレートが組み込まれた新規プロジェクトを対話的に生成する。
 
-**Plugin構成:**
-- `agents/` - 23エージェント（Go/Next.js/PostgreSQL/ストレージ/Redis/運用）
-- `skills/` - 13スキル（/init, /fullstack, /plan, /stage, /release 等）
-- `hooks/` - フック設定（コード品質チェック、フォーマッター）
+**構成:**
+- `.claude/agents/` - 23エージェント（Go/Next.js/PostgreSQL/ストレージ/Redis/運用）
+- `.claude/commands/` - 13コマンド（/init, /fullstack, /plan, /stage, /release 等）
+- `.claude/settings.json` - フック設定（コード品質チェック、フォーマッター）
 - `templates/` - プロジェクト雛形（base, with-db, with-storage, with-redis）
 - `devtools/` - 進捗ビューア（Go + Next.js アプリ）
 
@@ -17,12 +17,11 @@ Ghostrunner - Claude Code用フルスタック開発フレームワーク（Clau
 
 ```
 Ghostrunner/
-|-- .claude-plugin/
-|   |-- plugin.json        # プラグインマニフェスト
-|-- agents/                # エージェント定義（.md）
-|-- skills/                # スキル定義（*/SKILL.md）
-|-- hooks/
-|   |-- hooks.json         # フック設定
+|-- .claude/
+|   |-- agents/            # エージェント定義（.md）
+|   |-- commands/          # コマンド定義（.md）
+|   |-- settings.json      # フック設定
+|   |-- CLAUDE.md          # このファイル
 |-- templates/
 |   |-- base/              # Go + Next.js 基本構成
 |   |-- with-db/           # PostgreSQL + GORM
@@ -32,9 +31,6 @@ Ghostrunner/
 |   |-- backend/           # 進捗ビューア API（Go + Gin）
 |   |-- frontend/          # 進捗ビューア UI（Next.js）
 |-- 開発/                  # 開発ドキュメント
-|-- .claude/
-|   |-- CLAUDE.md          # このファイル
-|   |-- settings.json      # Ghostrunner自体の開発用設定
 ```
 
 ---
@@ -173,14 +169,4 @@ make frontend         # devtools フロントエンドを起動
 make dev              # 両方を並列起動
 make stop             # 両方を停止
 make health           # ヘルスチェック
-```
-
-## Plugin開発・テスト
-
-```bash
-# ローカルでPluginとしてテスト
-claude --plugin-dir /Users/user/Ghostrunner
-
-# 変更後のリロード（セッション内）
-/reload-plugins
 ```

@@ -1,9 +1,5 @@
----
-name: go
-description: Go バックエンド実装サイクル
----
 
-# /go
+# /nextjs
 
 **ultrathink**
 
@@ -11,13 +7,13 @@ description: Go バックエンド実装サイクル
 
 ```mermaid
 flowchart TD
-    Start[ブランチ作成] --> A[go-impl]
-    A -->|実装完了| B[go-reviewer]
-    B -->|問題なし| B2[go-tester]
+    Start[ブランチ作成] --> A[nextjs-impl]
+    A -->|実装完了| B[nextjs-reviewer]
+    B -->|問題なし| B2[nextjs-tester]
     B -->|修正必要| A
-    B -->|計画見直し必要| D[go-planner]
+    B -->|計画見直し必要| D[nextjs-planner]
     D -->|計画再作成| A
-    B2 -->|全テストPASS| C[go-documenter]
+    B2 -->|全テストPASS| C[nextjs-documenter]
     B2 -->|本番コードにバグ| A
     C -->|ドキュメント更新| E[reporter]
     E -->|レポート作成| F[コミット]
@@ -39,21 +35,21 @@ git checkout -b feat/機能名
 
 ### 1. タスク要件に従い、機能実装を行う
 
-- 必ず `go-impl` エージェントを使用する
+- 必ず `nextjs-impl` エージェントを使用する
 - プロジェクト内容を詳細に理解したうえで、要件に基づいて実装する
 - 既存のコードパターンに厳密に従う
-- ビルドが通過するまで繰り返す（`cd backend && go build ./...`）
+- ビルドが通過するまで繰り返す（`cd frontend && npm run build`）
 
 ### 2. 実装内容が要件に沿っているか確認する
 
-- 必ず `go-reviewer` エージェントを使用して確認する
-- Go 固有の規約に基づいて、実装要件に抜け漏れがないか、バグやセキュリティリスクなど潜在的な問題がないか、徹底的にレビューする
-- 静的解析（`go vet`、`go fmt`）をすべてパスすること
+- 必ず `nextjs-reviewer` エージェントを使用して確認する
+- TypeScript/React 固有の規約に基づいて、実装要件に抜け漏れがないか、バグやセキュリティリスクなど潜在的な問題がないか、徹底的にレビューする
+- 型チェック（`npx tsc --noEmit`）と ESLint（`npm run lint`）をすべてパスすること
 - reviewer はコードレビューのみ行う（テスト実行は次のステップ）
 
 ### 3. テストプランに基づくテスト実施
 
-レビュー通過後、`go-tester` エージェントでテストを実施する。
+レビュー通過後、`nextjs-tester` エージェントでテストを実施する。
 
 - 計画書のテストプランに基づいてテストコードを作成
 - テストを実行し、全テストがパスすることを確認
@@ -62,19 +58,22 @@ git checkout -b feat/機能名
 
 ### 4. 計画見直しが必要な場合
 
-`go-reviewer` が「計画見直しが必要」と判断した場合：
-- `go-planner` エージェントに問題を報告
-- `go-planner` が計画を再作成
+`nextjs-reviewer` が「計画見直しが必要」と判断した場合：
+- `nextjs-planner` エージェントに問題を報告
+- `nextjs-planner` が計画を再作成
 - 1 に戻って再実装
 
 ## 完了フェーズ
 
-レビューが通過したら、以下を順に実行する。
+レビューとテストが通過したら、以下を順に実行する。
 
 ### 5. ドキュメント更新
 
-- `go-documenter` エージェントを使用する
-- 変更に応じて doc.go、GoDoc コメントを更新
+- `nextjs-documenter` エージェントを使用する
+- 変更に応じて `frontend/docs/` 配下のドキュメントを更新
+  - `screens.md` - 画面一覧
+  - `screen-flow.md` - 画面遷移フロー
+  - `scenarios/` - ユーザー操作シナリオ
 
 ### 6. 実装レポート作成
 
@@ -99,6 +98,7 @@ feat ブランチへのコミットが完了しています。
 ## 完了条件
 
 - すべてのビルドチェックが通過している
+- 型チェック、ESLint がエラーなし
 - レビューで Critical / Warning の指摘がない
 - 実装要件を完全に満たしている
 - ドキュメントが更新されている

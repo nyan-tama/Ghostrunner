@@ -1,7 +1,3 @@
----
-name: discuss
-description: アイデアや課題の対話的深掘り
----
 
 # /discuss
 
