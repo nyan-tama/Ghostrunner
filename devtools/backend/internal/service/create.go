@@ -308,8 +308,9 @@ func (s *CreateService) sendError(eventCh chan<- CreateEvent, step string, err e
 func (s *CreateService) OpenInVSCode(path string) error {
 	log.Printf("[CreateService] OpenInVSCode started: path=%s", path)
 
-	// macOS: open コマンドで VS Code を起動（PATH に code が無くても動作する）
-	cmd := exec.Command("open", "-a", "Visual Studio Code", path)
+	// macOS: open コマンドで VS Code を起動（フォルダ + README.md を開く）
+	readmePath := filepath.Join(path, "README.md")
+	cmd := exec.Command("open", "-a", "Visual Studio Code", path, readmePath)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to open VS Code: %w", err)
 	}
