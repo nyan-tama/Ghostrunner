@@ -8,8 +8,9 @@ const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 const COMPRESSION_THRESHOLD_BYTES = 2 * 1024 * 1024; // 2MB - 圧縮を開始する閾値
 const MAX_DIMENSION = 2048; // リサイズ時の最大長辺
 const COMPRESSION_QUALITY = 0.8; // JPEG出力品質
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/heic", "image/heif"];
 const COMPRESSIBLE_TYPES = ["image/jpeg", "image/png"];
+const HEIC_TYPES = ["image/heic", "image/heif"];
 
 interface ImageUploaderProps {
   images: ImageData[];
@@ -126,6 +127,20 @@ async function compressImage(file: File): Promise<CompressionResult> {
   });
 }
 
+// HEIC/HEIFかどうかを判定（MIMEタイプまたは拡張子で判定）
+function isHeicFile(file: File): boolean {
+  if (HEIC_TYPES.includes(file.type)) return true;
+  return /\.heic$/i.test(file.name) || /\.heif$/i.test(file.name);
+}
+
+// HEIC/HEIF → JPEG に変換（dynamic import でクライアントのみ）
+async function convertHeicToJpeg(file: File): Promise<File> {
+  const heic2any = (await import("heic2any")).default;
+  const blob = await heic2any({ blob: file, toType: "image/jpeg", quality: COMPRESSION_QUALITY }) as Blob;
+  const name = file.name.replace(/\.heic$/i, ".jpg").replace(/\.heif$/i, ".jpg");
+  return new File([blob], name, { type: "image/jpeg" });
+}
+
 // 圧縮が必要かどうかを判定
 function shouldCompress(file: File): boolean {
   // GIF/WebPは圧縮しない
@@ -168,7 +183,7 @@ export default function ImageUploader({
         return `画像は最大${MAX_IMAGES}枚までです`;
       }
       if (!ALLOWED_TYPES.includes(file.type)) {
-        return `${file.name}: サポートされていない形式です (JPEG, PNG, GIF, WebP のみ)`;
+        return `${file.name}: サポートされていない形式です (JPEG, PNG, GIF, WebP, HEIC)`;
       }
       // 圧縮不可能なファイル（GIF/WebP）は5MBを超えていたらエラー
       if (!shouldCompress(file) && file.size > MAX_SIZE_BYTES) {
@@ -197,9 +212,9 @@ export default function ImageUploader({
       let currentCount = images.length;
       let hasCompressibleFile = false;
 
-      // 圧縮が必要なファイルがあるかチェック
+      // HEIC変換または圧縮が必要なファイルがあるかチェック
       for (const file of fileArray) {
-        if (shouldCompress(file)) {
+        if (isHeicFile(file) || shouldCompress(file)) {
           hasCompressibleFile = true;
           break;
         }
@@ -224,9 +239,15 @@ export default function ImageUploader({
           }
 
           try {
-            if (shouldCompress(file)) {
+            // HEIC/HEIF → JPEG 変換
+            let processedFile = file;
+            if (isHeicFile(file)) {
+              processedFile = await convertHeicToJpeg(file);
+            }
+
+            if (shouldCompress(processedFile)) {
               // 圧縮処理
-              const result = await compressImage(file);
+              const result = await compressImage(processedFile);
               newImages.push({
                 name: result.name,
                 data: result.base64,
@@ -234,11 +255,11 @@ export default function ImageUploader({
               });
             } else {
               // 圧縮不要なファイルはそのまま変換
-              const base64 = await fileToBase64(file);
+              const base64 = await fileToBase64(processedFile);
               newImages.push({
-                name: file.name,
+                name: processedFile.name,
                 data: base64,
-                mimeType: file.type,
+                mimeType: processedFile.type,
               });
             }
             currentCount++;
@@ -320,7 +341,7 @@ export default function ImageUploader({
   return (
     <div className="mb-4">
       <label className="block mb-2 font-semibold text-gray-800">
-        Images (optional)
+        画像（任意）
       </label>
 
       {/* 圧縮中インジケーター */}
@@ -366,17 +387,17 @@ export default function ImageUploader({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/gif,image/webp"
+            accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif,.heic,.heif"
             multiple
             onChange={handleFileSelect}
             disabled={isCompressing}
             className="hidden"
           />
           <p className="text-gray-500 text-sm">
-            Click or drag images here ({images.length}/{MAX_IMAGES})
+            クリックまたはドラッグで追加 ({images.length}/{MAX_IMAGES})
           </p>
           <p className="text-gray-400 text-xs mt-1">
-            JPEG, PNG, GIF, WebP / Max 5MB each
+            JPEG, PNG, GIF, WebP, HEIC / 5MB以下
           </p>
         </div>
 
@@ -411,7 +432,7 @@ export default function ImageUploader({
             <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
             <circle cx="12" cy="13" r="4" />
           </svg>
-          <p className="text-gray-500 text-sm mt-1">Take photo</p>
+          <p className="text-gray-500 text-sm mt-1">写真を撮る</p>
         </div>
       </div>
 
