@@ -17,14 +17,14 @@ disable-model-invocation: true
 
 **バリデーション:**
 - プロジェクト名が空の場合はエラー: 「プロジェクト名を指定してください。例: `/destroy my-project`」
-- `/Users/user/<プロジェクト名>/` が存在しない場合はエラー: 「プロジェクトが見つかりません」
+- `~/<プロジェクト名>/` が存在しない場合はエラー: 「プロジェクトが見つかりません」
 
 ### Step 2: リソース検出
 
 削除対象のリソースを自動検出する。
 
 ```bash
-cd /Users/user/<プロジェクト名>
+cd ~/<プロジェクト名>
 ```
 
 以下を並列で検出する:
@@ -48,7 +48,7 @@ cd /Users/user/<プロジェクト名>
 - **Upstash (staging)** - staging 用 Upstash Redis を削除
 - **Upstash (production)** - production 用 Upstash Redis を削除（本番データが失われます）
 - **GitHub** - GitHub リポジトリ・GCP デプロイ基盤を削除
-- **ソースコード** - /Users/user/<プロジェクト名>/ を削除
+- **ソースコード** - ~/<プロジェクト名>/ を削除
 
 **注意**: サーバープロセスの停止は常に実行する（選択不要）。GCP サービスアカウント・Secret Manager は GitHub を選択した場合に一緒に削除する（デプロイ基盤とセットのため）。
 
@@ -59,7 +59,7 @@ cd /Users/user/<プロジェクト名>
 #### 4.1 サーバー停止（常に実行）
 
 ```bash
-cd /Users/user/<プロジェクト名>
+cd ~/<プロジェクト名>
 make stop 2>/dev/null || true
 lsof -ti:8080 | xargs kill -9 2>/dev/null || true
 lsof -ti:3000 | xargs kill -9 2>/dev/null || true
@@ -68,7 +68,7 @@ lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 #### 4.2 Docker（選択時）
 
 ```bash
-cd /Users/user/<プロジェクト名>
+cd ~/<プロジェクト名>
 docker-compose down -v 2>/dev/null || true
 ```
 
@@ -136,11 +136,11 @@ gh repo delete <プロジェクト名> --yes 2>/dev/null || true
 #### 4.8 ソースコード（選択時）
 
 最終確認を行う:
-AskUserQuestion: 「/Users/user/<プロジェクト名>/ を完全に削除します。よろしいですか？」
+AskUserQuestion: 「~/<プロジェクト名>/ を完全に削除します。よろしいですか？」
 - 選択肢: はい、削除する / キャンセル
 
 ```bash
-rm -rf /Users/user/<プロジェクト名>
+rm -rf ~/<プロジェクト名>
 ```
 
 ### Step 5: 完了メッセージ
@@ -159,5 +159,5 @@ rm -rf /Users/user/<プロジェクト名>
   - Upstash Redis production 削除              ← 選択時のみ
   - GitHub リポジトリ削除                       ← 選択時のみ
   - GCP サービスアカウント・Secret Manager 削除  ← GitHub選択時のみ
-  - /Users/user/<プロジェクト名>/ 削除           ← 選択時のみ
+  - ~/<プロジェクト名>/ 削除           ← 選択時のみ
 ```
