@@ -6,13 +6,43 @@ interface ChatMessageProps {
   item: ChatItem;
 }
 
+// **bold** と `code` を簡易レンダリング
+function renderText(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const regex = /(\*\*(.+?)\*\*|`([^`]+)`)/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    if (match[2]) {
+      parts.push(<strong key={match.index}>{match[2]}</strong>);
+    } else if (match[3]) {
+      parts.push(
+        <code key={match.index} className="px-1 py-0.5 bg-black/10 rounded text-xs font-mono">
+          {match[3]}
+        </code>
+      );
+    }
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts;
+}
+
 export default function ChatMessage({ item }: ChatMessageProps) {
   switch (item.type) {
     case "ai":
       return (
         <div className="flex justify-start">
           <div className="max-w-[80%] px-4 py-3 rounded-2xl rounded-tl-sm bg-gray-200 text-gray-800 text-sm whitespace-pre-wrap">
-            {item.content}
+            {renderText(item.content)}
           </div>
         </div>
       );
