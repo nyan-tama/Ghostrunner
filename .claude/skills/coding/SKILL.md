@@ -1,11 +1,11 @@
 ---
-name: fullstack
+name: coding
 description: バックエンドとフロントエンドの両方を実装する
 disable-model-invocation: true
 ---
 
 
-# /fullstack
+# /coding
 
 **ultrathink**
 
@@ -17,7 +17,7 @@ disable-model-invocation: true
 最初に以下のコマンドを実行して開始時刻を記録する:
 
 ```bash
-date +%s > /tmp/claude-timer-fullstack-start
+date +%s > /tmp/claude-timer-coding-start
 ```
 
 **スキップ条件:**
@@ -261,7 +261,7 @@ feat ブランチへのコミットが完了しています。
 全ステップ完了後に以下のコマンドを実行して所要時間を表示する:
 
 ```bash
-start=$(cat /tmp/claude-timer-fullstack-start) && end=$(date +%s) && elapsed=$((end - start)) && minutes=$((elapsed / 60)) && seconds=$((elapsed % 60)) && echo "/fullstack 所要時間: ${minutes}分${seconds}秒" && echo "$(date +%Y-%m-%d),fullstack,$ARGUMENTS,${elapsed}秒,${minutes}分${seconds}秒" >> ~/ghostrunner-timing.csv
+start=$(cat /tmp/claude-timer-coding-start) && end=$(date +%s) && elapsed=$((end - start)) && minutes=$((elapsed / 60)) && seconds=$((elapsed % 60)) && echo "/coding 所要時間: ${minutes}分${seconds}秒" && echo "$(date +%Y-%m-%d),coding,$ARGUMENTS,${elapsed}秒,${minutes}分${seconds}秒" >> ~/ghostrunner-timing.csv
 ```
 
 ## タスク

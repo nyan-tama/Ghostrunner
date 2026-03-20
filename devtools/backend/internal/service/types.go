@@ -4,7 +4,7 @@ package service
 // AllowedCommands は許可されたスラッシュコマンドのリストです
 var AllowedCommands = map[string]bool{
 	"plan":      true,
-	"fullstack": true,
+	"coding":    true,
 	"go":        true,
 	"nextjs":    true,
 	"discuss":   true,

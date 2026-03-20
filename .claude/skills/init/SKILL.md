@@ -16,7 +16,7 @@ disable-model-invocation: true
 ### MVPに徹する
 - **まずは最小限で動くものを作る**ことを常に促す
 - ユーザーが多くの機能を求めた場合: 「まずは○○だけで始めましょう。動くものを見てから拡張できます」
-- 「その機能は後から `/fullstack` で追加できます。最初はシンプルに始めましょう」
+- 「その機能は後から `/coding` で追加できます。最初はシンプルに始めましょう」
 - 複雑な構成を提案しない。迷ったらシンプルな方を選ぶ
 
 ### 分かりやすい言葉を使う
@@ -95,7 +95,7 @@ Q0 の回答を受けて:
 生成先: ~/<名前>/
 
 これで作成を始めてよいですか？
-追加の機能は、完成後に `/fullstack` でいつでも追加できます。
+追加の機能は、完成後に `/coding` でいつでも追加できます。
 ```
 
 **重要**:
@@ -533,9 +533,9 @@ curl -s http://localhost:${PORT_FRONTEND} > /dev/null && echo "Frontend: OK"
 プロジェクトの土台ができました。これからMVP機能を実装します...
 ```
 
-### Step 12: MVP機能の実装（/plan → /fullstack）
+### Step 12: MVP機能の実装（/plan → /coding）
 
-Step 2 の Q2 で承認されたMVP機能を、既存の `/plan` と `/fullstack` スキルを順に実行して実装する。
+Step 2 の Q2 で承認されたMVP機能を、既存の `/plan` と `/coding` スキルを順に実行して実装する。
 
 #### 12.1 /plan の実行
 
@@ -548,17 +548,17 @@ Step 2 の Q2 で承認されたMVP機能を、既存の `/plan` と `/fullstack
 
 `/plan` が実装計画書を `開発/実装/実装待ち/` に生成する。
 
-#### 12.2 /fullstack の実行
+#### 12.2 /coding の実行
 
-計画書が生成されたら、同じプロジェクトディレクトリで `/fullstack` を実行する。
+計画書が生成されたら、同じプロジェクトディレクトリで `/coding` を実行する。
 
-`/fullstack` が以下の工程を自動で実行する:
+`/coding` が以下の工程を自動で実行する:
 - バックエンド: impl → reviewer → tester → documenter → コミット
 - フロントエンド: impl → reviewer → tester → documenter → コミット
 
 #### 12.3 動作確認
 
-`/fullstack` 完了後、サーバーを起動して動作確認する:
+`/coding` 完了後、サーバーを起動して動作確認する:
 
 ```bash
 cd ~/<プロジェクト名>
@@ -581,7 +581,7 @@ make dev
   フロントエンド: http://localhost:${PORT_FRONTEND}
   バックエンド API: http://localhost:${PORT_BACKEND}/api/health
 
-次の機能追加は `/fullstack` コマンドで行えます。
+次の機能追加は `/coding` コマンドで行えます。
 ```
 
 ### Step 14: 本番デプロイ準備（PostgreSQL またはストレージまたは Redis 選択時）

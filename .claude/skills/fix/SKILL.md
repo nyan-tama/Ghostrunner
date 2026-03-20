@@ -44,7 +44,7 @@ flowchart TD
     BOTH --> COMMIT
     COMMIT --> DONE["完了 - 次は /stage"]
 
-    ADVISE --> END_PLAN["ここで終了（/plan → /fullstack はユーザーが別途実行）"]
+    ADVISE --> END_PLAN["ここで終了（/plan → /coding はユーザーが別途実行）"]
 ```
 
 
@@ -200,7 +200,7 @@ fix-judge の判定結果に基づき、以下を具体的に提示する:
 - 既存planの活かせる部分
 - 新規で検討が必要な部分
 
-**ここでコマンドは終了。** ユーザーが `/plan` → `/fullstack` を別途実行する。
+**ここでコマンドは終了。** ユーザーが `/plan` → `/coding` を別途実行する。
 
 
 ## 完了条件（続投ルート）

@@ -22,7 +22,7 @@ date +%s > /tmp/claude-timer-stage-start
 ## 前提条件
 
 - feat ブランチ上で作業が完了し、コミット済みであること
-- `/fullstack`、`/go`、`/nextjs` のいずれかで実装・レビュー・テストが完了していること
+- `/coding`、`/go`、`/nextjs` のいずれかで実装・レビュー・テストが完了していること
 
 ## 実行方法
 

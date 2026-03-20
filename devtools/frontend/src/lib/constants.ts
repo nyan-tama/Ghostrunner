@@ -2,7 +2,7 @@ export const COMMANDS = [
   { value: "plan", label: "/plan - 実装計画作成" },
   { value: "research", label: "/research - 外部情報調査" },
   { value: "discuss", label: "/discuss - アイデア深掘り" },
-  { value: "fullstack", label: "/fullstack - フルスタック実装" },
+  { value: "coding", label: "/coding - 機能追加" },
 ] as const;
 
 export const DEV_FOLDERS = [
