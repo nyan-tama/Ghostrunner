@@ -1,10 +1,10 @@
 ---
-name: ghostrunner-init
+name: init
 description: プロジェクトスターター - 新規プロジェクトを対話的に生成
 argument-hint: <project-name>
 ---
 
-# /ghostrunner-init - プロジェクトスターター
+# /init - プロジェクトスターター
 
 引数 `$ARGUMENTS` から新プロジェクトを対話的に生成する。
 
