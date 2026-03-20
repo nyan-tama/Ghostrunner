@@ -3,8 +3,6 @@ export const COMMANDS = [
   { value: "research", label: "/research - 外部情報調査" },
   { value: "discuss", label: "/discuss - アイデア深掘り" },
   { value: "fullstack", label: "/fullstack - フルスタック実装" },
-  { value: "go", label: "/go - Go バックエンド実装" },
-  { value: "nextjs", label: "/nextjs - Next.js フロントエンド実装" },
 ] as const;
 
 export const DEV_FOLDERS = [
