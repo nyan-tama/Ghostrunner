@@ -1,3 +1,8 @@
+---
+name: plan
+description: 実装計画作成 - 仕様書分析と懸念点の洗い出し
+---
+
 # /plan
 
 **ultrathink**

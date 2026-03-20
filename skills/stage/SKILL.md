@@ -1,3 +1,8 @@
+---
+name: stage
+description: ステージング環境にデプロイ
+---
+
 # /stage
 
 **ultrathink**

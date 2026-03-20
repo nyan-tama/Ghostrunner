@@ -1,3 +1,8 @@
+---
+name: release
+description: 本番リリース - staging を main にマージ
+---
+
 # /release
 
 **ultrathink**

@@ -1,3 +1,8 @@
+---
+name: destroy
+description: プロジェクト削除
+---
+
 # /destroy - プロジェクト削除
 
 引数 `$ARGUMENTS` から対象プロジェクトを特定し、選択したリソースを削除する。

@@ -1,3 +1,8 @@
+---
+name: go
+description: Go バックエンド実装サイクル
+---
+
 # /go
 
 **ultrathink**

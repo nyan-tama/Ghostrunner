@@ -1,3 +1,8 @@
+---
+name: fullstack
+description: フルスタック実装 - 計画からコミットまでを一括実行
+---
+
 # /fullstack
 
 **ultrathink**

@@ -1,3 +1,8 @@
+---
+name: nextjs
+description: Next.js フロントエンド実装サイクル
+---
+
 # /nextjs
 
 **ultrathink**

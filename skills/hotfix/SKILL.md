@@ -1,3 +1,8 @@
+---
+name: hotfix
+description: 緊急本番修正
+---
+
 # /hotfix
 
 **ultrathink**

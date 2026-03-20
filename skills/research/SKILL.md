@@ -1,3 +1,8 @@
+---
+name: research
+description: 外部情報の調査レポート作成
+---
+
 # /research
 
 **ultrathink**

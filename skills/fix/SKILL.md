@@ -1,3 +1,8 @@
+---
+name: fix
+description: 本番問題の修正判定と実行
+---
+
 # /fix
 
 **ultrathink**
