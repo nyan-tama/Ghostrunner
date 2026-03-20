@@ -64,7 +64,7 @@ func (s *claudeServiceImpl) ExecuteCommand(ctx context.Context, project, command
 
 	// プロンプト構築: "/<command> <args>"
 	prompt := buildPromptWithImages(command, args, imagePaths)
-	return s.executeCommand(ctx, project, prompt, "", nil)
+	return s.executeCommand(ctx, project, prompt, "")
 }
 
 // ExecuteCommandStream はカスタムコマンドをストリーミングで実行します
@@ -87,7 +87,7 @@ func (s *claudeServiceImpl) ExecuteCommandStream(ctx context.Context, project, c
 
 	// プロンプト構築: "/<command> <args>"
 	prompt := buildPromptWithImages(command, args, imagePaths)
-	return s.executeCommandStream(ctx, project, prompt, "", nil, eventCh)
+	return s.executeCommandStream(ctx, project, prompt, "", eventCh)
 }
 
 // ExecutePlan は/planコマンドを実行します（互換性維持）
@@ -101,7 +101,7 @@ func (s *claudeServiceImpl) ExecutePlan(ctx context.Context, project, args strin
 func (s *claudeServiceImpl) ContinueSession(ctx context.Context, project, sessionID, answer string) (*CommandResult, error) {
 	log.Printf("[ClaudeService] ContinueSession started: project=%s, sessionID=%s, answer=%s", project, sessionID, truncateLog(answer, 100))
 
-	return s.executeCommand(ctx, project, answer, sessionID, nil)
+	return s.executeCommand(ctx, project, answer, sessionID)
 }
 
 // ExecutePlanStream は/planコマンドをストリーミングで実行します（互換性維持）
@@ -115,11 +115,11 @@ func (s *claudeServiceImpl) ExecutePlanStream(ctx context.Context, project, args
 func (s *claudeServiceImpl) ContinueSessionStream(ctx context.Context, project, sessionID, answer string, eventCh chan<- StreamEvent) error {
 	log.Printf("[ClaudeService] ContinueSessionStream started: project=%s, sessionID=%s", project, sessionID)
 
-	return s.executeCommandStream(ctx, project, answer, sessionID, nil, eventCh)
+	return s.executeCommandStream(ctx, project, answer, sessionID, eventCh)
 }
 
 // executeCommandStream はCLIコマンドをストリーミングで実行します
-func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, prompt, sessionID string, imagePaths []string, eventCh chan<- StreamEvent) error {
+func (s *claudeServiceImpl) executeCommandStream(ctx context.Context, project, prompt, sessionID string, eventCh chan<- StreamEvent) error {
 	defer close(eventCh)
 
 	// タイムアウト付きコンテキストを作成
@@ -524,7 +524,7 @@ func formatToolMessage(toolName string, toolInput interface{}) string {
 }
 
 // executeCommand はCLIコマンドを実行し、結果をパースします
-func (s *claudeServiceImpl) executeCommand(ctx context.Context, project, prompt, sessionID string, imagePaths []string) (*CommandResult, error) {
+func (s *claudeServiceImpl) executeCommand(ctx context.Context, project, prompt, sessionID string) (*CommandResult, error) {
 	// タイムアウト付きコンテキストを作成
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
