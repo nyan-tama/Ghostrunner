@@ -1,3 +1,9 @@
+---
+name: plan
+description: 仕様書を分析し実装計画を作成する
+disable-model-invocation: true
+---
+
 
 # /plan
 

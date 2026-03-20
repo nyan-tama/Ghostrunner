@@ -1,3 +1,9 @@
+---
+name: hotfix
+description: 本番環境の緊急修正をstaging経由でリリースする
+disable-model-invocation: true
+---
+
 
 # /hotfix
 

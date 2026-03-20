@@ -1,3 +1,9 @@
+---
+name: fix
+description: デプロイ後の修正を判定し適切なフローで実行する
+disable-model-invocation: true
+---
+
 
 # /fix
 

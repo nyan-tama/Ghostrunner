@@ -1,3 +1,9 @@
+---
+name: release
+description: stagingをmainにマージし本番リリースする
+disable-model-invocation: true
+---
+
 
 # /release
 

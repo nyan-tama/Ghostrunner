@@ -1,3 +1,9 @@
+---
+name: fullstack
+description: バックエンドとフロントエンドの両方を実装する
+disable-model-invocation: true
+---
+
 
 # /fullstack
 

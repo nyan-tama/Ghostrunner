@@ -1,3 +1,9 @@
+---
+name: nextjs
+description: Next.jsフロントエンドの実装サイクルを実行する
+disable-model-invocation: true
+---
+
 
 # /nextjs
 

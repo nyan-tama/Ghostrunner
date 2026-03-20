@@ -1,3 +1,9 @@
+---
+name: stage
+description: featブランチをstagingにsquash mergeしデプロイする
+disable-model-invocation: true
+---
+
 
 # /stage
 

@@ -1,3 +1,9 @@
+---
+name: research
+description: 外部情報を収集し調査レポートを作成する
+disable-model-invocation: true
+---
+
 
 # /research
 

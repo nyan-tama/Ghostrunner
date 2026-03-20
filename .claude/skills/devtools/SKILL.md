@@ -1,3 +1,9 @@
+---
+name: devtools
+description: 開発進捗ビューアを起動する
+disable-model-invocation: true
+---
+
 
 # /devtools - 開発進捗ビューア
 
@@ -8,7 +14,7 @@ devtools（開発ドキュメントビューア）を起動する。
 ## 実行
 
 ```bash
-cd ${CLAUDE_PLUGIN_ROOT}/devtools && PROJECT_DIR=$(pwd) npm run dev -- -p 3001
+cd .devtools && PROJECT_DIR=$(pwd) npm run dev -- -p 3001
 ```
 
 起動後、http://localhost:3001 でアクセス可能。

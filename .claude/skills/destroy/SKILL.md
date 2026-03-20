@@ -1,3 +1,9 @@
+---
+name: destroy
+description: プロジェクトのリソースを検出し選択的に削除する
+disable-model-invocation: true
+---
+
 
 # /destroy - プロジェクト削除
 
