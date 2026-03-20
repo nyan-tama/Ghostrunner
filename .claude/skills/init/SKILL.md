@@ -293,6 +293,31 @@ Ghostrunnerの `.claude/CLAUDE.md` (`/Users/user/Ghostrunner/.claude/CLAUDE.md`)
 - **Frontend (Next.js)**: 技術スタック、コード構成、コードスタイル、テスト、ファイル構造、ビルド・実行コマンド
 - **共通ルール**: セキュリティ、Gitワークフロー（日本語コミットメッセージ）、Makefileコマンド
 
+### Step 7.3: README.md 更新
+
+選択したサービスに応じて、README.md の「実装済みの機能」セクションに追記する。Edit ツールで追記すること。
+
+PostgreSQL 選択時に追記:
+- ページ表に `| http://localhost:${PORT_FRONTEND}/samples | DB サンプル（CRUD操作） |` を追加
+- API表に以下を追加:
+  - `| GET | /api/samples | サンプル一覧取得 |`
+  - `| POST | /api/samples | サンプル作成 |`
+- 技術スタックに `PostgreSQL + GORM` を追加
+
+ストレージ選択時に追記:
+- ページ表に `| http://localhost:${PORT_FRONTEND}/storage | ファイルアップロード |` を追加
+- API表に以下を追加:
+  - `| GET | /api/storage/files | ファイル一覧取得 |`
+  - `| POST | /api/storage/upload | ファイルアップロード |`
+- 技術スタックに `Cloudflare R2 / MinIO` を追加
+
+Redis 選択時に追記:
+- ページ表に `| http://localhost:${PORT_FRONTEND}/cache | キャッシュ操作 |` を追加
+- API表に以下を追加:
+  - `| GET | /api/cache/:key | キャッシュ取得 |`
+  - `| POST | /api/cache | キャッシュ設定 |`
+- 技術スタックに `Redis` を追加
+
 ### Step 7.5: devtools シンボリックリンク作成
 
 devtools（進捗ビューア）へのシンボリックリンクを作成する。
