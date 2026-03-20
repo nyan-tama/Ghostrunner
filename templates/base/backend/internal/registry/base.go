@@ -9,9 +9,7 @@ import (
 func init() {
 	OnRoute(func(api *gin.RouterGroup) {
 		healthHandler := handler.NewHealthHandler()
-		helloHandler := handler.NewHelloHandler()
 
 		api.GET("/health", healthHandler.Handle)
-		api.GET("/hello", helloHandler.Handle)
 	})
 }

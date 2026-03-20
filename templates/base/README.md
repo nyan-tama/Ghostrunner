@@ -30,7 +30,6 @@ make stop
 | メソッド | URL | 内容 |
 |---------|-----|------|
 | GET | /api/health | ヘルスチェック |
-| GET | /api/hello | Hello World レスポンス |
 
 ### 技術スタック
 
