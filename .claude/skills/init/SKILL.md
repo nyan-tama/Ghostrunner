@@ -61,29 +61,46 @@ Q0 の回答を受けて:
 「例: 『予約管理システム』『社内の在庫管理ツール』『ブログサービス』など」
 （自由入力。ここで入力された内容がプロジェクトの説明としてCLAUDE.mdに記載される）
 
-**Q2: データの保存先**
-「作るアプリでは、どんなデータを扱いますか？ 当てはまるものを選んでください（複数OK）」（multiSelect: true）
-- 選択肢:
-  1. データの保存（ユーザー情報、注文履歴など、表形式のデータを保存したい場合）
-  2. ファイルのアップロード（画像、PDF、動画などのファイルを管理したい場合）
-  3. 高速キャッシュ（分からなければ選ばなくてOK）
-  4. 特になし / 分からない（まずはシンプルに始めたい）
+**Q2: MVP提案と承認**
 
-（内部的な対応: 1=PostgreSQL, 2=Cloudflare R2, 3=Redis, 4=なし）
+ユーザーの回答（Q0 または Q1）を元に、以下を判断してMVP提案を行う:
 
-ユーザーが「分からない」と答えた項目や「4」を選んだ場合は、該当サービスを含めずにプロジェクトを生成する。
+1. **必要なサービスを自動判断**: ユーザーの説明から DB/ストレージ/キャッシュの要否を判断する
+   - データの保存が必要そう → PostgreSQL を含める
+   - ファイルアップロードが必要そう → ストレージを含める
+   - 判断できない場合は含めない（後から追加可能）
 
-**Q3: 最終確認**
-収集した情報を分かりやすく表示し、生成を開始してよいか確認する:
+2. **MVP機能を1つだけ提案**: 最も核となる機能を1つだけ選ぶ
+   - 「予約管理システム」→ 「予約の一覧表示と新規登録」
+   - 「社内の在庫管理ツール」→ 「商品の一覧表示と在庫数の登録」
+   - 「ブログサービス」→ 「記事の一覧表示と新規投稿」
+   - 複数機能を提案しない。**1つの機能だけ**に絞る
+
+3. **提案を表示して承認を求める**:
 ```
-作成するプロジェクト:
-  名前: <名前>
-  作るもの: <Q0またはQ1の回答>
-  データの保存: データベース, ファイルストレージ（選択したもの、または「なし」）
-  生成先: /Users/user/<名前>/
+まずは最小限の MVP を作りましょう！
 
-これでプロジェクトを作成します。よろしいですか？
+プロジェクト名: <名前>
+作るもの: <ユーザーの説明>
+
+最初に実装する機能:
+  <MVP機能の説明（1つだけ）>
+  - 画面: <画面の説明>
+  - データ: <扱うデータの説明>
+
+必要な構成:
+  - データベース: あり/なし
+  - ファイル保存: あり/なし
+
+生成先: /Users/user/<名前>/
+
+これで作成を始めてよいですか？
+追加の機能は、完成後に `/fullstack` でいつでも追加できます。
 ```
+
+**重要**: ユーザーが「もっと機能を追加したい」と言った場合:
+- 「まずはこの1つの機能だけで動くものを作りましょう。動くものを見てから追加する方が確実です」と促す
+- それでも追加を求める場合は、最大でもう1つだけ追加を許容する
 
 ### Step 3: テンプレートコピー
 
@@ -507,37 +524,88 @@ curl -s http://localhost:${PORT_BACKEND}/api/health
 curl -s http://localhost:${PORT_FRONTEND} > /dev/null && echo "Frontend: OK"
 ```
 
-### Step 11: 完了メッセージ
+### Step 11: 環境構築完了の中間報告
 
-以下を表示する（ポート番号は Step 4 で決定した値を使用）:
+以下を表示する:
 
 ```
-プロジェクト「<プロジェクト名>」の生成・起動が完了しました！
+プロジェクトの土台ができました。これからMVP機能を実装します...
+```
+
+### Step 12: MVP機能の実装
+
+Step 2 の Q2 で承認されたMVP機能を実装する。
+
+**重要なルール:**
+- 作業ディレクトリは `/Users/user/<プロジェクト名>/` に移動して実装する
+- 既存のコードパターン（registry パターン、handler 構造）に従う
+- **1つの機能だけ**を実装する。スコープを広げない
+- バックエンドとフロントエンドの両方を実装する
+
+#### 12.1 バックエンド実装
+
+1. DB を使う場合: model（GORM構造体）を作成
+2. handler を作成（CRUD の必要な部分だけ）
+3. registry にルーティング登録
+4. `cd /Users/user/<プロジェクト名>/backend && go build ./...` でビルド確認
+
+**実装パターン**: 既存の `handler/hello.go` と `registry/base.go` を参考にする。
+
+#### 12.2 フロントエンド実装
+
+1. MVP機能のページを作成（`src/app/<機能名>/page.tsx`）
+2. トップページ（`src/app/page.tsx`）にリンクを追加
+3. API呼び出しとデータ表示を実装
+4. `cd /Users/user/<プロジェクト名>/frontend && npm run build` でビルド確認
+
+**実装パターン**: シンプルな Server Component or Client Component。Tailwind CSS でスタイリング。
+
+#### 12.3 サーバー再起動と動作確認
+
+```bash
+cd /Users/user/<プロジェクト名>
+make dev
+```
+
+起動後、実装した機能が動作することを確認:
+- フロントエンドの画面が表示されること
+- APIが正しくレスポンスを返すこと
+- DB を使う場合、データの登録と取得ができること
+
+#### 12.4 README.md 更新
+
+実装した機能を README.md の「実装済みの機能」セクションに追記する。
+- ページ表に新しい画面を追加
+- API表に新しいエンドポイントを追加
+
+#### 12.5 Git コミット
+
+```bash
+cd /Users/user/<プロジェクト名>
+git add -A
+git commit -m "feat: <MVP機能名>の初期実装"
+```
+
+### Step 13: 完了メッセージ
+
+以下を表示する:
+
+```
+プロジェクト「<プロジェクト名>」の作成が完了しました！
 
 生成先: /Users/user/<プロジェクト名>/
+
+実装した機能:
+  <MVP機能の説明>
 
 アクセス:
   フロントエンド: http://localhost:${PORT_FRONTEND}
   バックエンド API: http://localhost:${PORT_BACKEND}/api/health
 
-サーバー停止:
-  cd /Users/user/<プロジェクト名>
-  make stop
+次の機能追加は `/fullstack` コマンドで行えます。
 ```
 
-DB選択時は追加で表示:
-```
-DB接続:
-  docker exec <プロジェクト名>-db psql -U postgres -d <プロジェクト名>
-```
-
-Redis 選択時は追加で表示:
-```
-Redis:
-  docker exec <プロジェクト名>-redis redis-cli
-```
-
-### Step 12: 本番デプロイ準備（PostgreSQL またはストレージまたは Redis 選択時）
+### Step 14: 本番デプロイ準備（PostgreSQL またはストレージまたは Redis 選択時）
 
 PostgreSQL、ストレージ、Redis のいずれかを選択した場合、本番環境のセットアップを提案する。
 
@@ -545,9 +613,9 @@ AskUserQuestion で確認:
 「本番デプロイの準備（GCP + Neon / R2 / Upstash）を行いますか？」
 - 選択肢: はい / スキップ（後で手動で設定する）
 
-**「スキップ」の場合**: Step 12 を終了する。
+**「スキップ」の場合**: Step 14 を終了する。
 
-#### 12.1 gcloud CLI 確認・インストール
+#### 14.1 gcloud CLI 確認・インストール
 
 ```bash
 which gcloud
@@ -558,7 +626,7 @@ which gcloud
 brew install --cask google-cloud-sdk
 ```
 
-#### 12.2 GCP 認証
+#### 14.2 GCP 認証
 
 ```bash
 gcloud auth list 2>&1
@@ -570,7 +638,7 @@ gcloud auth list 2>&1
 gcloud auth login
 ```
 
-#### 12.3 GCP プロジェクト選択
+#### 14.3 GCP プロジェクト選択
 
 ```bash
 gcloud projects list --format="table(projectId,name)" 2>&1
@@ -594,7 +662,7 @@ gcloud billing projects link <プロジェクトID> --billing-account=<請求先
 gcloud config set project <プロジェクトID>
 ```
 
-#### 12.4 GCP API 有効化
+#### 14.4 GCP API 有効化
 
 ```bash
 gcloud services enable \
@@ -603,7 +671,7 @@ gcloud services enable \
   containerregistry.googleapis.com
 ```
 
-#### 12.5 GCP サービスアカウント作成
+#### 14.5 GCP サービスアカウント作成
 
 GitHub Actions からデプロイするためのサービスアカウントを作成する:
 ```bash
@@ -624,7 +692,7 @@ gcloud projects add-iam-policy-binding $GCP_PROJECT --member="serviceAccount:${S
 gcloud iam service-accounts keys create /tmp/<プロジェクト名>-sa-key.json --iam-account=$SA_EMAIL
 ```
 
-#### 12.6 GitHub リポジトリ作成・Secrets 登録
+#### 14.6 GitHub リポジトリ作成・Secrets 登録
 
 `gh` CLI の確認:
 ```bash
@@ -652,7 +720,7 @@ gh secret set GCP_PROJECT_ID --body="$GCP_PROJECT"
 rm /tmp/<プロジェクト名>-sa-key.json
 ```
 
-#### 12.7 GitHub Environments 作成
+#### 14.7 GitHub Environments 作成
 
 production 環境を作成し、Variables を登録する:
 ```bash
@@ -688,7 +756,7 @@ neonctl projects list 2>&1
 neonctl auth
 ```
 
-#### 12.10 Neon プロジェクト作成
+#### 14.10 Neon プロジェクト作成
 
 AskUserQuestion で確認:
 「Neon プロジェクトを新規作成しますか？」
@@ -702,14 +770,14 @@ neonctl projects create --name <プロジェクト名> --region-id aws-ap-northe
 **「既存を使う」の場合**:
 `neonctl projects list` の結果を表示し、使用するプロジェクトを選択させる。
 
-#### 12.11 スキーマ反映
+#### 14.11 スキーマ反映
 
 ```bash
 PROD_CONNSTR=$(neonctl connection-string --project-id <プロジェクトID>)
 psql "$PROD_CONNSTR" -f /Users/user/<プロジェクト名>/db/init.sql
 ```
 
-#### 12.12 Secret Manager に DATABASE_URL を登録
+#### 14.12 Secret Manager に DATABASE_URL を登録
 
 ```bash
 echo -n "$PROD_CONNSTR" | gcloud secrets create DATABASE_URL --data-file=-
@@ -717,7 +785,7 @@ echo -n "$PROD_CONNSTR" | gcloud secrets create DATABASE_URL --data-file=-
 
 注: サービスアカウントへの `roles/secretmanager.secretAccessor` は 12.5 で付与済み。
 
-#### 12.13 Secret Manager に R2 クレデンシャルを登録（ストレージ選択時）
+#### 14.13 Secret Manager に R2 クレデンシャルを登録（ストレージ選択時）
 
 ストレージを選択した場合のみ実行する。
 
@@ -740,7 +808,7 @@ echo -n "<値>" | gcloud secrets create R2_BUCKET_NAME --data-file=-
 
 **以下の 12.14〜12.15 は Redis 選択時のみ実行する。**
 
-#### 12.14 Upstash CLI 確認・インストール
+#### 14.14 Upstash CLI 確認・インストール
 
 ```bash
 which upstash
@@ -762,7 +830,7 @@ upstash redis list 2>&1
 upstash auth login
 ```
 
-#### 12.15 Upstash Redis 作成・Secret Manager 登録
+#### 14.15 Upstash Redis 作成・Secret Manager 登録
 
 AskUserQuestion で確認:
 「Upstash Redis を新規作成しますか？」
@@ -782,7 +850,7 @@ echo -n "$PROD_REDIS_URL" | gcloud secrets create REDIS_URL --data-file=-
 **「後で設定する」の場合**:
 完了メッセージに Secret Manager 登録コマンドを含める。
 
-#### 12.16 deploy.yml に Secret Manager 参照を追加
+#### 14.16 deploy.yml に Secret Manager 参照を追加
 
 生成したプロジェクトの `.github/workflows/deploy.yml` を Edit ツールで編集し、backend の `gcloud run deploy` コマンドに `--set-secrets` を追加する。
 
@@ -805,7 +873,7 @@ Redis 選択時に追加する行:
 
 追加位置: backend deploy ステップの `--set-env-vars` の行の直前に `\` で行を継続して挿入する。
 
-#### 12.17 デプロイ準備完了メッセージ
+#### 14.17 デプロイ準備完了メッセージ
 
 ```
 本番デプロイ準備が完了しました！
