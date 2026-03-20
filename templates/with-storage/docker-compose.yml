@@ -3,8 +3,8 @@ services:
     image: minio/minio:latest
     container_name: "{{PROJECT_NAME}}-minio"
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "{{PORT_MINIO}}:9000"
+      - "{{PORT_MINIO_CONSOLE}}:9001"
     environment:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=minioadmin

@@ -3,20 +3,20 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: {{PROJECT_NAME}}-backend
+    container_name: "{{PROJECT_NAME}}-backend"
     ports:
-      - "8080:8080"
+      - "{{PORT_BACKEND}}:8080"
     environment:
       - PORT=8080
-      - ALLOWED_ORIGIN=http://localhost:3000
+      - ALLOWED_ORIGIN=http://localhost:{{PORT_FRONTEND}}
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: {{PROJECT_NAME}}-frontend
+    container_name: "{{PROJECT_NAME}}-frontend"
     ports:
-      - "3000:3000"
+      - "{{PORT_FRONTEND}}:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:8080
     depends_on:

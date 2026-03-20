@@ -3,7 +3,7 @@ services:
     image: redis:7-alpine
     container_name: "{{PROJECT_NAME}}-redis"
     ports:
-      - "6379:6379"
+      - "{{PORT_REDIS}}:6379"
     volumes:
       - redisdata:/data
 

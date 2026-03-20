@@ -145,9 +145,29 @@ cp /Users/user/Ghostrunner/templates/with-redis/docker-compose.yml /Users/user/<
 
 **注意**: 各オプションは `internal/registry/` にファイルを追加する方式なので、複数オプションを同時に選択しても衝突しない。.env.example と go.mod は base のものをベースに、Step 5・6 で各オプションの変数・依存を追記する。
 
-### Step 4: プレースホルダー置換
+### Step 4: ポート割り当て + プレースホルダー置換
 
-`{{PROJECT_NAME}}` を実際のプロジェクト名に一括置換する。
+#### 4.1 ランダムポートの生成
+
+下3桁を共通のランダム値（100〜999）で生成し、先頭桁でサービスを識別する。
+
+```bash
+# ランダムな下3桁を生成（100〜999）
+PORT_SUFFIX=$((RANDOM % 900 + 100))
+PORT_BACKEND=8${PORT_SUFFIX}
+PORT_FRONTEND=3${PORT_SUFFIX}
+PORT_DB=5${PORT_SUFFIX}
+PORT_MINIO=9${PORT_SUFFIX}
+PORT_MINIO_CONSOLE=$((PORT_MINIO + 1))
+PORT_REDIS=6${PORT_SUFFIX}
+```
+
+予約済みポートとの衝突チェック（8080, 8888, 3000, 3333, 5432, 9000, 9001, 6379 に該当したら再生成）。
+使用中ポートのチェック（`lsof -ti:${PORT_BACKEND}` 等で確認、使用中なら再生成）。
+
+#### 4.2 プレースホルダー一括置換
+
+`{{PROJECT_NAME}}` と `{{PORT_xxx}}` を一括置換する。
 
 **重要**: バイナリファイル破損を防ぐため、対象はテキストファイル拡張子のみに限定する。
 
@@ -158,21 +178,32 @@ find . -type f \( \
   -o -name "*.css" -o -name "*.yml" -o -name "*.yaml" -o -name "*.md" \
   -o -name "*.mjs" -o -name "*.sql" -o -name "Makefile" \
   -o -name "Dockerfile" -o -name ".gitignore" \
-\) -exec sed -i '' "s/{{PROJECT_NAME}}/<プロジェクト名>/g" {} +
+\) -exec sed -i '' \
+  -e "s/{{PROJECT_NAME}}/<プロジェクト名>/g" \
+  -e "s/{{PORT_BACKEND}}/${PORT_BACKEND}/g" \
+  -e "s/{{PORT_FRONTEND}}/${PORT_FRONTEND}/g" \
+  -e "s/{{PORT_DB}}/${PORT_DB}/g" \
+  -e "s/{{PORT_MINIO_CONSOLE}}/${PORT_MINIO_CONSOLE}/g" \
+  -e "s/{{PORT_MINIO}}/${PORT_MINIO}/g" \
+  -e "s/{{PORT_REDIS}}/${PORT_REDIS}/g" \
+  {} +
 ```
+
+**注意**: `{{PORT_MINIO_CONSOLE}}` を `{{PORT_MINIO}}` より先に置換すること（部分マッチ防止）。
 
 ### Step 5: .env 作成
 
 base の `.env.example` に選択したオプションの環境変数を追記し、`.env` にコピーする。
+ポート番号は Step 4 で置換済みの変数を使用する。
 
 PostgreSQL 選択時:
 ```bash
-echo 'DATABASE_URL=postgres://postgres:postgres@localhost:5432/<プロジェクト名>?sslmode=disable' >> /Users/user/<プロジェクト名>/backend/.env.example
+echo "DATABASE_URL=postgres://postgres:postgres@localhost:${PORT_DB}/<プロジェクト名>?sslmode=disable" >> /Users/user/<プロジェクト名>/backend/.env.example
 ```
 
 ストレージ選択時:
 ```bash
-echo 'STORAGE_ENDPOINT=http://localhost:9000' >> /Users/user/<プロジェクト名>/backend/.env.example
+echo "STORAGE_ENDPOINT=http://localhost:${PORT_MINIO}" >> /Users/user/<プロジェクト名>/backend/.env.example
 echo 'R2_ACCOUNT_ID=' >> /Users/user/<プロジェクト名>/backend/.env.example
 echo 'R2_ACCESS_KEY_ID=minioadmin' >> /Users/user/<プロジェクト名>/backend/.env.example
 echo 'R2_ACCESS_KEY_SECRET=minioadmin' >> /Users/user/<プロジェクト名>/backend/.env.example
@@ -181,7 +212,7 @@ echo 'R2_BUCKET_NAME=uploads' >> /Users/user/<プロジェクト名>/backend/.en
 
 Redis 選択時:
 ```bash
-echo 'REDIS_URL=redis://localhost:6379' >> /Users/user/<プロジェクト名>/backend/.env.example
+echo "REDIS_URL=redis://localhost:${PORT_REDIS}" >> /Users/user/<プロジェクト名>/backend/.env.example
 ```
 
 最後に `.env` にコピー:
@@ -294,16 +325,16 @@ PostgreSQL、ストレージ、Redis のいずれかを選択した場合:
 
 使用するポートが使用中か確認し、使用中の場合はユーザーに確認して停止する。
 
-- PostgreSQL 選択時: 5432, 8080
-- ストレージ選択時: 9000, 9001, 8080
-- Redis 選択時: 6379, 8080
+- PostgreSQL 選択時: ${PORT_DB}, ${PORT_BACKEND}
+- ストレージ選択時: ${PORT_MINIO}, ${PORT_MINIO_CONSOLE}, ${PORT_BACKEND}
+- Redis 選択時: ${PORT_REDIS}, ${PORT_BACKEND}
 - 複数選択時: 選択したサービスのポートを全て含める
 
 ```bash
-lsof -ti:5432  # PostgreSQL 選択時
-lsof -ti:9000  # ストレージ選択時
-lsof -ti:6379  # Redis 選択時
-lsof -ti:8080
+lsof -ti:${PORT_DB}     # PostgreSQL 選択時
+lsof -ti:${PORT_MINIO}  # ストレージ選択時
+lsof -ti:${PORT_REDIS}  # Redis 選択時
+lsof -ti:${PORT_BACKEND}
 ```
 
 プロセスが存在する場合:
@@ -336,7 +367,7 @@ docker exec <プロジェクト名>-db pg_isready -U postgres
 ```bash
 # MinIO の起動を待機（minio-init がバケット作成を完了するまで）
 sleep 5
-curl -s http://localhost:9000/minio/health/live
+curl -s http://localhost:${PORT_MINIO}/minio/health/live
 ```
 
 Redis 選択時:
@@ -366,40 +397,40 @@ nohup sh -c 'cd frontend && npm run dev' > /tmp/<プロジェクト名>-frontend
 
 ```bash
 # ヘルスチェック
-curl -s http://localhost:8080/api/health
+curl -s http://localhost:${PORT_BACKEND}/api/health
 ```
 
 PostgreSQL 選択時:
 ```bash
 # DB書き込みテスト
-curl -s -X POST http://localhost:8080/api/samples \
+curl -s -X POST http://localhost:${PORT_BACKEND}/api/samples \
   -H "Content-Type: application/json" \
   -d '{"name":"Hello","description":"Initial sample"}'
 
 # 読み取り確認
-curl -s http://localhost:8080/api/samples
+curl -s http://localhost:${PORT_BACKEND}/api/samples
 ```
 
 ストレージ選択時:
 ```bash
 # ファイルアップロードテスト
 echo "test" > /tmp/test-upload.txt
-curl -s -X POST http://localhost:8080/api/storage/upload -F "file=@/tmp/test-upload.txt"
+curl -s -X POST http://localhost:${PORT_BACKEND}/api/storage/upload -F "file=@/tmp/test-upload.txt"
 
 # ファイル一覧確認
-curl -s http://localhost:8080/api/storage/files
+curl -s http://localhost:${PORT_BACKEND}/api/storage/files
 rm /tmp/test-upload.txt
 ```
 
 Redis 選択時:
 ```bash
 # キャッシュ書き込みテスト
-curl -s -X POST http://localhost:8080/api/cache \
+curl -s -X POST http://localhost:${PORT_BACKEND}/api/cache \
   -H "Content-Type: application/json" \
   -d '{"key":"hello","value":"world","ttl_seconds":60}'
 
 # 読み取り確認
-curl -s http://localhost:8080/api/cache/hello
+curl -s http://localhost:${PORT_BACKEND}/api/cache/hello
 ```
 
 ### Step 10: 起動（PostgreSQL もストレージも Redis も未選択時）
@@ -408,7 +439,7 @@ PostgreSQL もストレージも Redis も選択しなかった場合:
 
 #### 10.1 ポート確保
 
-ポート 8080 が使用中か確認し、使用中の場合はユーザーに確認して停止する。
+ポート ${PORT_BACKEND} が使用中か確認し、使用中の場合はユーザーに確認して停止する。
 
 #### 10.2 バックエンド起動
 
@@ -427,13 +458,13 @@ nohup sh -c 'cd frontend && npm run dev' > /tmp/<プロジェクト名>-frontend
 #### 10.4 動作確認
 
 ```bash
-curl -s http://localhost:8080/api/health
-curl -s http://localhost:3000 > /dev/null && echo "Frontend: OK"
+curl -s http://localhost:${PORT_BACKEND}/api/health
+curl -s http://localhost:${PORT_FRONTEND} > /dev/null && echo "Frontend: OK"
 ```
 
 ### Step 11: 完了メッセージ
 
-以下を表示する:
+以下を表示する（ポート番号は Step 4 で決定した値を使用）:
 
 ```
 プロジェクト「<プロジェクト名>」の生成・起動が完了しました！
@@ -441,8 +472,8 @@ curl -s http://localhost:3000 > /dev/null && echo "Frontend: OK"
 生成先: /Users/user/<プロジェクト名>/
 
 アクセス:
-  フロントエンド: http://localhost:3000
-  バックエンド API: http://localhost:8080/api/health
+  フロントエンド: http://localhost:${PORT_FRONTEND}
+  バックエンド API: http://localhost:${PORT_BACKEND}/api/health
 
 サーバー停止:
   cd /Users/user/<プロジェクト名>

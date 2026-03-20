@@ -3,7 +3,7 @@ services:
     image: postgres:16-alpine
     container_name: "{{PROJECT_NAME}}-db"
     ports:
-      - "5432:5432"
+      - "{{PORT_DB}}:5432"
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -18,10 +18,10 @@ services:
       dockerfile: Dockerfile
     container_name: "{{PROJECT_NAME}}-backend"
     ports:
-      - "8080:8080"
+      - "{{PORT_BACKEND}}:8080"
     environment:
       - PORT=8080
-      - ALLOWED_ORIGIN=http://localhost:3000
+      - ALLOWED_ORIGIN=http://localhost:{{PORT_FRONTEND}}
       - DATABASE_URL="postgres://postgres:postgres@db:5432/{{PROJECT_NAME}}?sslmode=disable"
     depends_on:
       - db
@@ -32,7 +32,7 @@ services:
       dockerfile: Dockerfile
     container_name: "{{PROJECT_NAME}}-frontend"
     ports:
-      - "3000:3000"
+      - "{{PORT_FRONTEND}}:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:8080
     depends_on:

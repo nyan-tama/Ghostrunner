@@ -93,13 +93,13 @@ start-frontend:
 stop-backend:
 	-pkill -f "go run.*cmd/server" || true
 	-pkill -f "backend/server" || true
-	-lsof -ti:8080 | xargs kill -9 2>/dev/null || true
+	-lsof -ti:{{PORT_BACKEND}} | xargs kill -9 2>/dev/null || true
 
 stop-frontend:
 	-pkill -f "next dev" || true
 	-pkill -f "npm.*dev" || true
 	-pkill -f "npm.*start" || true
-	-lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+	-lsof -ti:{{PORT_FRONTEND}} | xargs kill -9 2>/dev/null || true
 
 stop: stop-backend stop-frontend stop-devtools
 
@@ -153,8 +153,8 @@ build:
 .PHONY: health
 
 health:
-	@curl -s http://localhost:8080/api/health || echo "Backend: NG"
-	@curl -s http://localhost:3000 > /dev/null && echo "Frontend: OK" || echo "Frontend: NG"
+	@curl -s http://localhost:{{PORT_BACKEND}}/api/health || echo "Backend: NG"
+	@curl -s http://localhost:{{PORT_FRONTEND}} > /dev/null && echo "Frontend: OK" || echo "Frontend: NG"
 
 # ログ確認
 .PHONY: logs-backend logs-frontend
