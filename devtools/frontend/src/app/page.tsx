@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { StreamEvent, DisplayEvent, Question, ToolInput, RestartStatus, ImageData, ProjectInfo } from "@/types";
+import type { StreamEvent, DisplayEvent, Question, ToolInput, ImageData, ProjectInfo } from "@/types";
 import {
   PLAN_APPROVAL_KEYWORDS,
-  BACKEND_HEALTH_URL,
   LOCAL_STORAGE_GIT_WORKFLOW_KEY,
   GIT_WORKFLOW_INSTRUCTION,
 } from "@/lib/constants";
@@ -105,42 +104,10 @@ export default function Home() {
   const [resultType, setResultType] = useState<"success" | "error" | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // サーバー再起動機能（開発環境のみ）
-  const [restartStatus, setRestartStatus] = useState<RestartStatus>("idle");
-
   // 質問セットと同時にインデックスをリセット
   const setQuestionsWithReset = useCallback((newQuestions: Question[]) => {
     setQuestions(newQuestions);
     setCurrentQuestionIndex(0);
-  }, []);
-
-  const handleRestartServers = useCallback(async () => {
-    setRestartStatus("restarting");
-
-    // Fire-and-Forget: 両方のAPIを呼び出し
-    fetch("/api/restart/backend", { method: "POST" }).catch(() => {});
-    fetch("/api/restart/frontend", { method: "POST" }).catch(() => {});
-
-    // ヘルスチェックポーリング（30秒間、1秒ごと）
-    for (let i = 0; i < 30; i++) {
-      try {
-        const res = await fetch(BACKEND_HEALTH_URL);
-        if (res.ok) {
-          setRestartStatus("success");
-          // 少し待ってからリロード（ユーザーに成功を見せるため）
-          setTimeout(() => {
-            window.location.reload();
-          }, 500);
-          return;
-        }
-      } catch {
-        // エラーは無視してリトライ
-      }
-      await new Promise((r) => setTimeout(r, 1000));
-    }
-
-    // タイムアウト
-    setRestartStatus("timeout");
   }, []);
 
   const addEvent = useCallback(
@@ -514,29 +481,15 @@ export default function Home() {
             className="px-3 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors"
             title="Create a new project"
           >
-            New Project
+            プロジェクト作成
           </a>
           <a
             href={projectPath ? `/docs?project=${encodeURIComponent(projectPath)}` : "/docs"}
-            className="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors"
-            title="Documentation"
+            className="px-3 py-1 text-xs bg-green-50 text-green-700 rounded hover:bg-green-100 transition-colors"
+            title="開発ドキュメント"
           >
-            Docs
+            ファイル一覧
           </a>
-          {process.env.NODE_ENV === "development" && (
-            <button
-              onClick={handleRestartServers}
-              disabled={restartStatus === "restarting"}
-              className="px-3 py-1 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              title="Restart Backend and Frontend servers"
-            >
-              {restartStatus === "restarting"
-                ? "Restarting..."
-                : restartStatus === "timeout"
-                  ? "Timeout - Reload manually"
-                  : "Restart Servers"}
-            </button>
-          )}
         </div>
       </div>
 
