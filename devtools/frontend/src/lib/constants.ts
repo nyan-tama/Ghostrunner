@@ -41,4 +41,4 @@ export const PLAN_APPROVAL_KEYWORDS = [
 // NEXT_PUBLIC_API_BASE が設定されている場合はそれを使用（外部アクセス時）
 export const BACKEND_HEALTH_URL = process.env.NEXT_PUBLIC_API_BASE
   ? `${process.env.NEXT_PUBLIC_API_BASE}/api/health`
-  : "http://localhost:8080/api/health";
+  : "http://localhost:8888/api/health";

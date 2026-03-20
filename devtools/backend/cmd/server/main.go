@@ -105,8 +105,8 @@ func main() {
 	}
 
 	// サーバー起動（0.0.0.0で全インターフェースからアクセス可能に）
-	log.Println("[Server] Listening on 0.0.0.0:8080")
-	if err := r.Run("0.0.0.0:8080"); err != nil {
+	log.Println("[Server] Listening on 0.0.0.0:8888")
+	if err := r.Run("0.0.0.0:8888"); err != nil {
 		log.Fatalf("[Server] Failed to start server: %v", err)
 	}
 }

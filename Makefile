@@ -108,7 +108,7 @@ start:
 stop-backend:
 	-pkill -f "go run.*cmd/server" || true
 	-pkill -f "backend/server" || true
-	-lsof -ti:8080 | xargs kill -9 2>/dev/null || true
+	-lsof -ti:8888 | xargs kill -9 2>/dev/null || true
 
 stop-frontend:
 	-pkill -f "next dev" || true
@@ -182,7 +182,7 @@ build:
 .PHONY: health
 
 health:
-	@curl -s http://localhost:8080/api/health || echo "Backend: NG"
+	@curl -s http://localhost:8888/api/health || echo "Backend: NG"
 	@curl -s http://localhost:3333 > /dev/null && echo "Frontend: OK" || echo "Frontend: NG"
 
 # ログ確認
@@ -223,20 +223,20 @@ logs:
 
 # 外部アクセス用（Tailscale等）
 # フロントエンドを 0.0.0.0 でリッスンさせ、外部からのアクセスを許可
-# バックエンドは既に 0.0.0.0:8080 でリッスンしているため変更不要
+# バックエンドは既に 0.0.0.0:8888 でリッスンしているため変更不要
 .PHONY: frontend-external dev-external
 
 frontend-external:
 	@TAILSCALE_IP=$$(tailscale ip -4 2>/dev/null || echo "localhost"); \
-	echo "Using API base: http://$$TAILSCALE_IP:8080"; \
-	cd $(DEVTOOLS_ROOT)/frontend && NEXT_PUBLIC_API_BASE="http://$$TAILSCALE_IP:8080" npx next dev -H 0.0.0.0
+	echo "Using API base: http://$$TAILSCALE_IP:8888"; \
+	cd $(DEVTOOLS_ROOT)/frontend && NEXT_PUBLIC_API_BASE="http://$$TAILSCALE_IP:8888" npx next dev -H 0.0.0.0
 
 dev-external:
 	@TAILSCALE_IP=$$(tailscale ip -4 2>/dev/null || echo "localhost"); \
 	echo "外部アクセス可能モードで両サーバーを起動します..."; \
 	echo "外部からのアクセスURL:"; \
 	echo "  フロントエンド: http://$$TAILSCALE_IP:3333"; \
-	echo "  バックエンド API: http://$$TAILSCALE_IP:8080"; \
+	echo "  バックエンド API: http://$$TAILSCALE_IP:8888"; \
 	echo ""; \
 	echo "※制限事項: サーバー再起動機能は外部からは使用できません"; \
 	echo ""
