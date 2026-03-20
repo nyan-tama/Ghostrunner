@@ -40,11 +40,6 @@ help:
 	@echo "  make build            - 両方をビルド"
 	@echo "  make health           - ヘルスチェック"
 	@echo ""
-	@echo "外部アクセス（Tailscale等）:"
-	@echo "  make dev-external     - 両サーバーを外部公開モードで起動"
-	@echo "  make frontend-external - フロントエンドのみ外部公開モードで起動"
-	@echo "  ※外部からアクセスする場合は tailscale ip -4 でIPを確認"
-	@echo ""
 
 # 起動（フォアグラウンド、ログ直接表示）
 .PHONY: backend frontend dev
@@ -53,7 +48,7 @@ backend:
 	cd $(DEVTOOLS_ROOT)/backend && [ -f .env ] && set -a && . ./.env && set +a; go run ./cmd/server
 
 frontend:
-	cd $(DEVTOOLS_ROOT)/frontend && npm run dev
+	cd $(DEVTOOLS_ROOT)/frontend && npm run dev -H 0.0.0.0
 
 dev: stop
 	@echo "両サーバーを起動..."
@@ -221,24 +216,4 @@ logs:
 	@echo "  make logs-backend"
 	@echo "  make logs-frontend"
 
-# 外部アクセス用（Tailscale等）
-# フロントエンドを 0.0.0.0 でリッスンさせ、外部からのアクセスを許可
-# バックエンドは既に 0.0.0.0:8888 でリッスンしているため変更不要
-.PHONY: frontend-external dev-external
-
-frontend-external:
-	@TAILSCALE_IP=$$(tailscale ip -4 2>/dev/null || echo "localhost"); \
-	echo "Using API base: http://$$TAILSCALE_IP:8888"; \
-	cd $(DEVTOOLS_ROOT)/frontend && NEXT_PUBLIC_API_BASE="http://$$TAILSCALE_IP:8888" npx next dev -H 0.0.0.0
-
-dev-external:
-	@TAILSCALE_IP=$$(tailscale ip -4 2>/dev/null || echo "localhost"); \
-	echo "外部アクセス可能モードで両サーバーを起動します..."; \
-	echo "外部からのアクセスURL:"; \
-	echo "  フロントエンド: http://$$TAILSCALE_IP:3333"; \
-	echo "  バックエンド API: http://$$TAILSCALE_IP:8888"; \
-	echo ""; \
-	echo "※制限事項: サーバー再起動機能は外部からは使用できません"; \
-	echo ""
-	@make -j2 backend frontend-external
 
