@@ -140,6 +140,22 @@ export function useProjectChat(): UseProjectChatReturn {
               const pathMatch = output.match(/生成先:\s*(\/Users\/\S+)/);
               if (pathMatch) {
                 setCreatedPath(pathMatch[1].replace(/\/$/, ""));
+              } else {
+                // output にない場合、全メッセージから抽出を試みる
+                setMessages((prev) => {
+                  const allText = prev.filter((m) => m.type === "ai").map((m) => m.content).join("\n");
+                  const msgMatch = allText.match(/生成先[:：]\s*(\/Users\/\S+)/);
+                  if (msgMatch) {
+                    setCreatedPath(msgMatch[1].replace(/\/$/, ""));
+                  } else {
+                    // /Users/user/xxx パターンで最後のマッチを使う
+                    const fallback = allText.match(/\/Users\/user\/[a-z0-9][a-z0-9-]*/g);
+                    if (fallback && fallback.length > 0) {
+                      setCreatedPath(fallback[fallback.length - 1]);
+                    }
+                  }
+                  return prev;
+                });
               }
               setPhase("complete");
             }
