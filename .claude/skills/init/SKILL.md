@@ -544,13 +544,9 @@ rm /tmp/<プロジェクト名>-sa-key.json
 
 #### 12.7 GitHub Environments 作成
 
-staging と production の2環境を作成し、環境ごとの Variables を登録する:
+production 環境を作成し、Variables を登録する:
 ```bash
-# staging 環境の Variables（初回デプロイ後に実際の URL に更新する）
-gh variable set FRONTEND_URL --env staging --body="https://<プロジェクト名>-frontend-staging-xxxxxxxxxx-an.a.run.app"
-gh variable set BACKEND_URL --env staging --body="https://<プロジェクト名>-backend-staging-xxxxxxxxxx-an.a.run.app"
-
-# production 環境の Variables
+# production 環境の Variables（初回デプロイ後に実際の URL に更新する）
 gh variable set FRONTEND_URL --env production --body="https://<プロジェクト名>-frontend-xxxxxxxxxx-an.a.run.app"
 gh variable set BACKEND_URL --env production --body="https://<プロジェクト名>-backend-xxxxxxxxxx-an.a.run.app"
 ```
@@ -582,52 +578,30 @@ neonctl projects list 2>&1
 neonctl auth
 ```
 
-#### 12.10 Neon プロジェクト作成（staging + production）
-
-staging 用と production 用の2つの Neon プロジェクトを作成する。
+#### 12.10 Neon プロジェクト作成
 
 AskUserQuestion で確認:
-「Neon プロジェクトを新規作成しますか？（staging + production の2つ作成します）」
+「Neon プロジェクトを新規作成しますか？」
 - 選択肢: 新規作成 / 既存を使う
 
 **「新規作成」の場合**:
 ```bash
-# staging 用
-neonctl projects create --name <プロジェクト名>-staging --region-id aws-ap-northeast-1
-
-# production 用
 neonctl projects create --name <プロジェクト名> --region-id aws-ap-northeast-1
 ```
 
 **「既存を使う」の場合**:
-`neonctl projects list` の結果を表示し、staging 用と production 用をそれぞれ選択させる。
+`neonctl projects list` の結果を表示し、使用するプロジェクトを選択させる。
 
 #### 12.11 スキーマ反映
 
-両方のプロジェクトに init.sql を適用する:
 ```bash
-# staging の接続文字列を取得
-STAGING_CONNSTR=$(neonctl connection-string --project-id <staging のプロジェクトID>)
-
-# production の接続文字列を取得
-PROD_CONNSTR=$(neonctl connection-string --project-id <production のプロジェクトID>)
-
-# staging にスキーマ反映
-psql "$STAGING_CONNSTR" -f /Users/user/<プロジェクト名>/db/init.sql
-
-# production にスキーマ反映
+PROD_CONNSTR=$(neonctl connection-string --project-id <プロジェクトID>)
 psql "$PROD_CONNSTR" -f /Users/user/<プロジェクト名>/db/init.sql
 ```
 
 #### 12.12 Secret Manager に DATABASE_URL を登録
 
-staging と production それぞれの接続文字列を Secret Manager に登録する:
-
 ```bash
-# staging 用
-echo -n "$STAGING_CONNSTR" | gcloud secrets create DATABASE_URL_STAGING --data-file=-
-
-# production 用
 echo -n "$PROD_CONNSTR" | gcloud secrets create DATABASE_URL --data-file=-
 ```
 
@@ -642,14 +616,13 @@ AskUserQuestion で確認:
 - 選択肢: はい / 後で設定する
 
 **「はい」の場合**:
-R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_ACCESS_KEY_SECRET, R2_BUCKET_NAME（production 用）, R2_BUCKET_NAME_STAGING（staging 用）をそれぞれ質問し、Secret Manager に登録する:
+R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_ACCESS_KEY_SECRET, R2_BUCKET_NAME をそれぞれ質問し、Secret Manager に登録する:
 
 ```bash
 echo -n "<値>" | gcloud secrets create R2_ACCOUNT_ID --data-file=-
 echo -n "<値>" | gcloud secrets create R2_ACCESS_KEY_ID --data-file=-
 echo -n "<値>" | gcloud secrets create R2_ACCESS_KEY_SECRET --data-file=-
 echo -n "<値>" | gcloud secrets create R2_BUCKET_NAME --data-file=-
-echo -n "<値>" | gcloud secrets create R2_BUCKET_NAME_STAGING --data-file=-
 ```
 
 **「後で設定する」の場合**:
@@ -681,25 +654,18 @@ upstash auth login
 
 #### 12.15 Upstash Redis 作成・Secret Manager 登録
 
-staging 用と production 用の2つの Redis DB を作成する。
-
 AskUserQuestion で確認:
-「Upstash Redis を新規作成しますか？（staging + production の2つ作成します）」
+「Upstash Redis を新規作成しますか？」
 - 選択肢: 新規作成 / 後で設定する
 
 **「新規作成」の場合**:
 ```bash
-# staging 用
-upstash redis create --name <プロジェクト名>-staging --region ap-northeast-1
-
-# production 用
 upstash redis create --name <プロジェクト名> --region ap-northeast-1
 ```
 
-各 DB の接続文字列（`rediss://default:xxx@xxx.upstash.io:xxx`）を `upstash redis list` で取得し、Secret Manager に登録:
+接続文字列（`rediss://default:xxx@xxx.upstash.io:xxx`）を `upstash redis list` で取得し、Secret Manager に登録:
 
 ```bash
-echo -n "$STAGING_REDIS_URL" | gcloud secrets create REDIS_URL_STAGING --data-file=-
 echo -n "$PROD_REDIS_URL" | gcloud secrets create REDIS_URL --data-file=-
 ```
 
@@ -712,33 +678,24 @@ echo -n "$PROD_REDIS_URL" | gcloud secrets create REDIS_URL --data-file=-
 
 PostgreSQL 選択時に追加する行:
 ```
---set-secrets "DATABASE_URL=${{ github.ref_name == 'main' && 'DATABASE_URL' || 'DATABASE_URL_STAGING' }}:latest"
+--set-secrets "DATABASE_URL=DATABASE_URL:latest"
 ```
 
 ストレージ選択時に追加する行:
 ```
---set-secrets "R2_ACCOUNT_ID=R2_ACCOUNT_ID:latest,R2_ACCESS_KEY_ID=R2_ACCESS_KEY_ID:latest,R2_ACCESS_KEY_SECRET=R2_ACCESS_KEY_SECRET:latest,R2_BUCKET_NAME=${{ github.ref_name == 'main' && 'R2_BUCKET_NAME' || 'R2_BUCKET_NAME_STAGING' }}:latest"
+--set-secrets "R2_ACCOUNT_ID=R2_ACCOUNT_ID:latest,R2_ACCESS_KEY_ID=R2_ACCESS_KEY_ID:latest,R2_ACCESS_KEY_SECRET=R2_ACCESS_KEY_SECRET:latest,R2_BUCKET_NAME=R2_BUCKET_NAME:latest"
 ```
 
 Redis 選択時に追加する行:
 ```
---set-secrets "REDIS_URL=${{ github.ref_name == 'main' && 'REDIS_URL' || 'REDIS_URL_STAGING' }}:latest"
+--set-secrets "REDIS_URL=REDIS_URL:latest"
 ```
 
 複数選択時は1つの `--set-secrets` にカンマ区切りでまとめる。
 
 追加位置: backend deploy ステップの `--set-env-vars` の行の直前に `\` で行を継続して挿入する。
 
-#### 12.17 staging ブランチ作成・push
-
-```bash
-cd /Users/user/<プロジェクト名>
-git checkout -b staging
-git push -u origin staging
-git checkout main
-```
-
-#### 12.18 デプロイ準備完了メッセージ
+#### 12.17 デプロイ準備完了メッセージ
 
 ```
 本番デプロイ準備が完了しました！
@@ -747,40 +704,31 @@ GCP プロジェクト: <プロジェクトID>
 GitHub: https://github.com/<ユーザー名>/<プロジェクト名>
 
 デプロイフロー:
-  feat ブランチ → staging にマージ → staging 環境に自動デプロイ
-  staging → main にマージ → production 環境に自動デプロイ
-
-環境:
-  staging:    push to staging ブランチで自動デプロイ
-  production: push to main ブランチで自動デプロイ
+  main ブランチに push → production 環境に自動デプロイ
 ```
 
 PostgreSQL 選択時は追加で表示:
 ```
 Neon:
-  staging:    neonctl projects list で確認
-  production: neonctl projects list で確認
+  neonctl projects list で確認
 
 Secret Manager (DB):
-  DATABASE_URL_STAGING: staging 用接続文字列
-  DATABASE_URL:         production 用接続文字列
+  DATABASE_URL: 接続文字列
 ```
 
 ストレージ選択時は追加で表示:
 ```
 Secret Manager (R2):
-  R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_ACCESS_KEY_SECRET
-  R2_BUCKET_NAME (production), R2_BUCKET_NAME_STAGING (staging)
+  R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_ACCESS_KEY_SECRET, R2_BUCKET_NAME
 ```
 
 Redis 選択時は追加で表示:
 ```
 Upstash:
-  staging:    upstash redis list で確認
-  production: upstash redis list で確認
+  upstash redis list で確認
 
 Secret Manager (Redis):
-  REDIS_URL (production), REDIS_URL_STAGING (staging)
+  REDIS_URL
 ```
 
 共通:
@@ -788,8 +736,6 @@ Secret Manager (Redis):
 注意:
   初回デプロイ後、Cloud Run URL が確定したら
   GitHub Environments の FRONTEND_URL と BACKEND_URL を実際の URL に更新してください:
-    gh variable set FRONTEND_URL --env staging --body="https://実際のURL"
-    gh variable set BACKEND_URL --env staging --body="https://実際のURL"
     gh variable set FRONTEND_URL --env production --body="https://実際のURL"
     gh variable set BACKEND_URL --env production --body="https://実際のURL"
 ```
