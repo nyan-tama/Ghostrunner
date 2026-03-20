@@ -17,7 +17,7 @@ function resolveDocsRoot(projectPath?: string): string {
   if (projectDir) {
     return path.join(projectDir, "開発");
   }
-  return path.join(process.cwd(), "..", "開発");
+  return path.join(process.cwd(), "..", "..", "開発");
 }
 
 // パストラバーサル防止: 解決後のパスが docsRoot 配下であることを検証
