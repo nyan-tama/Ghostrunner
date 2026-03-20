@@ -532,58 +532,36 @@ curl -s http://localhost:${PORT_FRONTEND} > /dev/null && echo "Frontend: OK"
 プロジェクトの土台ができました。これからMVP機能を実装します...
 ```
 
-### Step 12: MVP機能の実装
+### Step 12: MVP機能の実装（/plan → /fullstack）
 
-Step 2 の Q2 で承認されたMVP機能を実装する。
+Step 2 の Q2 で承認されたMVP機能を、既存の `/plan` と `/fullstack` スキルを順に実行して実装する。
 
-**重要なルール:**
-- 作業ディレクトリは `/Users/user/<プロジェクト名>/` に移動して実装する
-- 既存のコードパターン（registry パターン、handler 構造）に従う
-- **1つの機能だけ**を実装する。スコープを広げない
-- バックエンドとフロントエンドの両方を実装する
+#### 12.1 /plan の実行
 
-#### 12.1 バックエンド実装
+プロジェクトディレクトリ `/Users/user/<プロジェクト名>/` で `/plan` を実行する。
 
-1. DB を使う場合: model（GORM構造体）を作成
-2. handler を作成（CRUD の必要な部分だけ）
-3. registry にルーティング登録
-4. `cd /Users/user/<プロジェクト名>/backend && go build ./...` でビルド確認
+`/plan` への入力として、Step 2 の対話で決まった以下の情報を渡す:
+- 作りたいもの（ユーザーの説明）
+- MVP機能（1つだけ）
+- 必要なサービス構成（DB/ストレージ/キャッシュ）
 
-**実装パターン**: 既存の `handler/hello.go` と `registry/base.go` を参考にする。
+`/plan` が実装計画書を `開発/実装/実装待ち/` に生成する。
 
-#### 12.2 フロントエンド実装
+#### 12.2 /fullstack の実行
 
-1. MVP機能のページを作成（`src/app/<機能名>/page.tsx`）
-2. トップページ（`src/app/page.tsx`）にリンクを追加
-3. API呼び出しとデータ表示を実装
-4. `cd /Users/user/<プロジェクト名>/frontend && npm run build` でビルド確認
+計画書が生成されたら、同じプロジェクトディレクトリで `/fullstack` を実行する。
 
-**実装パターン**: シンプルな Server Component or Client Component。Tailwind CSS でスタイリング。
+`/fullstack` が以下の工程を自動で実行する:
+- バックエンド: impl → reviewer → tester → documenter → コミット
+- フロントエンド: impl → reviewer → tester → documenter → コミット
 
-#### 12.3 サーバー再起動と動作確認
+#### 12.3 動作確認
+
+`/fullstack` 完了後、サーバーを起動して動作確認する:
 
 ```bash
 cd /Users/user/<プロジェクト名>
 make dev
-```
-
-起動後、実装した機能が動作することを確認:
-- フロントエンドの画面が表示されること
-- APIが正しくレスポンスを返すこと
-- DB を使う場合、データの登録と取得ができること
-
-#### 12.4 README.md 更新
-
-実装した機能を README.md の「実装済みの機能」セクションに追記する。
-- ページ表に新しい画面を追加
-- API表に新しいエンドポイントを追加
-
-#### 12.5 Git コミット
-
-```bash
-cd /Users/user/<プロジェクト名>
-git add -A
-git commit -m "feat: <MVP機能名>の初期実装"
 ```
 
 ### Step 13: 完了メッセージ
