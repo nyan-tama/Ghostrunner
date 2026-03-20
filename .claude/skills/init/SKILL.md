@@ -308,6 +308,26 @@ ln -s /Users/user/Ghostrunner/devtools /Users/user/<プロジェクト名>/.devt
 echo '.devtools' >> /Users/user/<プロジェクト名>/.gitignore
 ```
 
+### Step 7.6: 開発フォルダ構成の作成
+
+プロジェクトの開発ドキュメント用フォルダ構成を作成する:
+
+```bash
+mkdir -p /Users/user/<プロジェクト名>/開発/検討中/アーカイブ
+mkdir -p /Users/user/<プロジェクト名>/開発/実装/実装待ち
+mkdir -p /Users/user/<プロジェクト名>/開発/実装/完了/アーカイブ
+mkdir -p /Users/user/<プロジェクト名>/開発/資料/アーカイブ
+```
+
+各末端ディレクトリに `.gitkeep` を配置:
+
+```bash
+touch /Users/user/<プロジェクト名>/開発/検討中/アーカイブ/.gitkeep
+touch /Users/user/<プロジェクト名>/開発/実装/実装待ち/.gitkeep
+touch /Users/user/<プロジェクト名>/開発/実装/完了/アーカイブ/.gitkeep
+touch /Users/user/<プロジェクト名>/開発/資料/アーカイブ/.gitkeep
+```
+
 ### Step 8: Git 初期化
 
 ```bash
