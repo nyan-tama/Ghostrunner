@@ -16,3 +16,6 @@ backend/server
 # Node
 node_modules/
 .next/
+
+# devtools symlink
+.devtools

@@ -1,0 +1,11 @@
+{
+  "name": "ghostrunner",
+  "version": "1.0.0",
+  "description": "Claude Code用フルスタック開発フレームワーク - エージェント・コマンド・テンプレート・devtools を統合",
+  "author": {
+    "name": "nyan-tama"
+  },
+  "repository": "https://github.com/nyan-tama/Ghostrunner",
+  "license": "MIT",
+  "keywords": ["fullstack", "go", "nextjs", "development-workflow", "project-starter"]
+}
