@@ -576,7 +576,75 @@ cd ~/<プロジェクト名>
 make dev
 ```
 
-### Step 13: 完了メッセージ
+### Step 13: GETTING_STARTED.md の生成
+
+プロジェクトディレクトリに `GETTING_STARTED.md` を生成する。
+固定部分はそのまま記載し、「次に追加してみましょう」セクションはプロジェクトの内容に合わせて AI が3つの具体的な提案を生成する。
+
+```markdown
+# はじめに
+
+プロジェクト「<プロジェクト名>」が作成されました。
+
+## サーバーの起動
+
+```bash
+make dev
+```
+
+- フロントエンド: http://localhost:<PORT_FRONTEND>
+- バックエンド API: http://localhost:<PORT_BACKEND>/api/health
+
+サーバーを停止するには:
+
+```bash
+make stop
+```
+
+## 実装済みの機能
+
+- <MVP機能の説明>
+
+## 次に追加してみましょう
+
+Claude Code を開いて、以下のようにやりたいことを伝えてみてください:
+
+```
+/discuss <プロジェクト内容に合わせた具体的な提案1。何を、どのように、どんな表示にするかまで具体的に書く>
+```
+
+```
+/discuss <プロジェクト内容に合わせた具体的な提案2。何を、どのように、どんな表示にするかまで具体的に書く>
+```
+
+```
+/discuss <プロジェクト内容に合わせた具体的な提案3。何を、どのように、どんな表示にするかまで具体的に書く>
+```
+
+やりたいことを自由に伝えるだけで、計画から実装まで全て行います。
+
+## よく使うコマンド
+
+| コマンド | 説明 |
+|---------|------|
+| `make dev` | サーバー起動 |
+| `make stop` | サーバー停止 |
+| `/discuss` | アイデアを相談する |
+| `/plan` | 実装計画を作成する |
+| `/fullstack` | フルスタック実装 |
+| `/update` | Ghostrunner を最新化する |
+```
+
+**提案の書き方ルール:**
+- 各提案は1〜2文で、何をどうしたいか具体的に書く
+- 技術用語を避け、ユーザー目線で書く
+- プロジェクトの内容から自然に想像される次の機能を提案する
+- 例: 予約管理システムの場合:
+  - `/discuss ユーザーがGoogleアカウントでログインできるようにしたい。ログイン後は自分の予約だけが見えるようにする`
+  - `/discuss 予約の一覧をカレンダー形式で表示したい。月表示と週表示を切り替えられて、予約がある日にはマークが付くようにする`
+  - `/discuss 予約が確定したらユーザーにメールで通知を送りたい。予約日時と内容と場所を含めた確認メールを自動送信する`
+
+### Step 14: 完了メッセージ
 
 以下を表示する:
 
@@ -592,10 +660,10 @@ make dev
   フロントエンド: http://localhost:${PORT_FRONTEND}
   バックエンド API: http://localhost:${PORT_BACKEND}/api/health
 
-次の機能追加は `/coding` コマンドで行えます。
+GETTING_STARTED.md に次のステップが書いてあります。
 ```
 
-### Step 14: 本番デプロイ準備（PostgreSQL またはストレージまたは Redis 選択時）
+### Step 15: 本番デプロイ準備（PostgreSQL またはストレージまたは Redis 選択時）
 
 PostgreSQL、ストレージ、Redis のいずれかを選択した場合、本番環境のセットアップを提案する。
 
@@ -605,7 +673,7 @@ AskUserQuestion で確認:
 
 **「スキップ」の場合**: Step 14 を終了する。
 
-#### 14.1 gcloud CLI 確認・インストール
+#### 15.1 gcloud CLI 確認・インストール
 
 ```bash
 which gcloud
@@ -616,7 +684,7 @@ which gcloud
 brew install --cask google-cloud-sdk
 ```
 
-#### 14.2 GCP 認証
+#### 15.2 GCP 認証
 
 ```bash
 gcloud auth list 2>&1
@@ -628,7 +696,7 @@ gcloud auth list 2>&1
 gcloud auth login
 ```
 
-#### 14.3 GCP プロジェクト選択
+#### 15.3 GCP プロジェクト選択
 
 ```bash
 gcloud projects list --format="table(projectId,name)" 2>&1
@@ -652,7 +720,7 @@ gcloud billing projects link <プロジェクトID> --billing-account=<請求先
 gcloud config set project <プロジェクトID>
 ```
 
-#### 14.4 GCP API 有効化
+#### 15.4 GCP API 有効化
 
 ```bash
 gcloud services enable \
@@ -661,7 +729,7 @@ gcloud services enable \
   containerregistry.googleapis.com
 ```
 
-#### 14.5 GCP サービスアカウント作成
+#### 15.5 GCP サービスアカウント作成
 
 GitHub Actions からデプロイするためのサービスアカウントを作成する:
 ```bash
@@ -682,7 +750,7 @@ gcloud projects add-iam-policy-binding $GCP_PROJECT --member="serviceAccount:${S
 gcloud iam service-accounts keys create /tmp/<プロジェクト名>-sa-key.json --iam-account=$SA_EMAIL
 ```
 
-#### 14.6 GitHub リポジトリ作成・Secrets 登録
+#### 15.6 GitHub リポジトリ作成・Secrets 登録
 
 `gh` CLI の確認:
 ```bash
@@ -710,7 +778,7 @@ gh secret set GCP_PROJECT_ID --body="$GCP_PROJECT"
 rm /tmp/<プロジェクト名>-sa-key.json
 ```
 
-#### 14.7 GitHub Environments 作成
+#### 15.7 GitHub Environments 作成
 
 production 環境を作成し、Variables を登録する:
 ```bash
@@ -746,7 +814,7 @@ neonctl projects list 2>&1
 neonctl auth
 ```
 
-#### 14.10 Neon プロジェクト作成
+#### 15.10 Neon プロジェクト作成
 
 AskUserQuestion で確認:
 「Neon プロジェクトを新規作成しますか？」
@@ -760,14 +828,14 @@ neonctl projects create --name <プロジェクト名> --region-id aws-ap-northe
 **「既存を使う」の場合**:
 `neonctl projects list` の結果を表示し、使用するプロジェクトを選択させる。
 
-#### 14.11 スキーマ反映
+#### 15.11 スキーマ反映
 
 ```bash
 PROD_CONNSTR=$(neonctl connection-string --project-id <プロジェクトID>)
 psql "$PROD_CONNSTR" -f ~/<プロジェクト名>/db/init.sql
 ```
 
-#### 14.12 Secret Manager に DATABASE_URL を登録
+#### 15.12 Secret Manager に DATABASE_URL を登録
 
 ```bash
 echo -n "$PROD_CONNSTR" | gcloud secrets create DATABASE_URL --data-file=-
@@ -775,7 +843,7 @@ echo -n "$PROD_CONNSTR" | gcloud secrets create DATABASE_URL --data-file=-
 
 注: サービスアカウントへの `roles/secretmanager.secretAccessor` は 12.5 で付与済み。
 
-#### 14.13 Secret Manager に R2 クレデンシャルを登録（ストレージ選択時）
+#### 15.13 Secret Manager に R2 クレデンシャルを登録（ストレージ選択時）
 
 ストレージを選択した場合のみ実行する。
 
@@ -798,7 +866,7 @@ echo -n "<値>" | gcloud secrets create R2_BUCKET_NAME --data-file=-
 
 **以下の 12.14〜12.15 は Redis 選択時のみ実行する。**
 
-#### 14.14 Upstash CLI 確認・インストール
+#### 15.14 Upstash CLI 確認・インストール
 
 ```bash
 which upstash
@@ -820,7 +888,7 @@ upstash redis list 2>&1
 upstash auth login
 ```
 
-#### 14.15 Upstash Redis 作成・Secret Manager 登録
+#### 15.15 Upstash Redis 作成・Secret Manager 登録
 
 AskUserQuestion で確認:
 「Upstash Redis を新規作成しますか？」
@@ -840,7 +908,7 @@ echo -n "$PROD_REDIS_URL" | gcloud secrets create REDIS_URL --data-file=-
 **「後で設定する」の場合**:
 完了メッセージに Secret Manager 登録コマンドを含める。
 
-#### 14.16 deploy.yml に Secret Manager 参照を追加
+#### 15.16 deploy.yml に Secret Manager 参照を追加
 
 生成したプロジェクトの `.github/workflows/deploy.yml` を Edit ツールで編集し、backend の `gcloud run deploy` コマンドに `--set-secrets` を追加する。
 
@@ -863,7 +931,7 @@ Redis 選択時に追加する行:
 
 追加位置: backend deploy ステップの `--set-env-vars` の行の直前に `\` で行を継続して挿入する。
 
-#### 14.17 デプロイ準備完了メッセージ
+#### 15.17 デプロイ準備完了メッセージ
 
 ```
 本番デプロイ準備が完了しました！
