@@ -13,7 +13,7 @@ Ghostrunner のパスを特定し、最新版を取得する。
 3. パスが存在しなければエラー終了: 「Ghostrunner が見つかりません。GHOSTRUNNER_HOME 環境変数を設定してください。」
 
 ```bash
-cd <GHOSTRUNNER_PATH> && git pull
+cd <GHOSTRUNNER_PATH> && git checkout main && git pull origin main
 ```
 
 ### Step 1: 既存ファイルを削除
