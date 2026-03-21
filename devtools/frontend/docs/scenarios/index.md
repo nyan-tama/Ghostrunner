@@ -9,6 +9,7 @@ Ghost Runner の主要なユーザー操作シナリオを記載する。
 | コマンド実行 | [command-execution.md](./command-execution.md) | コマンドの入力と実行 |
 | 音声通知 | [voice-notification.md](./voice-notification.md) | 音声通知機能の利用 |
 | プロジェクト作成 | [project-create.md](./project-create.md) | プロジェクトの新規作成 |
+| プロジェクト削除 | [project-delete.md](./project-delete.md) | プロジェクトの登録解除 |
 | 巡回ダッシュボード | [patrol.md](./patrol.md) | 複数プロジェクトの自動巡回・リアルタイム監視 |
 
 ## 基本フロー

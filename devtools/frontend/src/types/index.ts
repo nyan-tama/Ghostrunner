@@ -140,3 +140,8 @@ export interface CreatedProject {
 }
 
 export type CreatePhase = "form" | "creating" | "complete" | "error";
+
+export interface DestroyProjectResponse {
+  success: boolean;
+  error?: string;
+}

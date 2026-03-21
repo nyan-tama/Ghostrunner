@@ -242,10 +242,10 @@ func TestPatrolService_RegisterProject_JSONPersistence(t *testing.T) {
 
 func TestPatrolService_ScanProjects(t *testing.T) {
 	tests := []struct {
-		name           string
-		setup          func(t *testing.T) (string, string) // projectDir, configPath を返す
-		wantTaskCount  int
-		wantGitLogSet  bool // git log が取得できるか（gitリポジトリの場合）
+		name          string
+		setup         func(t *testing.T) (string, string) // projectDir, configPath を返す
+		wantTaskCount int
+		wantGitLogSet bool // git log が取得できるか（gitリポジトリの場合）
 	}{
 		{
 			name: "未処理タスクファイルを検出する",

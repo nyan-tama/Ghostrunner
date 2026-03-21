@@ -84,6 +84,7 @@ func main() {
 
 		// プロジェクト一覧API
 		api.GET("/projects", projectsHandler.Handle)
+		api.POST("/projects/destroy", projectsHandler.HandleDestroy)
 
 		// 汎用コマンドAPI（推奨）
 		api.POST("/command", commandHandler.Handle)

@@ -48,9 +48,9 @@ type patrolServiceImpl struct {
 	slots         chan struct{}            // セマフォ（並列実行数制御）
 	claudeService ClaudeService
 	ntfyService   NtfyService
-	configPath    string // JSONファイルパス
-	patrolRunning bool   // 巡回実行中フラグ
-	patrolCancel  context.CancelFunc       // 巡回キャンセル用
+	configPath    string             // JSONファイルパス
+	patrolRunning bool               // 巡回実行中フラグ
+	patrolCancel  context.CancelFunc // 巡回キャンセル用
 
 	subMu       sync.Mutex
 	subscribers map[int]chan PatrolEvent

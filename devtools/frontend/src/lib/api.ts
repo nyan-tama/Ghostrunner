@@ -1,4 +1,4 @@
-import type { FilesResponse, ProjectsResponse, CommandRequest, ContinueRequest } from "@/types";
+import type { FilesResponse, ProjectsResponse, CommandRequest, ContinueRequest, DestroyProjectResponse } from "@/types";
 import type { GeminiTokenResponse } from "@/types/gemini";
 import type { OpenAITokenResponse } from "@/types/openai";
 
@@ -77,6 +77,29 @@ export async function fetchGeminiToken(expireSeconds?: number): Promise<string> 
   }
 
   return data.token;
+}
+
+export async function destroyProject(path: string): Promise<DestroyProjectResponse> {
+  const response = await fetch(`${API_BASE}/api/projects/destroy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+
+  if (!response.ok) {
+    let message = `Failed to destroy project (${response.status})`;
+    try {
+      const data = await response.json();
+      if (data.error) {
+        message = data.error;
+      }
+    } catch {
+      // JSON パース失敗時はデフォルトメッセージを使用
+    }
+    throw new Error(message);
+  }
+
+  return response.json();
 }
 
 /**

@@ -12,7 +12,7 @@
 //   - PlanHandler: /api/plan 関連のエンドポイントを処理（後方互換性維持）
 //   - CommandHandler: /api/command 関連のエンドポイントを処理（汎用コマンド実行）
 //   - FilesHandler: /api/files 関連のエンドポイントを処理（ファイル一覧取得）
-//   - ProjectsHandler: /api/projects 関連のエンドポイントを処理（プロジェクト一覧取得）
+//   - ProjectsHandler: /api/projects 関連のエンドポイントを処理（プロジェクト一覧取得、プロジェクト削除）
 //   - OpenAIHandler: /api/openai 関連のエンドポイントを処理（音声対話用エフェメラルキー発行）
 //   - CreateHandler: /api/projects/validate, /api/projects/create/stream, /api/projects/open を処理（プロジェクト生成）
 //   - PatrolHandler: /api/patrol 関連のエンドポイントを処理（複数プロジェクト自動巡回）
@@ -52,10 +52,15 @@
 //
 // # ProjectsHandler
 //
-// /Users/user/ 直下のディレクトリ一覧を取得するエンドポイント。
+// /Users/user/ 直下のディレクトリ一覧を取得するエンドポイントと、
+// プロジェクトディレクトリを削除するエンドポイントを提供する。
 // フロントエンドのProjectPath選択ドロップダウンの候補を提供する。
 // 外部サービスへの依存がなく、ローカルファイルシステムのみを参照する。
 // 隠しディレクトリ、ファイル、シンボリックリンクは除外する。
+//
+// 削除エンドポイントはパストラバーサル防止のためホームディレクトリ直下の
+// ディレクトリのみ削除を許可する。docker-compose.yml が存在する場合は
+// docker compose down -v を実行してからディレクトリを削除する。
 //
 // # CreateHandler
 //
@@ -159,6 +164,20 @@
 //	        {"name": "ProjectA", "path": "/Users/user/ProjectA"},
 //	        {"name": "ProjectB", "path": "/Users/user/ProjectB"}
 //	    ]
+//	}
+//
+// POST /api/projects/destroy - プロジェクトディレクトリの削除
+//
+// リクエスト:
+//
+//	{
+//	    "path": "/Users/user/my-project"
+//	}
+//
+// レスポンス:
+//
+//	{
+//	    "success": true
 //	}
 //
 // ## Create API (プロジェクト生成)
@@ -346,7 +365,7 @@
 //
 //   - 200 OK: 正常完了
 //   - 400 Bad Request: リクエスト不正、バリデーションエラー、許可されていないコマンド
-//   - 404 Not Found: リソースが存在しない（/api/filesで開発ディレクトリが存在しない場合）
+//   - 404 Not Found: リソースが存在しない（/api/filesで開発ディレクトリが存在しない場合、/api/projects/destroyで対象ディレクトリが存在しない場合）
 //   - 500 Internal Server Error: Claude CLI実行エラー、ファイルシステムエラー、API呼び出しエラー
 //   - 503 Service Unavailable: サービス利用不可（OpenAI API キー未設定など）
 //
@@ -386,6 +405,7 @@
 //	// ProjectsHandler
 //	projectsHandler := handler.NewProjectsHandler()
 //	api.GET("/projects", projectsHandler.Handle)
+//	api.POST("/projects/destroy", projectsHandler.HandleDestroy)
 //
 //	// OpenAIHandler
 //	openaiService := service.NewOpenAIService()

@@ -7,12 +7,13 @@ import {
   LOCAL_STORAGE_GIT_WORKFLOW_KEY,
   GIT_WORKFLOW_INSTRUCTION,
 } from "@/lib/constants";
-import { executeCommandStream, continueSessionStream, fetchProjects } from "@/lib/api";
+import { executeCommandStream, continueSessionStream, fetchProjects, destroyProject } from "@/lib/api";
 import { useSSEStream } from "@/hooks/useSSEStream";
 import { useSessionManagement } from "@/hooks/useSessionManagement";
 import { useFileSelector } from "@/hooks/useFileSelector";
 import { useVoiceNotification } from "@/hooks/useVoiceNotification";
 import CommandForm from "@/components/CommandForm";
+import ProjectDeleteList from "@/components/ProjectDeleteList";
 import ProgressContainer from "@/components/ProgressContainer";
 
 function truncate(str: string | undefined, len: number): string {
@@ -50,14 +51,19 @@ export default function Home() {
   } = useFileSelector();
 
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
+  const [isDeleteMode, setIsDeleteMode] = useState(false);
+  const [deletingPath, setDeletingPath] = useState<string | null>(null);
+
+  const refreshProjects = useCallback(async () => {
+    const result = await fetchProjects();
+    if (result.success && result.projects) {
+      setProjects(result.projects);
+    }
+  }, []);
 
   useEffect(() => {
-    fetchProjects().then((result) => {
-      if (result.success && result.projects) {
-        setProjects(result.projects);
-      }
-    });
-  }, []);
+    refreshProjects();
+  }, [refreshProjects]);
 
   const [command, setCommand] = useState("plan");
   const [args, setArgs] = useState("");
@@ -471,6 +477,28 @@ export default function Home() {
     setQuestions([]);
   }, [addEvent]);
 
+  const handleDeleteProject = useCallback(async (path: string) => {
+    const target = projects.find((p) => p.path === path);
+    if (!target) return;
+
+    if (!window.confirm(`プロジェクト「${target.name}」を削除しますか？\n\nパス: ${target.path}\n\nこの操作はプロジェクトの登録を解除します。`)) {
+      return;
+    }
+
+    setDeletingPath(path);
+    try {
+      await destroyProject(path);
+      await refreshProjects();
+      if (projectPath === path) {
+        setProjectPath("");
+      }
+    } catch (error) {
+      alert("プロジェクトの削除に失敗しました: " + (error instanceof Error ? error.message : "不明なエラー"));
+    } finally {
+      setDeletingPath(null);
+    }
+  }, [projects, projectPath, setProjectPath, refreshProjects]);
+
   return (
     <div className="max-w-[900px] mx-auto px-5 py-5 bg-gray-100 min-h-screen">
       <div className="flex justify-between items-center mb-6">
@@ -500,26 +528,34 @@ export default function Home() {
         </div>
       </div>
 
-      <CommandForm
-        projectPath={projectPath}
-        onProjectChange={setProjectPath}
-        projects={projects}
-        projectHistory={projectHistory}
-        command={command}
-        onCommandChange={setCommand}
-        selectedFiles={selectedFiles}
-        onAddFile={addSelectedFile}
-        onRemoveFile={removeSelectedFile}
-        args={args}
-        onArgsChange={setArgs}
-        images={images}
-        onImagesChange={setImages}
-        groupedFiles={getGroupedFiles()}
-        onLoadFiles={loadFiles}
-        onRefreshFiles={refreshFiles}
-        onSubmit={handleSubmit}
-        isSubmitting={isSubmitting}
-      />
+      {isDeleteMode ? (
+        <ProjectDeleteList
+          projects={projects}
+          onDelete={handleDeleteProject}
+          deletingPath={deletingPath}
+        />
+      ) : (
+        <CommandForm
+          projectPath={projectPath}
+          onProjectChange={setProjectPath}
+          projects={projects}
+          projectHistory={projectHistory}
+          command={command}
+          onCommandChange={setCommand}
+          selectedFiles={selectedFiles}
+          onAddFile={addSelectedFile}
+          onRemoveFile={removeSelectedFile}
+          args={args}
+          onArgsChange={setArgs}
+          images={images}
+          onImagesChange={setImages}
+          groupedFiles={getGroupedFiles()}
+          onLoadFiles={loadFiles}
+          onRefreshFiles={refreshFiles}
+          onSubmit={handleSubmit}
+          isSubmitting={isSubmitting}
+        />
+      )}
 
       <ProgressContainer
         visible={showProgress}
@@ -541,6 +577,17 @@ export default function Home() {
         onAbort={handleAbort}
         canAbort={isLoading && !showQuestions && !showPlanApproval}
       />
+
+      <button
+        onClick={() => setIsDeleteMode((prev) => !prev)}
+        className={`fixed bottom-5 left-5 px-3 py-2 text-xs font-medium rounded-lg shadow-lg transition-colors ${
+          isDeleteMode
+            ? "bg-red-600 text-white hover:bg-red-700"
+            : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+        }`}
+      >
+        {isDeleteMode ? "削除モード ON" : "削除モード"}
+      </button>
     </div>
   );
 }

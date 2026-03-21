@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -168,6 +169,178 @@ func TestProjectsHandler_Handle(t *testing.T) {
 						t.Errorf("projects[%d].Path: got %q, want %q", i, got.Path, expectedPath)
 					}
 				}
+			}
+		})
+	}
+}
+
+func TestProjectsHandler_HandleDestroy(t *testing.T) {
+	tests := []struct {
+		name       string
+		setup      func(t *testing.T) (homeDir string, body string)
+		wantStatus int
+		wantJSON   map[string]interface{}
+		verify     func(t *testing.T, homeDir string) // 削除後の検証
+	}{
+		{
+			name: "正常系_ディレクトリが削除される",
+			setup: func(t *testing.T) (string, string) {
+				t.Helper()
+				home := t.TempDir()
+				target := filepath.Join(home, "my-project")
+				if err := os.Mkdir(target, 0o755); err != nil {
+					t.Fatalf("failed to create target directory: %v", err)
+				}
+				// ファイルも作成して中身ごと削除されることを確認
+				if err := os.WriteFile(filepath.Join(target, "file.txt"), []byte("test"), 0o644); err != nil {
+					t.Fatalf("failed to create file: %v", err)
+				}
+				return home, `{"path":"` + target + `"}`
+			},
+			wantStatus: http.StatusOK,
+			wantJSON:   map[string]interface{}{"success": true},
+			verify: func(t *testing.T, homeDir string) {
+				t.Helper()
+				target := filepath.Join(homeDir, "my-project")
+				if _, err := os.Stat(target); !os.IsNotExist(err) {
+					t.Errorf("directory should be deleted, but still exists: %s", target)
+				}
+			},
+		},
+		{
+			name: "正常系_docker-compose.ymlがあってもdocker失敗で削除は続行される",
+			setup: func(t *testing.T) (string, string) {
+				t.Helper()
+				home := t.TempDir()
+				target := filepath.Join(home, "docker-project")
+				if err := os.Mkdir(target, 0o755); err != nil {
+					t.Fatalf("failed to create target directory: %v", err)
+				}
+				// docker-compose.yml を配置（docker compose down は失敗するがログのみで続行）
+				if err := os.WriteFile(filepath.Join(target, "docker-compose.yml"), []byte("version: '3'"), 0o644); err != nil {
+					t.Fatalf("failed to create docker-compose.yml: %v", err)
+				}
+				return home, `{"path":"` + target + `"}`
+			},
+			wantStatus: http.StatusOK,
+			wantJSON:   map[string]interface{}{"success": true},
+			verify: func(t *testing.T, homeDir string) {
+				t.Helper()
+				target := filepath.Join(homeDir, "docker-project")
+				if _, err := os.Stat(target); !os.IsNotExist(err) {
+					t.Errorf("directory should be deleted, but still exists: %s", target)
+				}
+			},
+		},
+		{
+			name: "異常系_パスが空の場合400エラー",
+			setup: func(t *testing.T) (string, string) {
+				t.Helper()
+				return t.TempDir(), `{"path":""}`
+			},
+			wantStatus: http.StatusBadRequest,
+			wantJSON:   map[string]interface{}{"success": false, "error": "パスが指定されていません"},
+		},
+		{
+			name: "異常系_パストラバーサル検出で400エラー",
+			setup: func(t *testing.T) (string, string) {
+				t.Helper()
+				home := t.TempDir()
+				// ホームディレクトリ直下ではなくサブディレクトリ配下を指定
+				nested := filepath.Join(home, "parent", "child")
+				return home, `{"path":"` + nested + `"}`
+			},
+			wantStatus: http.StatusBadRequest,
+			wantJSON:   map[string]interface{}{"success": false, "error": "ホームディレクトリ直下のプロジェクトのみ削除できます"},
+		},
+		{
+			name: "異常系_相対パストラバーサルで400エラー",
+			setup: func(t *testing.T) (string, string) {
+				t.Helper()
+				home := t.TempDir()
+				traversal := filepath.Join(home, "project", "..", "..", "etc")
+				return home, `{"path":"` + traversal + `"}`
+			},
+			wantStatus: http.StatusBadRequest,
+			wantJSON:   map[string]interface{}{"success": false, "error": "ホームディレクトリ直下のプロジェクトのみ削除できます"},
+		},
+		{
+			name: "異常系_存在しないディレクトリで404エラー",
+			setup: func(t *testing.T) (string, string) {
+				t.Helper()
+				home := t.TempDir()
+				nonexistent := filepath.Join(home, "nonexistent")
+				return home, `{"path":"` + nonexistent + `"}`
+			},
+			wantStatus: http.StatusNotFound,
+			wantJSON:   map[string]interface{}{"success": false, "error": "指定されたディレクトリが見つかりません"},
+		},
+		{
+			name: "境界値_ホームディレクトリ自体を指定すると400エラー",
+			setup: func(t *testing.T) (string, string) {
+				t.Helper()
+				home := t.TempDir()
+				// ホームディレクトリ自体を削除対象に指定
+				return home, `{"path":"` + home + `"}`
+			},
+			wantStatus: http.StatusBadRequest,
+			wantJSON:   map[string]interface{}{"success": false, "error": "ホームディレクトリ直下のプロジェクトのみ削除できます"},
+		},
+		{
+			name: "異常系_ファイルを指定した場合400エラー",
+			setup: func(t *testing.T) (string, string) {
+				t.Helper()
+				home := t.TempDir()
+				filePath := filepath.Join(home, "file.txt")
+				if err := os.WriteFile(filePath, []byte("test"), 0o644); err != nil {
+					t.Fatalf("failed to create file: %v", err)
+				}
+				return home, `{"path":"` + filePath + `"}`
+			},
+			wantStatus: http.StatusBadRequest,
+			wantJSON:   map[string]interface{}{"success": false, "error": "指定されたパスはディレクトリではありません"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			homeDir, body := tt.setup(t)
+
+			h := &ProjectsHandler{HomeDir: homeDir}
+
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodPost, "/api/projects/destroy", bytes.NewBufferString(body))
+			c.Request.Header.Set("Content-Type", "application/json")
+
+			h.HandleDestroy(c)
+
+			// ステータスコード検証
+			if w.Code != tt.wantStatus {
+				t.Errorf("status code: got %d, want %d, body: %s", w.Code, tt.wantStatus, w.Body.String())
+			}
+
+			// レスポンスJSON検証
+			var resp map[string]interface{}
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("failed to unmarshal response body: %v\nbody: %s", err, w.Body.String())
+			}
+
+			for key, wantVal := range tt.wantJSON {
+				gotVal, ok := resp[key]
+				if !ok {
+					t.Errorf("response missing key %q", key)
+					continue
+				}
+				// JSON の bool は float64 にならないが、念のため文字列比較
+				if gotVal != wantVal {
+					t.Errorf("response[%q]: got %v (%T), want %v (%T)", key, gotVal, gotVal, wantVal, wantVal)
+				}
+			}
+
+			// 追加検証
+			if tt.verify != nil {
+				tt.verify(t, homeDir)
 			}
 		})
 	}
