@@ -40,9 +40,11 @@ cp <GHOSTRUNNER_PATH>/.claude/settings.json ./.claude/settings.json
 プロジェクトの `docker-compose.yml` を確認し、使用していないサービスのエージェントを削除する。
 
 - `docker-compose.yml` が存在しない場合: 全エージェントを残す
-- PostgreSQL サービスがない場合: `rm -f ./.claude/agents/pg-*.md`
-- MinIO/S3 サービスがない場合: `rm -f ./.claude/agents/storage-*.md`
-- Redis サービスがない場合: `rm -f ./.claude/agents/redis-*.md`
+- PostgreSQL サービスがない場合: `ls ./.claude/agents/pg-*.md 2>/dev/null && rm -f ./.claude/agents/pg-*.md`
+- MinIO/S3 サービスがない場合: `ls ./.claude/agents/storage-*.md 2>/dev/null && rm -f ./.claude/agents/storage-*.md`
+- Redis サービスがない場合: `ls ./.claude/agents/redis-*.md 2>/dev/null && rm -f ./.claude/agents/redis-*.md`
+
+**注意**: zsh ではグロブにマッチするファイルがないとエラーになるため、削除前に `ls` で存在確認すること。
 
 ### Step 4: 更新しないファイル
 
