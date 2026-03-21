@@ -46,14 +46,24 @@ cp <GHOSTRUNNER_PATH>/.claude/settings.json ./.claude/settings.json
 
 **注意**: zsh ではグロブにマッチするファイルがないとエラーになるため、削除前に `ls` で存在確認すること。
 
-### Step 4: 更新しないファイル
+### Step 4: 開発フォルダ構造の補完
+
+アーカイブフォルダがなければ作成する（既にあれば何もしない）。
+
+```bash
+mkdir -p 開発/検討中/アーカイブ
+mkdir -p 開発/実装/完了/アーカイブ
+mkdir -p 開発/資料/アーカイブ
+```
+
+### Step 5: 更新しないファイル
 
 以下のファイルは更新しない（プロジェクト固有の内容を含むため）:
 
 - `.claude/CLAUDE.md` - プロジェクト固有の設定・ルール
 - `.claude/settings.local.json` - 環境固有の設定
 
-### Step 5: 完了メッセージ
+### Step 6: 完了メッセージ
 
 更新結果を表示する:
 
