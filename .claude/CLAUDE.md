@@ -7,10 +7,10 @@ Ghostrunner - Claude Code用フルスタック開発フレームワーク。
 個人開発者向けのClaude Code開発フレームワーク。Ghostrunnerを開いて `/init` を実行すると、エージェント・コマンド・テンプレートが組み込まれた新規プロジェクトを対話的に生成する。
 
 **構成:**
-- `.claude/agents/` - 23エージェント（Go/Next.js/PostgreSQL/ストレージ/Redis/運用）
+- `.claude/agents/` - 29エージェント（Go/Next.js/Swift/PostgreSQL/ストレージ/Redis/運用）
 - `.claude/skills/` - 13スキル（/init, /coding, /plan, /stage, /release 等）
 - `.claude/settings.json` - フック設定（コード品質チェック、フォーマッター）
-- `templates/` - プロジェクト雛形（base, with-db, with-storage, with-redis）
+- `templates/` - プロジェクト雛形（base, with-db, with-storage, with-redis, swift-macos）
 - `devtools/` - 進捗ビューア（Go + Next.js アプリ）
 
 ## ファイル構造
@@ -27,6 +27,7 @@ Ghostrunner/
 |   |-- with-db/           # PostgreSQL + GORM
 |   |-- with-storage/      # Cloudflare R2 / MinIO
 |   |-- with-redis/        # Redis
+|   |-- swift-macos/       # Swift + SwiftUI macOS アプリ
 |-- devtools/
 |   |-- backend/           # 進捗ビューア API（Go + Gin）
 |   |-- frontend/          # 進捗ビューア UI（Next.js）

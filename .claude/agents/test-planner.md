@@ -134,6 +134,15 @@ model: opus
 - インターフェースでモック可能にする
 - `_test.go` ファイルに配置
 
+## Swift macOS 固有の考慮
+
+- Swift Testing フレームワーク（`@Test` 属性）を使用
+- `@MainActor` テストパターンで ViewModel をテスト
+- Protocol モック（struct で Protocol 準拠）を使用
+- async/await テスト
+- UI テストは基本不要（ViewModel のロジックテストを優先）
+- テストファイルは `Tests/AppTests/` に配置
+
 ## Next.js/React 固有の考慮
 
 - コンポーネント: レンダリング + ユーザー操作のテスト

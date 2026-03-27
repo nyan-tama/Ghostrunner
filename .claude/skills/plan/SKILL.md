@@ -29,6 +29,7 @@ date +%s > /tmp/claude-timer-plan-start
 - **Next.js フロントエンド** の実装計画 → `nextjs-planner` エージェント
 - **フルスタック（両方）** の実装計画 → `go-planner` + `nextjs-planner` を並行実行し、1つの計画ファイルにまとめる
 - **フルスタック + DB変更** の実装計画 → `go-planner` + `nextjs-planner` + `pg-planner` を並行実行
+- **Swift macOS アプリ** の実装計画 → `swift-planner` エージェント
 
 仕様書からどちらの実装が必要か判断できない場合は、ユーザーに確認する。
 DB変更（テーブル追加・カラム変更等）が含まれる場合は `pg-planner` も必ず含める。
@@ -109,6 +110,7 @@ DB変更（テーブル追加・カラム変更等）が含まれる場合は `p
 - **Go + PostgreSQL** の計画 → `go-plan-reviewer` エージェント（GORM/SQL領域もカバー）
 - **Next.js フロントエンド** の計画 → `nextjs-plan-reviewer` エージェント
 - **フルスタック** の計画 → 両方のエージェントを並行して実行
+- **Swift macOS アプリ** の計画 → `swift-plan-reviewer` エージェント
 
 **レビュー観点:**
 - API設計: 型の整合性、エラーレスポンス形式、エンドポイントの責務

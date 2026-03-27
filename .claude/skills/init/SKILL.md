@@ -61,6 +61,20 @@ Q0 の回答を受けて:
 「例: 『予約管理システム』『社内の在庫管理ツール』『ブログサービス』など」
 （自由入力。ここで入力された内容がプロジェクトの説明としてCLAUDE.mdに記載される）
 
+**プロジェクトタイプの判定（Q0/Q1 の回答後）**
+
+ユーザーの回答から**プロジェクトタイプ**を自動判定する:
+
+- **macOS アプリ**: 「macOS」「デスクトップアプリ」「ネイティブアプリ」「Mac アプリ」「メニューバーアプリ」「画面録画」「スクリーンショット」等のキーワードを含む場合 → **Swift macOS フロー**に進む
+- **Web アプリ**: 上記に該当しない場合 → **Web フロー**（既存フロー）に進む
+
+判断できない場合はユーザーに確認する:
+「Web アプリと macOS ネイティブアプリ、どちらで作りますか？」
+
+---
+
+#### Web フロー（既存）
+
 **Q2: MVP提案と承認**
 
 ユーザーの回答（Q0 または Q1）を元に、以下を判断してMVP提案を行う:
@@ -974,4 +988,215 @@ Secret Manager (Redis):
   GitHub Environments の FRONTEND_URL と BACKEND_URL を実際の URL に更新してください:
     gh variable set FRONTEND_URL --env production --body="https://実際のURL"
     gh variable set BACKEND_URL --env production --body="https://実際のURL"
+```
+
+---
+
+#### macOS フロー（Swift）
+
+プロジェクトタイプが macOS アプリと判定された場合、以下のフローを実行する。
+Web フローの Step 3〜15 は実行しない。
+
+**Q2-mac: MVP提案と承認**
+
+ユーザーの回答（Q0 または Q1）を元に MVP 提案を行う:
+
+1. **MVP機能を1つだけ提案**: 最も核となる機能を1つだけ選ぶ
+   - Docker / ポート / DB の質問はスキップ
+   - 必要な権限（画面録画、カメラ等）があれば言及する
+
+2. **提案を表示して承認を求める**:
+```
+まずは最小限の MVP を作りましょう！
+
+プロジェクト名: <名前>
+作るもの: <ユーザーの説明>
+種類: macOS ネイティブアプリ（Swift + SwiftUI）
+
+最初に実装する機能:
+  <MVP機能の説明（1つだけ）>
+
+生成先: ~/<名前>/
+
+これで作成を始めてよいですか？
+追加の機能は、完成後に `/coding` でいつでも追加できます。
+```
+
+**重要**: 承認後、追加の確認は一切せず、すぐに Step M3 に進む。
+
+### Step M3: テンプレートコピー
+
+```bash
+mkdir -p ~/<プロジェクト名>
+cp -r ./templates/swift-macos/. ~/<プロジェクト名>/
+```
+
+### Step M4: プレースホルダー置換
+
+```bash
+cd ~/<プロジェクト名>
+find . -type f \( \
+  -name "*.swift" -o -name "*.md" -o -name "Makefile" \
+  -o -name ".gitignore" -o -name "Package.swift" \
+\) -exec sed -i '' \
+  -e "s/{{PROJECT_NAME}}/<プロジェクト名>/g" \
+  {} +
+```
+
+App エントリーポイントのファイル名をリネーム:
+```bash
+mv ~/<プロジェクト名>/Sources/App/'{{PROJECT_NAME}}App.swift' ~/<プロジェクト名>/Sources/App/'<プロジェクト名>App.swift'
+```
+
+### Step M5: .claude/ 資産の生成
+
+```bash
+mkdir -p ~/<プロジェクト名>/.claude/agents
+
+# agents/ を一括コピー
+cp ./.claude/agents/*.md ~/<プロジェクト名>/.claude/agents/
+
+# skills/ を一括コピー
+cp -r ./.claude/skills/ ~/<プロジェクト名>/.claude/skills/
+
+# settings.json をコピー
+cp ./.claude/settings.json ~/<プロジェクト名>/.claude/settings.json
+
+# settings.local.json を動的生成
+HOME_DIR=$(eval echo ~)
+cat > ~/<プロジェクト名>/.claude/settings.local.json << SETTINGS_EOF
+{
+  "permissions": {
+    "allow": ["Bash(*)", "Edit", "Write", "WebFetch(*)", "Skill(*)", "Read(*)"],
+    "additionalDirectories": ["/tmp", "${HOME_DIR}"]
+  }
+}
+SETTINGS_EOF
+```
+
+Web アプリ用エージェントを削除:
+```bash
+ls ~/<プロジェクト名>/.claude/agents/go-*.md ~/<プロジェクト名>/.claude/agents/nextjs-*.md ~/<プロジェクト名>/.claude/agents/pg-*.md ~/<プロジェクト名>/.claude/agents/storage-*.md ~/<プロジェクト名>/.claude/agents/redis-*.md ~/<プロジェクト名>/.claude/agents/staging-manager.md ~/<プロジェクト名>/.claude/agents/release-manager.md 2>/dev/null && rm -f ~/<プロジェクト名>/.claude/agents/go-*.md ~/<プロジェクト名>/.claude/agents/nextjs-*.md ~/<プロジェクト名>/.claude/agents/pg-*.md ~/<プロジェクト名>/.claude/agents/storage-*.md ~/<プロジェクト名>/.claude/agents/redis-*.md ~/<プロジェクト名>/.claude/agents/staging-manager.md ~/<プロジェクト名>/.claude/agents/release-manager.md
+```
+
+CLAUDE.md を Swift/SwiftUI 版で生成する:
+
+含めるセクション:
+- **プロジェクト概要**: ユーザーが入力した概要を反映。技術スタック（Swift 6, SwiftUI, macOS 14+, SPM）を記載
+- **Swift macOS アプリ**: コード構成（Clean Architecture）、コードスタイル（Protocol Oriented, value type 優先）、エラーハンドリング（throws, Optional 安全性）、Concurrency（Swift 6 Strict Concurrency, @MainActor）、テスト、ファイル構造、ビルド・実行コマンド
+- **共通ルール**: セキュリティ、Gitワークフロー（日本語コミットメッセージ）、Makefileコマンド
+
+### Step M5.5: devtools シンボリックリンク作成
+
+```bash
+ln -s ./devtools ~/<プロジェクト名>/.devtools
+```
+
+`.gitignore` に `.devtools` を追加:
+```bash
+echo '.devtools' >> ~/<プロジェクト名>/.gitignore
+```
+
+### Step M6: Git 初期化
+
+```bash
+cd ~/<プロジェクト名>
+git init
+git add -A
+git commit -m "feat: プロジェクト初期化 - Swift + SwiftUI macOS アプリ構成"
+```
+
+### Step M7: ビルド確認
+
+```bash
+cd ~/<プロジェクト名>
+swift build
+```
+
+ビルドが失敗した場合はエラーを修正して再試行する。
+
+### Step M8: 環境構築完了の中間報告
+
+```
+プロジェクトの土台ができました。これからMVP機能を実装します...
+```
+
+### Step M9: MVP機能の実装（/plan + /coding）
+
+Step 2 の Q2-mac で承認されたMVP機能を実装する。
+
+#### M9.1 /plan の実行
+
+プロジェクトディレクトリ `~/<プロジェクト名>/` で `/plan` を実行する。
+`/plan` への入力として、Step 2 の対話で決まった情報を渡す。
+
+#### M9.2 /coding の実行
+
+計画書が生成されたら、`/coding` を実行する。
+macOS アプリの場合、Swift ワークフロー（swift-impl → swift-reviewer → swift-tester → swift-documenter → コミット）が実行される。
+
+### Step M10: GETTING_STARTED.md の生成
+
+```markdown
+# はじめに
+
+プロジェクト「<プロジェクト名>」が作成されました。
+
+## ビルドと実行
+
+```bash
+make build   # ビルド
+make run     # ビルドして実行
+```
+
+## 実装済みの機能
+
+- <MVP機能の説明>
+
+## 次に追加してみましょう
+
+Claude Code を開いて、以下のようにやりたいことを伝えてみてください:
+
+```
+/discuss <プロジェクト内容に合わせた具体的な提案1>
+```
+
+```
+/discuss <プロジェクト内容に合わせた具体的な提案2>
+```
+
+```
+/discuss <プロジェクト内容に合わせた具体的な提案3>
+```
+
+やりたいことを自由に伝えるだけで、計画から実装まで全て行います。
+
+## よく使うコマンド
+
+| コマンド | 説明 |
+|---------|------|
+| `make build` | ビルド |
+| `make run` | ビルドして実行 |
+| `make test` | テスト実行 |
+| `/discuss` | アイデアを相談する |
+| `/plan` | 実装計画を作成する |
+| `/coding` | 実装する |
+| `/update` | Ghostrunner を最新化する |
+```
+
+### Step M11: 完了メッセージ
+
+```
+プロジェクト「<プロジェクト名>」の作成が完了しました！
+
+生成先: ~/<プロジェクト名>/
+
+実装した機能:
+  <MVP機能の説明>
+
+ビルド・実行:
+  make build   # ビルド
+  make run     # ビルドして実行
+
+GETTING_STARTED.md に次のステップが書いてあります。
 ```
