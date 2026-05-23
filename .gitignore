@@ -19,3 +19,6 @@ node_modules/
 
 # devtools symlink
 .devtools
+
+# devtools ローカルデータ（個人環境依存のプロジェクトパス一覧）
+devtools/backend/patrol_projects.json
