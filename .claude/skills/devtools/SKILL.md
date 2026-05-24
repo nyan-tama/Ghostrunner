@@ -1,7 +1,6 @@
 ---
 name: devtools
 description: 開発進捗ビューアを起動する
-disable-model-invocation: true
 ---
 
 

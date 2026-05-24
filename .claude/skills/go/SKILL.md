@@ -1,7 +1,6 @@
 ---
 name: go
 description: Goバックエンドの実装サイクルを実行する
-disable-model-invocation: true
 ---
 
 

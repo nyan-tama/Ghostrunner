@@ -1,7 +1,6 @@
 ---
 name: discuss
 description: アイデアや課題を対話で深掘りし複数案を提示する
-disable-model-invocation: true
 ---
 
 

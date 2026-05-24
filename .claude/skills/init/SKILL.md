@@ -1,7 +1,6 @@
 ---
 name: init
 description: プロジェクトスターター。新規プロジェクトを対話的に生成する
-disable-model-invocation: true
 ---
 
 
