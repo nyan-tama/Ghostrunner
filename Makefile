@@ -38,6 +38,7 @@ help:
 	@echo ""
 	@echo "ビルド・ヘルスチェック:"
 	@echo "  make build            - 両方をビルド"
+	@echo "  make gr-run           - gr-run CLIをビルド"
 	@echo "  make health           - ヘルスチェック"
 	@echo ""
 
@@ -171,7 +172,11 @@ restart-frontend-logs: stop-frontend
 
 build:
 	cd $(DEVTOOLS_ROOT)/backend && go build -o server ./cmd/server
+	cd $(DEVTOOLS_ROOT)/backend && go build -o gr-run ./cmd/gr-run
 	cd $(DEVTOOLS_ROOT)/frontend && npm run build
+
+gr-run:
+	cd $(DEVTOOLS_ROOT)/backend && go build -o gr-run ./cmd/gr-run
 
 # ヘルスチェック
 .PHONY: health
