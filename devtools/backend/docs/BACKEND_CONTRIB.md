@@ -95,8 +95,29 @@ make dev
 
 ```bash
 cd backend
+
+# APIサーバー
 go build -o server ./cmd/server
+
+# gr-run CLI（一括実装用ワンショット実行ツール）
+go build -o gr-run ./cmd/gr-run
+# または、プロジェクトルートから
+make gr-run
 ```
+
+### gr-run の使い方
+
+```bash
+gr-run --project <プロジェクトの絶対パス> --task <タスクファイル名> [--locks-dir <ロックディレクトリ>]
+```
+
+| フラグ | 必須 | 説明 |
+|--------|------|------|
+| `--project` | Yes | 対象プロジェクトの絶対パス |
+| `--task` | Yes | `開発/実装/実装待ち/` 内のタスクファイル名 |
+| `--locks-dir` | No | flock ファイルの格納先（デフォルト: `~/.ghostrunner/locks/`） |
+
+gr-run は1タスクを処理して終了するワンショットCLI。複数プロセスを並列起動することで一括実装を実現する。プロジェクト単位の排他ロック（flock）により、同一プロジェクトへの多重実行を防止する。
 
 ## テスト
 
@@ -110,10 +131,12 @@ go test ./...
 ```
 backend/
 |-- cmd/
-|   |-- server/       # メインエントリーポイント
+|   |-- server/       # APIサーバーのエントリーポイント
+|   |-- gr-run/       # 一括実装用ワンショットCLI
 |-- internal/
 |   |-- handler/      # HTTPハンドラー（リクエスト受信、レスポンス返却）
 |   |-- service/      # ビジネスロジック（Claude CLI実行、外部API連携、通知、プロジェクト生成）
+|   |-- grrun/        # gr-run CLIのコアロジック（ロック、クレーム、結果分類）
 |-- docs/             # ドキュメント
 ```
 
