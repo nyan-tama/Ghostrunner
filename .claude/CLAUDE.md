@@ -33,6 +33,12 @@ Ghostrunner は個々の開発に加え、**全プロジェクトを横断管理
   必要に応じて再度 bulk-coding で再ディスパッチ。
 - **状態変更は明示指示のみ**（既存原則を一括操作にも適用）。
 
+### プロジェクト登録
+
+統括の対象プロジェクトは `devtools/backend/patrol_projects.json` で管理する（gitignore対象・ローカル専用）。
+新しいプロジェクトを統括に追加するには、このJSONの `projects` 配列にエントリを追加する。
+詳細な手順は `devtools/backend/docs/BACKEND_RUNBOOK.md` の「プロジェクト登録」を参照。
+
 ## ファイル構造
 
 ```
