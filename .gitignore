@@ -1,5 +1,10 @@
 server
 backend/server
+# devtools backend のビルド成果物（バイナリ・cmd/gr-run のソースは巻き込まないようアンカー）
+/devtools/backend/gr-run
+
+# even-terminal のログ
+even-terminal-*.log
 
 # macOS
 .DS_Store
