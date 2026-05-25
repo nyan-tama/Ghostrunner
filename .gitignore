@@ -27,3 +27,6 @@ node_modules/
 
 # devtools ローカルデータ（個人環境依存のプロジェクトパス一覧）
 devtools/backend/patrol_projects.json
+
+# Claude Code のローカル設定（マシン依存のパーミッション許可等。共有しない）
+.claude/settings.local.json
