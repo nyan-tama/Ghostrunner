@@ -35,6 +35,14 @@ export const PLAN_APPROVAL_KEYWORDS = [
   "Ready for approval",
 ] as const;
 
+// ダッシュボード関連
+export const GHOSTRUNNER_CWD = "/Users/user/Ghostrunner";
+export const LOCAL_STORAGE_TTS_ENABLED_KEY = "ghostrunner_tts_enabled";
+export const LOCAL_STORAGE_ACTIVE_SESSION_ID_KEY =
+  "ghostrunner_active_session_id";
+export const LOCAL_STORAGE_POLLING_ENABLED_KEY = "ghostrunner_polling_enabled";
+export const DASHBOARD_POLL_INTERVAL_MS = 15000;
+
 // サーバー再起動機能用（開発環境のみ）
 // NEXT_PUBLIC_API_BASE が設定されている場合はそれを使用（外部アクセス時）
 export const BACKEND_HEALTH_URL = process.env.NEXT_PUBLIC_API_BASE

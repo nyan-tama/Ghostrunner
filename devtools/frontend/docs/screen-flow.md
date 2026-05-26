@@ -939,3 +939,158 @@ sequenceDiagram
     Frontend->>Backend: POST /api/projects/create/stream
     Note right of Frontend: 同じ入力値で再実行
 ```
+
+---
+
+## 統括ダッシュボード: 横断把握・チャットフロー
+
+`/dashboard` は全プロジェクトの開発・運用状態を横断把握し、even-terminal 経由のチャットで指示・問い合わせを行う統括ダッシュボード。
+
+### ページ間遷移
+
+```mermaid
+flowchart LR
+    A["/dashboard<br>統括ダッシュボード"] --- B["独立ページ<br>直接URLアクセス"]
+```
+
+統括ダッシュボードは独立ページとして動作する。メインページからのリンク遷移はなく、直接 URL でアクセスする。
+
+### ダッシュボード更新フロー
+
+```mermaid
+flowchart TD
+    A[ページマウント] -->|初回取得| B[GET /api/dashboard/state]
+    B -->|成功| C[プロジェクトカード一覧表示]
+    B -->|失敗| D[エラー表示]
+    C -->|15秒間隔<br>polling ON| B
+    C -->|「状況は？」ボタン| E[即時リフレッシュ + チャット送信]
+    E --> B
+```
+
+### ダッシュボード更新の状態遷移
+
+| 現在の状態 | トリガー | 次の状態 | 処理 |
+|-----------|---------|---------|------|
+| 初期（読み込み中） | ページマウント | カード表示 | `GET /api/dashboard/state` を呼び出し |
+| カード表示 | ポーリングインターバル（15秒） | カード表示 | 自動的に `GET /api/dashboard/state` を再取得（polling ON 時のみ） |
+| カード表示 | 「状況は？」ボタンクリック | カード表示 | 即時リフレッシュ + チャットで「状況は？」送信 |
+| カード表示 | タブ非表示（visibilitychange） | インターバル停止 | ポーリングインターバルを停止 |
+| インターバル停止 | タブ表示復帰 | カード表示 | 即時取得 + インターバル再開（polling ON 時のみ） |
+| 任意 | ポーリングトグル OFF | 手動更新モード | インターバル停止、手動リフレッシュのみ |
+| 手動更新モード | ポーリングトグル ON | カード表示 | インターバル再開 |
+
+### チャット（even-terminal SSE）フロー
+
+```mermaid
+flowchart TD
+    A[ページマウント] -->|セッション復元| B{localStorage に<br>セッションID?}
+    B -->|あり| C[SSE 接続<br>EventSource]
+    B -->|なし| D[GET /api/sessions<br>最新セッション取得]
+    D -->|セッションあり| C
+    D -->|セッションなし| E[待機<br>送信時にエラー表示]
+    C -->|接続成功| F[待機<br>イベント受信中]
+    C -->|接続失敗| G{リトライ<br>< 10回?}
+    G -->|はい| H[指数バックオフ<br>1秒-8秒]
+    H --> C
+    G -->|いいえ| I[エラー表示]
+```
+
+### チャット送信フロー
+
+```mermaid
+flowchart TD
+    A[テキスト入力<br>Enter で送信] -->|POST /api/prompt| B{レスポンス}
+    B -->|200 OK| C[SSE でストリーミング受信<br>text_delta イベント]
+    C -->|テキスト蓄積| D[ChatTranscript に表示]
+    C -->|result / status:idle| E[完了<br>TTS 読み上げ]
+    C -->|3秒無音| E
+    B -->|4xx| F[セッション再取得<br>リトライ1回]
+    F -->|成功| C
+    F -->|失敗| G[エラー表示]
+    B -->|その他エラー| G
+```
+
+### チャットの状態遷移
+
+| 現在の状態 | トリガー | 次の状態 | 処理 |
+|-----------|---------|---------|------|
+| idle | テキスト送信 | busy | `POST /api/prompt` でプロンプト送信、応答テキストをリセット |
+| busy | text_delta イベント受信 | busy | テキストを蓄積、ChatTranscript に表示 |
+| busy | result イベント受信 | idle | テキスト蓄積を完了、TTS 読み上げ実行 |
+| busy | status:idle イベント受信（テキストあり） | idle | テキスト蓄積を完了、TTS 読み上げ実行 |
+| busy | 3秒間イベントなし | idle | 無音タイムアウトで完了扱い、TTS 読み上げ実行 |
+| busy | error イベント受信 | error | エラーメッセージを表示 |
+| idle | 4xx レスポンス | busy（リトライ） | セッション一覧を再取得し、新しいセッションで再送信 |
+
+### 未回答質問の回答フロー
+
+```mermaid
+flowchart TD
+    A[DashboardCard<br>未回答 N件] -->|質問をクリック| B[回答フォーム展開]
+    B -->|テキスト入力 + 送信| C[POST /api/dashboard/answer]
+    C -->|成功| D[ダッシュボード<br>リフレッシュ]
+    C -->|失敗| E[alert でエラー表示]
+```
+
+### 未回答質問の回答詳細
+
+| 操作 | 処理 |
+|-----|------|
+| 未回答質問クリック | 回答フォームを展開（他の質問は閉じる） |
+| 同じ質問を再クリック | 回答フォームを閉じる |
+| 回答テキスト入力 + 送信 | `POST /api/dashboard/answer` でプランファイルに回答を書き戻し |
+| 送信成功 | `onAnswered` コールバックでダッシュボードをリフレッシュ |
+| 送信失敗 | alert でエラーメッセージ表示 |
+
+### TTS フロー
+
+```mermaid
+flowchart TD
+    A[TTS OFF] -->|TTS トグル ON| B[TTS ON<br>日本語音声選択]
+    B -->|チャット応答完了| C[SpeechSynthesisUtterance<br>音声読み上げ]
+    C -->|読み上げ完了| B
+    C -->|cancel 呼び出し| B
+    B -->|TTS トグル OFF| D[cancel + 状態リセット]
+    D --> A
+```
+
+### API 通信フロー
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant DevtoolsAPI as devtools Backend
+    participant EvenTerminal as even-terminal
+
+    Note over Frontend,DevtoolsAPI: ページマウント時（ダッシュボード）
+    Frontend->>DevtoolsAPI: GET /api/dashboard/state
+    DevtoolsAPI-->>Frontend: {projects, generatedAt}
+
+    Note over Frontend,EvenTerminal: ページマウント時（チャット）
+    Frontend->>EvenTerminal: GET /api/sessions?cwd=...&provider=claude
+    EvenTerminal-->>Frontend: [{id, cwd, provider}]
+    Frontend->>EvenTerminal: EventSource /api/events?sessionId=...
+
+    Note over Frontend,EvenTerminal: チャット送信
+    User->>Frontend: テキスト入力 + Enter
+    Frontend->>EvenTerminal: POST /api/prompt
+    Note right of Frontend: {sessionId, text, provider, cwd}
+    EvenTerminal-->>Frontend: SSE text_delta (複数回)
+    EvenTerminal-->>Frontend: SSE result
+    Frontend->>User: テキスト表示 + TTS 読み上げ
+
+    Note over Frontend,DevtoolsAPI: 未回答質問への回答
+    User->>Frontend: 質問クリック + テキスト入力 + 送信
+    Frontend->>DevtoolsAPI: POST /api/dashboard/answer
+    Note right of Frontend: {projectPath, planPath, lineStart, answer}
+    DevtoolsAPI-->>Frontend: {success}
+    Frontend->>DevtoolsAPI: GET /api/dashboard/state
+    DevtoolsAPI-->>Frontend: 更新済み状態
+
+    Note over Frontend,DevtoolsAPI: 定期ポーリング（15秒間隔）
+    loop polling ON
+        Frontend->>DevtoolsAPI: GET /api/dashboard/state
+        DevtoolsAPI-->>Frontend: {projects, generatedAt}
+    end
+```

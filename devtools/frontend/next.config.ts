@@ -4,6 +4,22 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
+        source: "/api/prompt",
+        destination: "http://localhost:3456/api/prompt",
+      },
+      {
+        source: "/api/events",
+        destination: "http://localhost:3456/api/events",
+      },
+      {
+        source: "/api/sessions/:path*",
+        destination: "http://localhost:3456/api/sessions/:path*",
+      },
+      {
+        source: "/api/sessions",
+        destination: "http://localhost:3456/api/sessions",
+      },
+      {
         source: "/api/:path*",
         destination: "http://localhost:8888/api/:path*",
       },

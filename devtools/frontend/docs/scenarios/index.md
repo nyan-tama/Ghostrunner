@@ -11,6 +11,7 @@ Ghost Runner の主要なユーザー操作シナリオを記載する。
 | プロジェクト作成 | [project-create.md](./project-create.md) | プロジェクトの新規作成 |
 | プロジェクト削除 | [project-delete.md](./project-delete.md) | プロジェクトの登録解除 |
 | 巡回ダッシュボード | [patrol.md](./patrol.md) | 複数プロジェクトの自動巡回・リアルタイム監視 |
+| 統括ダッシュボード | [dashboard.md](./dashboard.md) | 全プロジェクト横断把握・チャット・音声読み上げ |
 
 ## 基本フロー
 
