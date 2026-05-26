@@ -14,6 +14,7 @@
 | 2026-05-26 | **Q4-0a への回答**: ユーザーより「**ホスト機と同一**」との回答。Mac mini = even-terminal / dashboard が動いている Mac そのもの（`usermac-mini.tail85f9ea.ts.net`）。**含意**: VSCode も同一マシン上で動くため `~/.claude/projects/` を直接共有可能 → 案 ζ（session ID 共有）の前提（同じ jsonl にアクセス）が技術的に成立しやすい。Tailscale 越し（別マシン）の設計検討は **すべて不要**。残論点は Q4-0c のみ。 |
 | 2026-05-26 | **Q4-0c への回答**: ユーザーより「**最初から共有実装（案 ζ）**」との回答。VSCode を独立経路として割り切る案 θ は脱落、Q4-0a 確定（ホスト機と同一）の含意（jsonl 共有可能）を踏まえて **共有方向に倒すコスト軽減を活かす判断**。Q4 全解決、本書の Q4 章は **方針確定**。`/plan` 直前の **実機検証タスク**（even-terminal の session 保存先 / claude `--resume` 同時 attach 仕様 / VSCode 拡張の SID 指定再開手段）を次節に整理。残るは Q2-a（確認事項回答の音声化 / TTS 排他制御）のみ。 |
 | 2026-05-26 | **Q2-a への回答**: ユーザーより「**確認事項回答の音声化はしたい / TTS 排他制御は運用で十分**」との回答。(1) Even G2 から「A 案で」「B 案で」と音声で確認事項に答える経路を実装範囲に含める（同 API: dashboard の回答書き戻し POST と共通）。(2) dashboard TTS（Web Speech API）と Even G2 グラス音声出力の排他は **コードレベルでロックしない・ユーザー運用ルールで足りる**（場面マトリクス的に併用稀／dashboard 側に TTS ON/OFF トグル実装済 / 必要なら手動 OFF）。**Q2-a 解決により本書の全論点が解消、未決はゼロ**。次は `/plan` 直前の実機検証タスク (i)〜(iii) を潰してから実装計画化へ進む。 |
+| 2026-05-26 | **`/plan` 直前の実機検証レポート**: (i) even-terminal の session 保存先 = `~/.claude/projects/<エンコード cwd>/<SID>.jsonl` で CLI 互換、独自 DB なし、SID と jsonl ファイル名 UUID 一致を実装読みで確認（even-terminal は `claude-agent-sdk` v0.2.141 の `query({resume,cwd})` を直接呼ぶ仕様）。**(i) は完全に成立**。(ii) claude `--resume` 同時 attach は jsonl の parent uuid chain 分岐リスクがあり、SDK 型定義に lock 記載なし。**API call コストが発生する実機 2 プロセス検証は本フェーズでは未実施**、安全側に倒して**「書き込みは 1 プロセスに集約する運用ルール」**を採用。(iii) VSCode 公式拡張 `anthropic.claude-code` v2.1.145 はインストール済、コマンドパレットに任意 SID resume コマンドは無いが内部は `claude --resume`/`--session-id` を spawn しており、**統合ターミナル経由で `claude --resume <SID>` を手動入力する経路が確実に動く**。検証結果より案 ζ は技術的成立、本フェーズの検討作業はクローズ可能。 |
 
 ## 背景（修正版）
 
@@ -493,7 +494,65 @@ VSCode の Claude Code プラグインは **独自 session で動く第 4 経路
 
 **確定方針**: **案 γ（dashboard 自動継承＋切替 UI）＋ 案 ζ（VSCode ⇄ even-terminal session ID 共有）** の組み合わせで 4 経路（G2 / iPhone Safari / Mac mini Safari / Mac mini VSCode）を同一 session で結ぶ。実装ゼロの案 γ 部分は Q3-a に内包、案 ζ 部分は新規実装（dashboard 側に SID コピー UI ＋ VSCode 側で SID 指定 resume の手順整備）。
 
-#### Q4 確定方針 → /plan 直前の実機検証タスク
+#### Q4 確定方針 → /plan 直前の実機検証レポート（2026-05-26）
+
+案 ζ の実装計画化（/plan）に進む前に必要な実機 / 実装読み検証を実施。結論は **「案 ζ は技術的に成立する。ただし dashboard 側に SID コピー UI ＋ VSCode 統合ターミナル経由で `claude --resume <SID>` を打つ運用手順、で最初は十分。同時 attach は要回避（A or B で時分割使用）」**。
+
+##### (i) even-terminal の session 保存先 — 結論: 完全に成立
+
+- **保存先**: `~/.claude/projects/<エンコード cwd>/<SID>.jsonl`（claude バイナリ標準と同一）
+- **エンコード規則**: cwd 中のスラッシュをハイフンに置換（例: `/Users/user/Ghostrunner` → `-Users-user-Ghostrunner`）。実機で 129 ディレクトリ確認済み
+- **even-terminal は claude バイナリを spawn しない**: `@anthropic-ai/claude-agent-sdk` v0.2.141 の `query({ resume: SID, cwd })` を直接呼ぶ。ただし保存先・jsonl 形式は CLI と完全互換
+- **独自 session DB を持たない**: `provider.js:findSessionFile()` が `~/.claude/projects/<dir>/<SID>.jsonl` を直接スキャン。`listSessions` も SDK の `listSessions({ dir, limit })` をそのまま返す
+- **SID と jsonl ファイル名 UUID は完全一致**: `findSessionFile(sessionId)` で `${sessionId}.jsonl` を直接探している（実装証拠あり）
+
+→ **案 ζ の前提（同じ jsonl にアクセス）は技術的に成立。Q4-0a 確定（ホスト機と同一）の含意通り**。
+
+##### (ii) claude `--resume <SID>` 同時 attach 仕様 — 結論: 同時 attach は要回避
+
+- **jsonl 構造**: 各 event に `uuid` / `parentUuid` を持ち、**linked list** で会話の親子関係を表現
+- **`--fork-session` フラグの存在**: claude バイナリ ヘルプより「When resuming, create a new session ID instead of reusing the original」→ デフォルト `--resume` は **同 SID を再利用**するが、明示的に分岐させる手段がある
+- **同時 attach の理論的リスク**: 2 プロセスが同じ jsonl に append すると、各プロセスは「自分が最後に書いた uuid」を parent と認識 → **parent uuid chain が分岐**し、context 再生時に片方のブランチしか見えない可能性
+- **SDK 型定義に lock / 同時実行可否の記載なし**（v0.2.141 の `sdk.d.ts` を確認）→ SDK 側で flock 等の排他制御をしている保証はない
+- **実機での同時 attach 検証は API call が発生する**ため、本フェーズでは未実施。安全側に倒して **「同時 attach は回避する運用」** を採用すべき
+
+→ **案 ζ の運用パターン**: 「VSCode で打つ時は dashboard / G2 側は読み取り（音声出力 OK）に留める」「G2 / dashboard で打つ時は VSCode 側を閉じる」など、**書き込みは 1 プロセスに集約**。読み取りは複数 OK（append-only の jsonl を tail するだけなら安全）。
+
+##### (iii) VSCode Claude Code プラグインの SID 指定 resume 手段 — 結論: 統合ターミナル経由なら確実
+
+- **拡張**: 公式 `anthropic.claude-code` v2.1.145（Anthropic publisher）。インストール済み
+- **2 つの動作モード**:
+   - `claudeCode.useTerminal: false`（デフォルト）= ネイティブ Web UI（webview）
+   - `claudeCode.useTerminal: true` = VSCode 統合ターミナル内で `claude` バイナリを起動
+- **コマンドパレットには「特定 SID を指定して resume」コマンドは無い**:
+   - `claude-vscode.newConversation`, `claude-vscode.reopenClosedSession`（直近のみ）は存在
+   - 任意 SID 指定の UI 経路は提供されていない
+- **内部実装は `claude --resume <SID>` / `--session-id <UUID>` を spawn している**（extension.js を grep で確認、CLI フラグ文字列が含まれる）→ つまり SDK / CLI と同じ session 体系
+- **現実的な resume 手段**:
+   1. **統合ターミナル経由**: VSCode の `Terminal: New Terminal` で起動 → `claude --resume <SID>` を打つ。最も確実。
+   2. **`claude-vscode.terminal.open` コマンド**: 拡張側でターミナル起動コマンドあり（package.json line 214）。SID 指定の引数があるかは未確認だが、内部的にはターミナル起動なので前者と等価。
+   3. ネイティブ Web UI で任意 SID resume は **不可**（コマンド未提供）。
+
+→ **案 ζ の実装方針**: dashboard ヘッダに「SID をクリップボードコピー」ボタンを置く → ユーザーが VSCode で `cmd+\`` で統合ターミナル開く → `claude --resume <paste>` を打つ。手数は 3 ステップだが、追加開発はクライアント側ボタンのみ。
+
+##### 検証結果サマリー
+
+| 検証項目 | 結論 | /plan で要対応か |
+|----------|------|:---:|
+| (i) 保存先共通 | ◎ 成立 | 不要（前提 OK） |
+| (ii) 同時 attach | △ 回避運用必要 | **要**（運用ルール明文化） |
+| (iii) VSCode SID resume | ◎ 統合ターミナル経由で可 | **要**（手順ドキュメント化） |
+
+##### /plan で扱うべき新規論点（実機検証により浮上）
+
+- **「書き込み排他」をユーザー運用ルールで処理する**（コードロックしない）。dashboard / G2 / VSCode で同時に書かないという運用文化を明文化。Q2 で「一括 coding は Even G2 から発火させない」を運用ルール化したのと同じパターン。
+- **dashboard 側の SID コピー UI 仕様**: ヘッダ右端 / session 切替 UI 隣 / トースト表示。
+- **VSCode 側の手順ドキュメント**: 「VSCode で続きを書きたい時は dashboard で SID コピー → 統合ターミナルで `claude --resume <SID>`」を README / 使い分けガイドに記載。
+- **将来の自動化候補**: `claude-vscode.openSessionById` 相当のコマンドを Anthropic に要望 or 独自ラッパー（任意）。本 MVP では不要。
+
+---
+
+##### 元の検証 TODO（参考保持）
 
 案 ζ の実装計画化（/plan）に進む前に、以下を実機 / 実装読みで確定する必要がある:
 
