@@ -195,12 +195,12 @@ flowchart TD
 | `devtools/frontend/src/types/chat.ts` | 新規 | `ChatSession`, `ChatHistoryItem`, `PromptRequest`、**`ChatStreamEvent` ユニオン（even-terminal Claude provider 実装に基づく）: `text_delta` / `result` / `status` / `error` / `user_prompt` / `running_stats` / `tool_start` / `tool_end` / `task_progress` / `notification` / `user_question` / `permission_request` 等**（MVP で参照するのは主に `text_delta` と `result`） |
 | `devtools/frontend/src/lib/dashboardApi.ts` | 新規 | `fetchDashboardState()`, `submitAnswer(req)` |
 | `devtools/frontend/src/lib/chatApi.ts` | 新規 | `listSessions(opts?: { cwd?: string; provider?: string; limit?: number })`, `getHistory(id, limit)`, `sendPrompt({sessionId, text, cwd?})`, `openEventStream(sessionId, handlers)` — **EventSource で `/api/events?sessionId=<id>` を開く（`needReplay` は付けない）** |
-| `devtools/frontend/src/lib/constants.ts` | 修正 | `LOCAL_STORAGE_TTS_ENABLED_KEY = "ghostrunner_tts_enabled"`, `LOCAL_STORAGE_ACTIVE_SESSION_ID_KEY = "ghostrunner_active_session_id"`, `DASHBOARD_POLL_INTERVAL_MS = 15000`（既存の `ghostrunner_` プレフィクス規約を継承） |
-| `devtools/frontend/src/hooks/useDashboard.ts` | 新規 | マウント時 1 回 fetch、`setInterval(15000)`、`visibilitychange` で `hidden` 停止／`visible` で即 fetch して再開、`refresh()` を公開、`error: string \| null` を返す |
+| `devtools/frontend/src/lib/constants.ts` | 修正 | `LOCAL_STORAGE_TTS_ENABLED_KEY = "ghostrunner_tts_enabled"`, `LOCAL_STORAGE_ACTIVE_SESSION_ID_KEY = "ghostrunner_active_session_id"`, `LOCAL_STORAGE_POLLING_ENABLED_KEY = "ghostrunner_polling_enabled"`, `DASHBOARD_POLL_INTERVAL_MS = 15000`（既存の `ghostrunner_` プレフィクス規約を継承） |
+| `devtools/frontend/src/hooks/useDashboard.ts` | 新規 | マウント時に常時 1 回 fetch（初期画面の白防止）。**`polling: boolean, setPolling(b)` をトグルとして公開**（`localStorage.ghostrunner_polling_enabled` で永続、**既定 ON**）。`polling===true` の間だけ `setInterval(15000)`＋`visibilitychange` で `hidden` 停止／`visible` で即 fetch して再開。`polling===false`（手動更新モード）では setInterval を張らず visibility 連動 fetch もしない（初回 1 回 + 明示操作のみ）。`refresh()` を公開、`error: string \| null` を返す |
 | `devtools/frontend/src/hooks/useTTS.ts` | 新規 | Web Speech API ラッパ。`speak(text)`, `cancel()`, `enabled`（localStorage 永続）, `isSpeaking`, `error`。**`speak` 前に `cancel()` を呼び、その後 `setTimeout(() => speakInternal(), 50)` で 50ms 遅延を挟む**（iOS Safari の cancel→speak 不発バグ対策）。**初期化時に `getVoices()` 呼び＋ `voiceschanged` イベント購読で再評価**。**voice 選択ロジック: `getVoices().find(v => v.lang.startsWith("ja"))` があれば `utterance.voice = it`、なければ `utterance.lang = "ja-JP"` のみセット（lang フォールバック）**。`localStorage` アクセスは `useEffect` 内で実行（SSR セーフ） |
 | `devtools/frontend/src/hooks/useChat.ts` | 新規 | アクティブ session 管理（localStorage 永続）＋送信＋応答テキスト集約＋完了通知。**SSE 接続は `visibilitychange` 連動**（既存 `usePatrolSSE.ts` の流儀）：`hidden` で `close()`、`visible` で再接続。**`onerror` 時は close→指数バックオフ（1s, 2s, 4s, 8s、最大 10 回）で再接続**。**完了検知は `type === "result"` を見る**（参考: even-terminal Claude provider が `session.js:674` で emit）。`text_delta` を `text` フィールドで累積 → `result` で `onComplete(fullText)`。途中切断のフォールバックとして「SSE 無音 3 秒 → onStreamIdle」も併用 |
 | `devtools/frontend/src/hooks/useDashboardPage.ts` | 新規（任意・実装時判断） | `page.tsx` が 400 行超えそうなら 3 フック合成のコンテナフックに切り出し |
-| `devtools/frontend/src/components/dashboard/DashboardHeader.tsx` | 新規 | タイトル＋TTSToggle＋ProgressGraspButton |
+| `devtools/frontend/src/components/dashboard/DashboardHeader.tsx` | 新規 | タイトル＋PollingToggle＋TTSToggle＋ProgressGraspButton |
 | `devtools/frontend/src/components/dashboard/DashboardCard.tsx` | 新規 | 1 プロジェクト分（AccentBar＋名前＋DevSummary＋OpsEntry リスト＋UnansweredList） |
 | `devtools/frontend/src/components/dashboard/DevSummary.tsx` | 新規 | 開発カンバン件数 |
 | `devtools/frontend/src/components/dashboard/OpsEntry.tsx` | 新規 | kind×account 1 件。`progress/today/stats` は型ガード関数で確認後に表示、ガード不通は `JSON.stringify` で 1 行 fallback。stale 自然文表記（`4時間無更新（実行停止疑い）`） |
@@ -209,6 +209,7 @@ flowchart TD
 | `devtools/frontend/src/components/dashboard/ChatInput.tsx` | 新規 | textarea + 送信ボタン（min-height 48px、Enter 送信、Shift+Enter 改行） |
 | `devtools/frontend/src/components/dashboard/ChatTranscript.tsx` | 新規 | 最新応答 1 件 + ステータス（idle/busy/error） |
 | `devtools/frontend/src/components/dashboard/TTSToggle.tsx` | 新規 | ON/OFF ボタン（Web Speech API 未対応で disabled） |
+| `devtools/frontend/src/components/dashboard/PollingToggle.tsx` | 新規 | 自動更新 ON/OFF ボタン（既定 ON、`useDashboard.polling/setPolling` と localStorage で永続）。OFF 時はラベルが「手動更新（聞いたら返す）」になり、状況は進捗把握ボタンとチャット送信完了時のみ更新される |
 | `devtools/frontend/src/components/dashboard/ProgressGraspButton.tsx` | 新規 | ワンタップ「状況は？」送信＋refresh |
 | `devtools/frontend/src/components/dashboard/AccentBar.tsx` | 新規 | 左 4px のアクセントバー。**Tailwind クラス: `bg-red-500`（要対応）/ `bg-yellow-400`（確認事項待ち）/ `bg-blue-500`（実行中）/ `bg-gray-300`（静観）** |
 
@@ -262,10 +263,10 @@ flowchart TD
 7. **`useChat`** `src/hooks/useChat.ts`（visibility 連動 SSE、指数バックオフ、`result` 完了検知、無音 3s フォールバック）
 8. **単体テスト追加**（`vitest`、Step 5-7 と並行）:
    - `useTTS` … `window.speechSynthesis` を `vi.stubGlobal` でモック、`speak`/`cancel`/トグルをテスト。`voiceschanged` シミュレート
-   - `useDashboard` … `vi.useFakeTimers()` で 15s 進行、`visibilitychange` イベント発火モック
+   - `useDashboard` … `vi.useFakeTimers()` で 15s 進行、`visibilitychange` イベント発火モック、polling トグル ON/OFF 切替（OFF で setInterval が張られず visibility 連動再 fetch しない、`refresh()` は OFF でも効く）
    - `useChat` … `EventSource` を `vi.stubGlobal` でモック、`text_delta` 累積→`result` で `onComplete` が呼ばれることを assert
    - `DashboardAnswerForm` … `@testing-library/react` で wrappedQuestion 生成と onSubmit 連携
-9. **小コンポーネント** AccentBar / DevSummary / OpsEntry / TTSToggle / ProgressGraspButton / ChatInput / ChatTranscript / DashboardAnswerForm
+9. **小コンポーネント** AccentBar / DevSummary / OpsEntry / TTSToggle / PollingToggle / ProgressGraspButton / ChatInput / ChatTranscript / DashboardAnswerForm
 10. **複合コンポーネント** UnansweredList / DashboardCard / DashboardHeader
 11. **page.tsx 合成** 3 フックを合成。エラーは `chat.error ?? dashboard.error ?? tts.error` で集約して上部バナー表示。400 行を超えそうなら `useDashboardPage.ts` コンテナフックに切り出し
 12. **ビルド・型・lint** `npm run build`, `npx tsc --noEmit`, `npm run lint`
@@ -290,6 +291,7 @@ flowchart TD
 | FE-13 | localStorage キー | `ghostrunner_` プレフィクス、`useEffect` 内アクセスで SSR セーフ |
 | FE-14 | エラー集約 | 各フックが `error: string \| null` を公開、page.tsx で `chat.error ?? dashboard.error ?? tts.error` を上部バナー |
 | FE-15 | OpsEntry 型 | 固定型 + 型ガード関数で TS strict 通過、未知 kind は `rawExtra` で温存し `JSON.stringify` fallback |
+| FE-16 | ポーリング自動更新の制御 | トグルで ON/OFF。**既定 ON**、localStorage `ghostrunner_polling_enabled` で永続。OFF は「聞かれたら返す」スタイル（手動更新モード）で `setInterval`・`visibilitychange` 連動 fetch とも停止。初回マウントの 1 回 fetch・進捗把握ボタン・チャット送信完了時の refresh は OFF でも効く |
 
 ---
 
