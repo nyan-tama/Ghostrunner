@@ -16,6 +16,7 @@
 //   - OpenAIHandler: /api/openai 関連のエンドポイントを処理（音声対話用エフェメラルキー発行）
 //   - CreateHandler: /api/projects/validate, /api/projects/create/stream, /api/projects/open を処理（プロジェクト生成）
 //   - PatrolHandler: /api/patrol 関連のエンドポイントを処理（複数プロジェクト自動巡回）
+//   - DashboardHandler: /api/dashboard 関連のエンドポイントを処理（統括GUIダッシュボード状態集約・回答書き戻し）
 //
 // ClaudeServiceへの依存性注入によりテスタビリティを確保する。
 //
@@ -100,6 +101,16 @@
 //   - GET /api/patrol/stream: SSEイベントストリーミング
 //   - POST /api/patrol/polling/start: 定期ポーリングの開始
 //   - POST /api/patrol/polling/stop: 定期ポーリングの停止
+//
+// # DashboardHandler
+//
+// 統括GUIダッシュボードのエンドポイント群を処理するハンドラー。
+// dashboardパッケージのServiceインターフェースに依存し、
+// 全プロジェクトの状態集約と確認事項への回答書き戻しの2エンドポイントを提供する。
+//
+// エンドポイント:
+//   - GET /api/dashboard/state: 全プロジェクトの集約状態取得
+//   - POST /api/dashboard/answer: 確認事項への回答書き戻し
 //
 // # PlanHandler
 //
@@ -303,6 +314,34 @@
 //
 // POST /api/patrol/polling/stop - 定期ポーリングの停止
 //
+// ## Dashboard API (統括GUIダッシュボード)
+//
+// GET /api/dashboard/state - 全プロジェクトの集約状態取得
+//
+// レスポンス:
+//
+//	{
+//	    "projects": [...],
+//	    "generatedAt": "2026-05-26T12:00:00+09:00"
+//	}
+//
+// POST /api/dashboard/answer - 確認事項への回答書き戻し
+//
+// リクエスト:
+//
+//	{
+//	    "projectPath": "/path/to/project",
+//	    "planPath": "開発/実装/実行中/plan.md",
+//	    "lineStart": 42,
+//	    "answer": "A案で進めてください"
+//	}
+//
+// レスポンス:
+//
+//	{
+//	    "success": true
+//	}
+//
 // ## Plan API (後方互換性)
 //
 // POST /api/plan - /planコマンドの同期実行
@@ -438,6 +477,13 @@
 //	patrol.GET("/stream", patrolHandler.HandleStream)
 //	patrol.POST("/polling/start", patrolHandler.HandlePollingStart)
 //	patrol.POST("/polling/stop", patrolHandler.HandlePollingStop)
+//
+//	// DashboardHandler
+//	dashboardService := dashboard.NewService(patrolConfigPath, ghostrunnerRoot)
+//	dashboardHandler := handler.NewDashboardHandler(dashboardService)
+//	dash := api.Group("/dashboard")
+//	dash.GET("/state", dashboardHandler.HandleState)
+//	dash.POST("/answer", dashboardHandler.HandleAnswer)
 //
 //	// HealthHandler
 //	healthHandler := handler.NewHealthHandler()

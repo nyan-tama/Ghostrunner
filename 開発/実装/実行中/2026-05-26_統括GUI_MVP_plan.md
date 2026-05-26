@@ -595,3 +595,91 @@ npx vitest run --coverage                   # 全体カバレッジ
 9. **DashboardAnswerForm の Question 組み立て** — `options: []` で AnswerForm を自由入力モードに正しく落とす
 
 **テストしない判断の根拠**: ビジュアル中心のコンポーネント（11 個）と薄いラッパ（API クライアント・配線・rewrites）はテスト ROI が低い。ロジックは hook 側に集約されているため、hook をテストすれば実害のあるリグレッションは捕捉できる。実機固有の挙動（iOS Safari の autoplay / `speechSynthesis` の voice 解決 / visibilityState の実挙動）は jsdom では再現できないため手動検証に分離した。
+
+---
+
+## バックエンド実装レポート
+
+### 実装サマリー
+
+- **実装日**: 2026-05-26
+- **対象**: Go バックエンド（`devtools/backend/`）のみ
+- **変更ファイル数**: 15 files（新規 13 + 修正 2）
+
+統括GUI MVP のバックエンド部分として、ダッシュボード状態集約 API (`GET /api/dashboard/state`) と確認事項回答書き戻し API (`POST /api/dashboard/answer`) を実装した。既存の `patrol_projects.json` ローダーを共通パッケージ `internal/projects` として切り出し、`internal/dashboard` パッケージで状態集約・回答ロジックを実装、`internal/handler/dashboard.go` で HTTP ハンドラを提供し、`cmd/server/main.go` でルーティングを配線した。
+
+### 変更ファイル一覧
+
+| ファイル | 種別 | 内容 |
+|---------|------|------|
+| `internal/projects/doc.go` | 新規 | パッケージドキュメント |
+| `internal/projects/loader.go` | 新規 | `Project`, `Config`, `LoadProjects()` - patrol_projects.json の共通ローダー |
+| `internal/projects/loader_test.go` | 新規 | 正常系2件・ファイル不在・JSON破損の4ケース |
+| `internal/dashboard/doc.go` | 新規 | パッケージドキュメント（SSOT共有・読み取り専用・時刻関数注入の方針記載） |
+| `internal/dashboard/types.go` | 新規 | `Attention` enum 3値、`KanbanCounts`, `UnansweredQuestion`, `OpsEntry`（固定型 + `RawExtra`）, `ProjectState`, `State` |
+| `internal/dashboard/scanner.go` | 新規 | `ScanProject()`, `GetPatternForTest()`, カンバン集計・未回答検出・運用状態読み取り・Attention判定・staleness算出（256行） |
+| `internal/dashboard/scanner_test.go` | 新規 | SSOT参照経路・カンバン集計・未回答抽出・Attention判定7パターン・IsSelf・OpsOptedIn・staleness の10テスト（277行） |
+| `internal/dashboard/answer.go` | 新規 | `AnswerQuestion()`, `AnswerRequest`, 窓+-2行再確認・最近接マッチ・次行1行判定・アトミック書き戻し・多層バリデーション（186行） |
+| `internal/dashboard/answer_test.go` | 新規 | バリデーション6件・正常書き戻し・既回答409・既存回答行差し替えの10テスト（246行） |
+| `internal/dashboard/service.go` | 新規 | `Service` インターフェース、`serviceImpl`、`NewService`/`NewServiceWithClock`、`GetState`（ctxキャンセル対応・安定ソート）、`Answer`（143行） |
+| `internal/dashboard/service_test.go` | 新規 | 空設定・複数プロジェクトソート・ctxキャンセル早期returnの3テスト |
+| `internal/handler/dashboard.go` | 新規 | `DashboardHandler`, `HandleState`, `HandleAnswer` - エラー種別に応じた400/409/500分岐（87行） |
+| `internal/handler/dashboard_test.go` | 新規 | gin httptest + mockService で200/500/200/400/409/400の6テスト |
+| `internal/handler/doc.go` | 修正 | DashboardHandler セクションとエンドポイント仕様を追記 |
+| `cmd/server/main.go` | 修正 | `dashboard.NewService` 初期化、`/api/dashboard` グループに `GET /state` と `POST /answer` を登録 |
+
+### 計画からの変更点
+
+- **特になし**: 計画書（セクション3）の設計判断 BE-1 から BE-12 まで全て計画通りに実装された。ファイル構成・API仕様・バリデーション規則・アトミック書き戻し・SSOT参照経路・Attention判定ロジック・staleness算出・ctxキャンセル・ソート順序の全てが計画と一致している。
+
+### 実装時の課題
+
+#### レビュー指摘と修正
+
+- **Critical: `success: false` の欠落** — 初回実装時にエラーレスポンスで `"success": false` を返していなかった。ハンドラの全エラーパス（400/409/500）に `"success": false` を追加して解決
+- **Warning: gofmt フォーマット** — gofmt 違反があったため修正
+
+#### 技術的に難しかった点
+
+- 特になし。計画書の設計が十分に具体的だったため、実装時の判断は最小限で済んだ
+
+### 残存する懸念点
+
+- **`internal/projects` と既存 `PatrolService.loadConfig` の二重管理**: `PatrolService` 側は独自の `loadConfig` を内部に持ったまま。将来的に `internal/projects` に統合すべきだが、既存 patrol 機能への影響を避けるため MVP では温存している
+- **テストカバレッジの差**: `scanner_test.go` は計画の14ケース中10ケースを実装（staleness 3h直前/直後の精密境界テスト、WarningsのappendのMock IO検証、ソート安定性テストが省略）。`answer_test.go` は計画の16ケース中10ケースを実装（窓+-2の位置ズレ精密テスト、tmp同一ディレクトリ観測、LineStart巨大値テストが省略）。コアロジックはカバーされているが、境界条件の一部は未検証
+- **OpsEntry の `SourceFile` がフルパスではなく相対パス**: プロジェクトパスからの相対（`運用/状態/test.json`）を返すが、フロントエンドが期待する形式と合致するか実結合時に確認が必要
+
+### 動作確認フロー
+
+```
+1. make backend でサーバーを起動
+2. curl http://localhost:8888/api/dashboard/state で状態取得を確認
+   - patrol_projects.json に登録済みプロジェクトがある場合:
+     各プロジェクトのカンバン件数・未回答・運用状態が返ること
+   - patrol_projects.json が存在しない場合:
+     {"projects":[],"generatedAt":"..."} が返ること
+3. 未回答確認事項があるプロジェクトで回答書き戻しを確認:
+   curl -X POST http://localhost:8888/api/dashboard/answer \
+     -H 'Content-Type: application/json' \
+     -d '{"projectPath":"/path/to/project","planPath":"開発/実装/実行中/plan.md","lineStart":42,"answer":"A案で"}'
+   - 成功: {"success":true}
+   - 計画書ファイルで **ステータス**: 回答済 に変わり、**回答**: A案で が挿入されること
+4. go test ./internal/projects/... ./internal/dashboard/... ./internal/handler/... -v で全テストがパスすること
+```
+
+### テスト結果
+
+| パッケージ | テスト数 | 結果 | カバレッジ |
+|-----------|---------|------|-----------|
+| `internal/projects` | 4 | 全パス | 88.9% |
+| `internal/dashboard` | 23 | 全パス | 76.6% |
+| `internal/handler` (Dashboard) | 6 | 全パス | -- (モック経由) |
+
+### デプロイ後の確認事項
+
+- [ ] `make backend` でサーバーが正常起動すること
+- [ ] `GET /api/dashboard/state` が実プロジェクトの状態を正しく返すこと
+- [ ] 未回答確認事項がある場合、`POST /api/dashboard/answer` で書き戻しが成功すること
+- [ ] 書き戻し後の `GET /api/dashboard/state` で該当項目が消えること
+- [ ] 既存の `/api/patrol/*` エンドポイントが引き続き動作すること（回帰確認）
+- [ ] フロントエンド実装後に `next.config.ts` の rewrites 経由で疎通すること

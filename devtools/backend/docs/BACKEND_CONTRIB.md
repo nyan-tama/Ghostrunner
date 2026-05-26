@@ -137,6 +137,8 @@ backend/
 |   |-- handler/      # HTTPハンドラー（リクエスト受信、レスポンス返却）
 |   |-- service/      # ビジネスロジック（Claude CLI実行、外部API連携、通知、プロジェクト生成）
 |   |-- grrun/        # gr-run CLIのコアロジック（ロック、クレーム、結果分類）
+|   |-- projects/     # patrol_projects.json読み込み（PatrolServiceとdashboardの共通依存）
+|   |-- dashboard/    # ダッシュボード状態集約・回答書き戻し（カンバン/未回答/運用）
 |-- docs/             # ドキュメント
 ```
 
@@ -162,6 +164,11 @@ main.go
   |           |-- ClaudeService (CLI実行)
   |           |-- NtfyService (承認待ち通知)
   |           |-- JSONファイル (設定永続化)
+  |-- handler/DashboardHandler
+  |     |-- dashboard/Service (ダッシュボード状態集約・回答)
+  |           |-- projects/LoadProjects (設定読み込み)
+  |           |-- dashboard/ScanProject (ファイルシステム読み取り)
+  |           |-- dashboard/AnswerQuestion (アトミック書き戻し)
 ```
 
 ### NtfyService の注入パターン
@@ -243,6 +250,32 @@ type PatrolService interface {
 - SSEイベントはSubscribe/broadcastパターンで配信（バッファ100件のチャンネル）
 - 設定ファイルへの保存はwrite-to-temp + renameパターンで安全に書き込み
 - 実行中または承認待ちのプロジェクトは巡回時にスキップ
+
+### DashboardService の注入パターン
+
+DashboardService はダッシュボード状態集約のインターフェースを定義する。patrol_projects.json のパスとGhostrunnerルートパスを受け取って初期化する。projectsパッケージを共通依存としてPatrolServiceと設定ファイルの読み込みを共有する。
+
+```go
+// main.go での初期化
+dashboardService := dashboard.NewService(patrolConfigPath, ghostrunnerRoot)
+dashboardHandler := handler.NewDashboardHandler(dashboardService)
+```
+
+dashboard.Service インターフェース:
+
+```go
+type Service interface {
+    GetState(ctx context.Context) (State, error)
+    Answer(ctx context.Context, req AnswerRequest) error
+}
+```
+
+主要な設計判断:
+- ファイルシステムを唯一の真実源とし、キャッシュやDBを持たない
+- 未回答検出の正規表現パターンはgrrunパッケージのSSOTを共有
+- 回答書き戻しはwrite-to-temp + renameパターンでアトミックに書き込み
+- テスト用にclock注入（NewServiceWithClock）をサポート
+- ScanProject失敗時もwarning付きで結果に含め、他プロジェクトの集約を継続
 
 ### TemplateService の責務
 
