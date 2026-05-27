@@ -31,15 +31,19 @@ export default function DashboardPage() {
   const topError = chat.error ?? dashboard.error ?? tts.error;
 
   const handleGrasp = useCallback(() => {
+    // iOS Safari の TTS autoplay 制約対策: 同期スコープで unlock しておく
+    tts.prime();
     chat.send("状況は？");
     dashboard.refresh();
-  }, [chat, dashboard]);
+  }, [chat, dashboard, tts]);
 
   const handleChatSend = useCallback(
     (text: string) => {
+      // iOS Safari の TTS autoplay 制約対策: 送信タップの同期スコープで unlock
+      tts.prime();
       chat.send(text);
     },
-    [chat]
+    [chat, tts]
   );
 
   return (

@@ -10,6 +10,10 @@ interface UseTTSReturn {
   setEnabled: (v: boolean) => void;
   isSpeaking: boolean;
   error: string | null;
+  // iOS Safari の autoplay 制約対策。ユーザージェスチャ（タップ/トグル）の
+  // 同期コンテキストで呼ぶと、Web Speech のパイプが開き、後続の非同期 speak()
+  // が握りつぶされなくなる。送信ボタン・ショートカット・TTS ON 切替などから呼ぶ。
+  prime: () => void;
 }
 
 export function useTTS(): UseTTSReturn {
@@ -99,16 +103,43 @@ export function useTTS(): UseTTSReturn {
     [enabled, cancel]
   );
 
-  const setEnabled = useCallback((v: boolean) => {
-    setEnabledState(v);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(LOCAL_STORAGE_TTS_ENABLED_KEY, String(v));
-    }
-    if (!v && typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
+  // iOS Safari 用 unlock。ユーザージェスチャの同期スコープで無音 utterance を speak し、
+  // 以降の非同期 speak() が握りつぶされないようにパイプを開く。
+  // 既に再生中の場合は不要なので何もしない。
+  const prime = useCallback(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    if (window.speechSynthesis.speaking || window.speechSynthesis.pending) return;
+    try {
+      const u = new SpeechSynthesisUtterance(" ");
+      u.volume = 0;
+      u.rate = 10; // 最速で吐かせて即終了させる
+      if (voiceRef.current) {
+        u.voice = voiceRef.current;
+      } else {
+        u.lang = "ja-JP";
+      }
+      window.speechSynthesis.speak(u);
+    } catch {
+      // unlock 試行の失敗は黙って無視（後続の speak で再試行される）
     }
   }, []);
+
+  const setEnabled = useCallback(
+    (v: boolean) => {
+      setEnabledState(v);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(LOCAL_STORAGE_TTS_ENABLED_KEY, String(v));
+      }
+      if (v) {
+        // ON 切替自体がユーザージェスチャなので、ここで unlock しておく
+        prime();
+      } else if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        setIsSpeaking(false);
+      }
+    },
+    [prime]
+  );
 
   // クリーンアップ
   useEffect(() => {
@@ -122,5 +153,5 @@ export function useTTS(): UseTTSReturn {
     };
   }, []);
 
-  return { speak, cancel, enabled, setEnabled, isSpeaking, error };
+  return { speak, cancel, enabled, setEnabled, isSpeaking, error, prime };
 }
