@@ -198,9 +198,9 @@ flowchart TD
 | `devtools/frontend/src/lib/constants.ts` | 修正 | `LOCAL_STORAGE_TTS_ENABLED_KEY = "ghostrunner_tts_enabled"`, `LOCAL_STORAGE_ACTIVE_SESSION_ID_KEY = "ghostrunner_active_session_id"`, `LOCAL_STORAGE_POLLING_ENABLED_KEY = "ghostrunner_polling_enabled"`, `DASHBOARD_POLL_INTERVAL_MS = 15000`（既存の `ghostrunner_` プレフィクス規約を継承） |
 | `devtools/frontend/src/hooks/useDashboard.ts` | 新規 | マウント時に常時 1 回 fetch（初期画面の白防止）。**`polling: boolean, setPolling(b)` をトグルとして公開**（`localStorage.ghostrunner_polling_enabled` で永続、**既定 ON**）。`polling===true` の間だけ `setInterval(15000)`＋`visibilitychange` で `hidden` 停止／`visible` で即 fetch して再開。`polling===false`（手動更新モード）では setInterval を張らず visibility 連動 fetch もしない（初回 1 回 + 明示操作のみ）。`refresh()` を公開、`error: string \| null` を返す |
 | `devtools/frontend/src/hooks/useTTS.ts` | 新規 | Web Speech API ラッパ。`speak(text)`, `cancel()`, `enabled`（localStorage 永続）, `isSpeaking`, `error`。**`speak` 前に `cancel()` を呼び、その後 `setTimeout(() => speakInternal(), 50)` で 50ms 遅延を挟む**（iOS Safari の cancel→speak 不発バグ対策）。**初期化時に `getVoices()` 呼び＋ `voiceschanged` イベント購読で再評価**。**voice 選択ロジック: `getVoices().find(v => v.lang.startsWith("ja"))` があれば `utterance.voice = it`、なければ `utterance.lang = "ja-JP"` のみセット（lang フォールバック）**。`localStorage` アクセスは `useEffect` 内で実行（SSR セーフ） |
-| `devtools/frontend/src/hooks/useChat.ts` | 新規 | アクティブ session 管理（localStorage 永続）＋送信＋応答テキスト集約＋完了通知。**SSE 接続は `visibilitychange` 連動**（既存 `usePatrolSSE.ts` の流儀）：`hidden` で `close()`、`visible` で再接続。**`onerror` 時は close→指数バックオフ（1s, 2s, 4s, 8s、最大 10 回）で再接続**。**完了検知は `type === "result"` を見る**（参考: even-terminal Claude provider が `session.js:674` で emit）。`text_delta` を `text` フィールドで累積 → `result` で `onComplete(fullText)`。途中切断のフォールバックとして「SSE 無音 3 秒 → onStreamIdle」も併用 |
+| `devtools/frontend/src/hooks/useChat.ts` | 新規 | アクティブ session 管理（localStorage 永続）＋送信＋応答テキスト集約＋完了通知。**SSE 接続は `visibilitychange` 連動**（既存 `usePatrolSSE.ts` の流儀）：`hidden` で `close()`、`visible` で再接続。**`onerror` 時は close→指数バックオフ（1s, 2s, 4s, 8s、最大 10 回）で再接続**。**完了検知は `type === "result"` を見る**（参考: even-terminal Claude provider が `session.js:674` で emit）。`text_delta` を `text` フィールドで累積 → `result` で `onComplete(fullText)`。途中切断のフォールバックとして「SSE 無音 3 秒 → onStreamIdle」も併用。**`visible` 復帰時は `getHistory(sessionId, limit=5)` を 1 回叩いて履歴を画面に反映**（iOS Safari の背景中 `text_delta` 取りこぼし対策。TTS は autoplay 制約のため鳴らさず静かに反映、戻った瞬間に「応答が見えない」現象を防ぐ）。**`connectionState: "live" \| "reconnecting" \| "offline"` を公開**（SSE open 中→live、再接続バックオフ待ち→reconnecting、上限まで失敗→offline。`ConnectionIndicator` 表示用） |
 | `devtools/frontend/src/hooks/useDashboardPage.ts` | 新規（任意・実装時判断） | `page.tsx` が 400 行超えそうなら 3 フック合成のコンテナフックに切り出し |
-| `devtools/frontend/src/components/dashboard/DashboardHeader.tsx` | 新規 | タイトル＋PollingToggle＋TTSToggle＋ProgressGraspButton |
+| `devtools/frontend/src/components/dashboard/DashboardHeader.tsx` | 新規 | タイトル＋PollingToggle＋TTSToggle＋ProgressGraspButton＋ConnectionIndicator（右端） |
 | `devtools/frontend/src/components/dashboard/DashboardCard.tsx` | 新規 | 1 プロジェクト分（AccentBar＋名前＋DevSummary＋OpsEntry リスト＋UnansweredList） |
 | `devtools/frontend/src/components/dashboard/DevSummary.tsx` | 新規 | 開発カンバン件数 |
 | `devtools/frontend/src/components/dashboard/OpsEntry.tsx` | 新規 | kind×account 1 件。`progress/today/stats` は型ガード関数で確認後に表示、ガード不通は `JSON.stringify` で 1 行 fallback。stale 自然文表記（`4時間無更新（実行停止疑い）`） |
@@ -212,6 +212,7 @@ flowchart TD
 | `devtools/frontend/src/components/dashboard/PollingToggle.tsx` | 新規 | 自動更新 ON/OFF ボタン（既定 ON、`useDashboard.polling/setPolling` と localStorage で永続）。OFF 時はラベルが「手動更新（聞いたら返す）」になり、状況は進捗把握ボタンとチャット送信完了時のみ更新される |
 | `devtools/frontend/src/components/dashboard/ProgressGraspButton.tsx` | 新規 | ワンタップ「状況は？」送信＋refresh |
 | `devtools/frontend/src/components/dashboard/AccentBar.tsx` | 新規 | 左 4px のアクセントバー。**Tailwind クラス: `bg-red-500`（要対応）/ `bg-yellow-400`（確認事項待ち）/ `bg-blue-500`（実行中）/ `bg-gray-300`（静観）** |
+| `devtools/frontend/src/components/dashboard/ConnectionIndicator.tsx` | 新規 | チャット接続状態のインジケータ。Props: `state: "live" \| "reconnecting" \| "offline"`。小さなドット＋ラベルで `live`（緑・実線）/ `reconnecting`（黄・点滅）/ `offline`（灰）を表示。ヘッダ右端に配置 |
 
 ### 4.2 `next.config.ts` の rewrites 仕様
 
@@ -292,6 +293,7 @@ flowchart TD
 | FE-14 | エラー集約 | 各フックが `error: string \| null` を公開、page.tsx で `chat.error ?? dashboard.error ?? tts.error` を上部バナー |
 | FE-15 | OpsEntry 型 | 固定型 + 型ガード関数で TS strict 通過、未知 kind は `rawExtra` で温存し `JSON.stringify` fallback |
 | FE-16 | ポーリング自動更新の制御 | トグルで ON/OFF。**既定 ON**、localStorage `ghostrunner_polling_enabled` で永続。OFF は「聞かれたら返す」スタイル（手動更新モード）で `setInterval`・`visibilitychange` 連動 fetch とも停止。初回マウントの 1 回 fetch・進捗把握ボタン・チャット送信完了時の refresh は OFF でも効く |
+| FE-17 | iOS 背景復帰時の整合性 | `useChat` が `visible` 復帰時に `getHistory(sessionId, limit=5)` を 1 回叩いて履歴を画面に反映（背景中に流れた `text_delta` 取りこぼし対策、戻り瞬間の「応答が消えた」を解消）。TTS は autoplay 制約のため復帰時には鳴らさず静かに反映。`useChat.connectionState` を公開し `ConnectionIndicator` で live/reconnecting/offline を表示 |
 
 ---
 
@@ -491,6 +493,9 @@ flowchart TD
 | 9 | `visibilitychange` visible で再接続 | 新 EventSource 生成 |
 | 10 | localStorage 永続 | `ghostrunner_active_session_id` に保存・復元 |
 | 11 | listSessions 空 → cwd 未指定で再試行 | 2 回目の `GET /api/sessions` には `cwd` パラメータなし |
+| 12 | `visibilitychange` visible 復帰時に `getHistory` を 1 回叩く | `getHistory(sessionId, 5)` が 1 回呼ばれ、取得した text が transcript に反映される（TTS は呼ばれない） |
+| 13 | `connectionState` の遷移 | SSE open 中=`"live"`／`onerror`→バックオフ中=`"reconnecting"`／10 回失敗後=`"offline"` |
+| 14 | `getHistory` 失敗時のリトライなし | history 取得失敗は黙ってスキップ（SSE 再接続は継続、`error` には書かない） |
 
 #### 8.4.4 `src/__tests__/components/dashboard/DashboardAnswerForm.test.tsx`（新規・最重要 3/3）
 
