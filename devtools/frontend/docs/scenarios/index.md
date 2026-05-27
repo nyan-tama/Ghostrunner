@@ -10,8 +10,8 @@ Ghost Runner の主要なユーザー操作シナリオを記載する。
 | 音声通知 | [voice-notification.md](./voice-notification.md) | 音声通知機能の利用 |
 | プロジェクト作成 | [project-create.md](./project-create.md) | プロジェクトの新規作成 |
 | プロジェクト削除 | [project-delete.md](./project-delete.md) | プロジェクトの登録解除 |
-| 巡回ダッシュボード | [patrol.md](./patrol.md) | 複数プロジェクトの自動巡回・リアルタイム監視 |
-| 統括ダッシュボード | [dashboard.md](./dashboard.md) | 全プロジェクト横断把握・チャット・音声読み上げ |
+| 巡回ダッシュボード（旧） | [patrol.md](./patrol.md) | 統括ダッシュボードに役割を移譲済み。`/patrol` は `/dashboard` へ 308 リダイレクトされる |
+| 統括ダッシュボード | [dashboard.md](./dashboard.md) | 全プロジェクト横断把握・チャット・音声読み上げ。トップ `/` のヘッダ「統括」ボタンから遷移する |
 
 ## 基本フロー
 
