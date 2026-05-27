@@ -6,12 +6,14 @@ import {
   sendPrompt,
   openEventStream,
   getHistory,
+  getSessionStatus,
 } from "@/lib/chatApi";
 import { LOCAL_STORAGE_ACTIVE_SESSION_ID_KEY, GHOSTRUNNER_CWD } from "@/lib/constants";
 import type { ChatSession, ChatStreamEvent, ChatHistoryItem } from "@/types/chat";
 const MAX_RETRIES = 10;
 const SILENCE_TIMEOUT_MS = 3000;
 const HISTORY_REPLAY_LIMIT = 5;
+const BUSY_POLL_INTERVAL_MS = 3000;
 
 type ChatStatus = "idle" | "busy" | "error";
 type ConnectionState = "live" | "reconnecting" | "offline";
@@ -79,6 +81,8 @@ export function useChat(props?: UseChatProps): UseChatReturn {
   const isNewSessionRef = useRef(false);
   // visible 復帰時の getHistory 多重発火を防ぐ in-flight ガード
   const isHistoryReplayInFlightRef = useRef(false);
+  // busy 中のポーリングインターバル ID
+  const busyPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     onCompleteRef.current = props?.onComplete;
@@ -338,6 +342,43 @@ export function useChat(props?: UseChatProps): UseChatReturn {
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [connectSSE]);
+
+  // busy ポーリング: SSE が不安定な環境（iOS Safari over HTTP、Next.js proxy 経由）でも
+  // 応答テキストを取りこぼさないよう、status=busy の間だけ定期実行する。
+  //
+  // 完了判定: タイマーヒューリスティクスではなく even-terminal の GET /api/status を
+  // 毎回叩いて権威ある state を取得する。state=idle なら handleCompletion を呼ぶ。
+  useEffect(() => {
+    if (status === "busy" && sessionIdRef.current) {
+      const sid = sessionIdRef.current;
+      busyPollRef.current = setInterval(async () => {
+        try {
+          // 1. テキスト取得（SSE text_delta の取りこぼし補完）
+          const items = await getHistory(sid, HISTORY_REPLAY_LIMIT);
+          const text = extractAssistantText(items);
+          if (text && text.length > accumulatedTextRef.current.length) {
+            accumulatedTextRef.current = text;
+            setResponseText(text);
+            setIsStreaming(true);
+          }
+
+          // 2. セッション状態を権威あるソースから取得
+          const serverState = await getSessionStatus(sid);
+          if (serverState === "idle" || serverState === "awaiting") {
+            handleCompletion();
+          }
+        } catch {
+          // ポーリング失敗は黙ってスキップ（次回リトライ）
+        }
+      }, BUSY_POLL_INTERVAL_MS);
+    }
+    return () => {
+      if (busyPollRef.current) {
+        clearInterval(busyPollRef.current);
+        busyPollRef.current = null;
+      }
+    };
+  }, [status, handleCompletion]);
 
   // 内部 state リセット（switch/new で共有）
   const resetChatState = useCallback(() => {

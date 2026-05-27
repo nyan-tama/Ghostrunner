@@ -21,6 +21,10 @@ const nextConfig: NextConfig = {
         destination: "http://localhost:3456/api/events",
       },
       {
+        source: "/api/status",
+        destination: "http://localhost:3456/api/status",
+      },
+      {
         source: "/api/sessions/:path*",
         destination: "http://localhost:3456/api/sessions/:path*",
       },
