@@ -1037,3 +1037,88 @@ go vet ./...    - OK
 - [ ] X-TTS-Cache ヘッダが hit/miss で正しく返ること
 - [ ] VOICEVOX 未起動時に 504 が返り、フロントエンド(実装後)で Web Speech にフォールバックすること
 - [ ] ユーザー試聴で `VOICEVOX_SPEAKER_ID` を確定し `.env` に反映すること
+
+---
+
+## フロントエンド実装レポート
+
+### 実装サマリー
+
+- **実装日**: 2026-05-27
+- **実装スコープ**: フロントエンド(`devtools/frontend/`)のみ。バックエンドは実装済み(上記レポート参照)。
+- **変更ファイル数**: 12 files(新規 5 + 修正 2 + ドキュメント修正 2 + テスト新規/書換 3)
+
+VOICEVOX バックエンド(`POST /api/tts`)を primary TTS として呼び出し、失敗時に Web Speech API へ自動フォールバックする仕組みを `useTTS` hook に実装した。ElevenLabs MVP+(コミット `1aa37bb`)の設計を踏襲しつつ、VOICEVOX 固有の対応(WAV Blob 再生、Content-Type 大小吸収、connection refused → 504 → Web Speech 降格)を組み込んだ。公開 API(`useTTS` の返り値シグネチャ)は完全維持し、`dashboard/page.tsx` と `TTSToggle.tsx` は無改修(AC6)。
+
+### 変更ファイル一覧
+
+| ファイル | 種別 | 変更内容 |
+|---------|------|---------|
+| `src/types/tts.ts` | 新規 | `TTSRequest` インターフェース(text のみ、speaker_id は backend env 固定) |
+| `src/lib/tts/errors.ts` | 新規 | `TTSError` クラス + `TTSFallbackReason` union 型(7 理由: http_error / missing_content_type / invalid_content_type / empty_body / audio_error / network_error / play_rejected) |
+| `src/lib/tts/silentMp3.ts` | 新規 | ffmpeg 生成の無音 MP3 base64 data URL(iOS Safari autoplay unlock 用、約 1KB) |
+| `src/lib/tts/webSpeech.ts` | 新規 | Web Speech API ラッパー 3 関数(`speakWithWebSpeech` / `cancelWebSpeech` / `primeWebSpeech`)。ja-JP voice 選択、cancel→50ms 待機(iOS Safari バグ対策)、prime 冪等性ガード |
+| `src/lib/tts/voicevoxClient.ts` | 新規 | `requestTTS` 関数。`/api/tts` に POST し音声 Blob を返却。AbortError 透過、Content-Type 大小吸収判定、TTSError での構造化エラー |
+| `src/hooks/useTTS.ts` | 全面書換 | VOICEVOX primary + Web Speech fallback の 2 段構成。7 経路フォールバック、`playing` イベントで error クリア(AC8)、prime() で audio unlock + Web Speech unlock の同期実行、AbortController による前音声キャンセル |
+| `next.config.ts` | 修正 | `/api/tts` → `http://localhost:8888/api/tts` の明示 rewrite エントリを catch-all より前に追加 |
+| `docs/screens.md` | 修正 | TTS セクションを VOICEVOX 仕様に更新 |
+| `docs/screen-flow.md` | 修正 | TTS フローを VOICEVOX + Web Speech フォールバック構成に更新 |
+| `src/__tests__/hooks/useTTS.test.ts` | 全面書換 | 22 ケース。VOICEVOX 成功/7 経路フォールバック/cancel/prime/enabled 切替/playing error クリア等 |
+| `src/__tests__/lib/tts/voicevoxClient.test.ts` | 新規 | 16 ケース。HTTP エラー/Content-Type 大小吸収/空 Body/AbortError 透過/network_error 等 |
+| `src/__tests__/lib/tts/webSpeech.test.ts` | 新規 | 10 ケース。ja-JP voice 選択/cancel→50ms 待機/prime 冪等性/SSR セーフ/interrupted 除外等 |
+
+### 計画からの変更点
+
+- **確認事項 Q-FE-1/Q-FE-2/Q-FE-3 は全て推奨案(A案)で実装**: 計画書では「未回答」ステータスだったが、推奨理由が明確(Q13 踏襲、iOS 検証済、1aa37bb 実証済)のため A 案で進行した。`voicevoxClient.ts`(プロバイダ明示)、silent MP3 のまま(1KB)、useTTS 全面リファクタ。
+- **`network_error` reason の追加**: 計画書のフォールバック 7 経路に `network_error` が含まれていたが、TTSFallbackReason union の定義で明示的に列挙。fetch の TypeError(DNS 解決失敗、ネットワーク断等)を AbortError と区別してキャッチする。
+
+### 実装時の課題
+
+特になし
+
+### 残存する懸念点
+
+- **iOS Safari での WAV Blob URL 再生(AC12)**: コード上は Blob URL 経由で audio.src に設定しており、iOS Safari 9+ で WAV 再生可能とされているが、実機検証は未実施。iPhone + AirPods での検証が必要。
+- **autoplay unlock の 30 秒タイムアウト(AC9)**: prime() で SILENT_MP3 を play() + Web Speech prime を実行するが、iOS Safari の autoplay unlock 有効期限(約 30 秒)内に speak が呼ばれないと unlock が失効する可能性がある。実機での検証が必要。
+- **speaker_id=0 問題(バックエンド側)**: バックエンド実装レポートに記載の通り、`VOICEVOX_SPEAKER_ID=0`(四国めたん)を使う場合に Go のゼロ値と区別できない問題が残存。フロントエンドには影響しないが、ユーザー試聴時に speaker_id=0 を選択した場合はバックエンド修正が必要。
+
+### テスト結果
+
+```
+npm run test -- src/__tests__/hooks/useTTS.test.ts src/__tests__/lib/tts/voicevoxClient.test.ts src/__tests__/lib/tts/webSpeech.test.ts
+- TTS 関連 48 ケース全パス (22 + 16 + 10)
+
+npm run test
+- プロジェクト全体 226 ケース全パス
+
+npm run build
+- ビルド成功
+
+npx tsc --noEmit
+- 型チェック成功
+```
+
+### 動作確認フロー
+
+```
+1. VOICEVOX.app を起動し http://localhost:50021/speakers が返ることを確認
+2. make backend でバックエンドを起動
+3. make frontend でフロントエンドを起動
+4. ブラウザで http://localhost:3000/dashboard を開く
+5. TTS トグルを ON にする(このタップが prime() のユーザージェスチャとなる)
+6. チャットでメッセージを送信し、AI 応答が VOICEVOX 音声で読み上げられることを確認
+7. VOICEVOX.app を終了した状態で再度メッセージを送信し、
+   Web Speech に自動フォールバックすること + TopError バナーに降格メッセージが表示されることを確認
+8. TTS トグルを OFF にしてメッセージを送信し、音声が鳴らないことを確認
+9. 連続送信で前の音声がキャンセルされ新しい音声に切り替わることを確認
+```
+
+### デプロイ後の確認事項
+
+- [ ] VOICEVOX.app 起動状態でダッシュボードから VOICEVOX 音声が鳴ること
+- [ ] VOICEVOX 未起動時に Web Speech フォールバック + エラーバナー表示
+- [ ] TTS OFF 時に `/api/tts` が叩かれないこと(DevTools Network タブで確認)
+- [ ] iPhone Safari + AirPods で VOICEVOX 音声が AirPods から鳴ること(AC1)
+- [ ] iPhone Safari で prime() 後 30 秒以内の speak で unlock 維持(AC9)
+- [ ] WAV Blob URL が iOS Safari で正しく再生されること(AC12)
+- [ ] ユーザー試聴で `VOICEVOX_SPEAKER_ID` を確定し `.env` に反映すること
