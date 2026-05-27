@@ -3,6 +3,17 @@ export interface ChatSession {
   cwd?: string;
   provider?: string;
   createdAt?: string;
+  title?: string;
+  timestamp?: string;
+  status?: string | null;
+}
+
+// 履歴 1 行（even-terminal の getHistory レスポンス想定）
+export interface ChatHistoryItem {
+  role?: string;
+  text?: string;
+  type?: string;
+  [key: string]: unknown;
 }
 
 export interface PromptRequest {

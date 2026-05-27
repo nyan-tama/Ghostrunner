@@ -14,6 +14,8 @@
 ### 操作フロー
 
 1. `/dashboard` にアクセスする
+   - トップ `/` のヘッダ右側にある blue 系「統括」ボタン（`title="統括ダッシュボード"`）からも遷移できる
+   - 旧 `/patrol` URL に直接アクセスした場合も 308 リダイレクトで `/dashboard` に到達する
 2. ページ表示と同時にダッシュボードデータが自動取得される
 3. 各プロジェクトのカードが表示される
    - 開発カンバン件数（レビュー・待ち・実行中・完了）
@@ -174,3 +176,120 @@ even-terminal 経由で任意のテキスト指示を送信し、応答を受け
 ### 状態の永続化
 
 - localStorage に保存され、ページ再読み込み後も維持される
+
+---
+
+## 7. チャットセッションを切り替える
+
+### 目的
+
+過去の対話セッションに戻る、または別の session で会話を続ける。
+
+### 前提条件
+
+- even-terminal に複数のセッションが存在する
+- dashboard ヘッダの SessionPicker が表示されている
+
+### 操作フロー
+
+1. ヘッダ左の SessionPicker をタップしてドロップダウンを開く
+   - 展開時に最新の session 一覧を再取得する
+2. 一覧から切り替えたい session を選ぶ（`title` または `id` 先頭 8 文字 + 相対時刻 + status）
+3. 既存 SSE 接続が close され、新しい session の SSE が開く
+4. TTS が読み上げ中だった場合は自動で cancel される（`onSessionSwitch: tts.cancel`）
+5. localStorage の `ghostrunner_active_session_id` が更新され、次回ロード時にも反映される
+
+### 成功時
+
+- ChatTranscript が新しい session のコンテキストにリセットされる
+- ConnectionIndicator が live になる
+
+### エラー時
+
+- 切替先 session が無効（SSE が開かない）場合、指数バックオフで再接続を試行
+- 10 回失敗で ConnectionIndicator が offline に
+
+---
+
+## 8. 新規セッションを開始する
+
+### 目的
+
+過去の文脈を引きずらずに、まっさらな session で会話を始める。
+
+### 操作フロー
+
+1. SessionPicker のドロップダウンを開く
+2. 最上部の「+ 新規 session」をタップ
+3. sessionId が null になり、localStorage からも削除される
+4. ChatInput でメッセージを送ると、sessionId 省略で `POST /api/prompt` が叩かれる
+5. even-terminal が新しい SID を発行し、レスポンス body の `{ sessionId }` から取得
+6. その新 SID で SSE 接続を開始し、以降は通常の対話フロー
+
+### 成功時
+
+- 新 SID が localStorage に保存される
+- SessionPicker の一覧に新規 session が出現する（次回展開時）
+
+### エラー時
+
+- `POST /api/prompt` 失敗時は「送信に失敗しました」エラーを表示
+- レスポンス body から sessionId が取れない場合は「新規セッションの発行に失敗しました」を表示
+
+---
+
+## 9. セッション ID を別端末に共有する（SID コピー）
+
+### 目的
+
+dashboard で開いている session を、VSCode の `claude --resume <SID>` で続行する。
+
+### 前提条件
+
+- 現在の sessionId が確立されている（`null` ではない）
+
+### 操作フロー
+
+1. SessionPicker で対象 session を選ぶ
+2. 隣の「SID」ボタンをタップ
+3. `navigator.clipboard.writeText(sessionId)` でコピー
+4. ラベルが「Copied」に 2 秒間変化する
+5. 別端末（VSCode 等）でターミナルを開き、`claude --resume <貼り付け>` を実行
+
+### secure context が無い場合（HTTP）
+
+- `navigator.clipboard` が使えない環境では `document.execCommand('copy')` にフォールバック
+- それも失敗した場合、SID を読み取り専用 `<input>` で表示するので手動コピー
+- 詳細: `devtools/frontend/docs/modality-guide.md`
+
+### 書き込み排他
+
+- 同一 session への書き込みは同時 1 経路のみ（運用ルール、コードロックなし）
+- dashboard で発話中は VSCode 側で送信しない、逆も同様
+
+---
+
+## 10. iOS Safari で背景復帰したときの整合性（FE-17）
+
+### 目的
+
+スマホ Safari で dashboard を開いたまま別アプリ → 戻った瞬間に「応答が途中で消えた」現象を防ぐ。
+
+### 前提条件
+
+- iOS Safari で `/dashboard` を開いている
+- `text_delta` がストリーミング中にホーム画面に戻る等で background になった
+
+### 動作フロー（自動）
+
+1. `visibilitychange` で `visible` に戻る
+2. `useChat` が `getHistory(sessionId, 5)` を 1 回叩く
+3. 取得したアシスタント応答テキストで ChatTranscript を上書き
+4. 同時に SSE 接続を再開（ConnectionIndicator は reconnecting → live へ遷移）
+5. TTS は呼ばない（iOS の autoplay 制約のため）
+
+### 失敗時の挙動
+
+- `getHistory` が失敗しても黙ってスキップ（`error` にはしない）
+- SSE 再接続自体は通常通り継続
+- 失敗してもユーザー操作は止まらない

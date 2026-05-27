@@ -22,7 +22,10 @@ export default function DashboardPage() {
   );
 
   const dashboard = useDashboard();
-  const chat = useChat({ onComplete: handleChatComplete });
+  const chat = useChat({
+    onComplete: handleChatComplete,
+    onSessionSwitch: tts.cancel,
+  });
 
   // エラー集約: 最初に見つかったエラーを表示
   const topError = chat.error ?? dashboard.error ?? tts.error;
@@ -54,6 +57,13 @@ export default function DashboardPage() {
         onTTSToggle={tts.setEnabled}
         onGrasp={handleGrasp}
         graspDisabled={chat.status === "busy"}
+        sessions={chat.sessions}
+        currentSessionId={chat.sessionId}
+        onSessionSwitch={chat.switchSession}
+        onNewSession={chat.startNewSession}
+        onSessionPickerOpen={chat.fetchSessions}
+        sessionSwitchDisabled={chat.status === "busy"}
+        connectionState={chat.connectionState}
       />
 
       {dashboard.loading && !dashboard.state && (
