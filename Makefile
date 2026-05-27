@@ -15,13 +15,15 @@ help:
 	@echo "  make dev              - 両方を並列起動"
 	@echo ""
 	@echo "起動（バックグラウンド + ログ自動表示）:"
-	@echo "  make start-backend    - バックエンドを起動してログ表示"
-	@echo "  make start-frontend   - フロントエンドを起動してログ表示"
+	@echo "  make start-backend       - バックエンドを起動してログ表示"
+	@echo "  make start-frontend      - フロントエンドを起動してログ表示"
+	@echo "  make start-even-terminal - even-terminal を起動(BRIDGE_TOKEN 固定)"
 	@echo ""
 	@echo "停止:"
-	@echo "  make stop-backend     - バックエンドを停止"
-	@echo "  make stop-frontend    - フロントエンドを停止"
-	@echo "  make stop             - 両方を停止"
+	@echo "  make stop-backend        - バックエンドを停止"
+	@echo "  make stop-frontend       - フロントエンドを停止"
+	@echo "  make stop-even-terminal  - even-terminal を停止"
+	@echo "  make stop                - 全て停止"
 	@echo ""
 	@echo "再起動（バックグラウンド）:"
 	@echo "  make restart-backend  - バックエンドを再起動"
@@ -98,6 +100,28 @@ start:
 	@echo "  make start-backend"
 	@echo "  make start-frontend"
 
+# even-terminal 起動(BRIDGE_TOKEN を ~/.zshrc から固定で渡す)
+# 明示しないと even-terminal が起動時にランダム token を毎回生成し、
+# frontend .env.local の NEXT_PUBLIC_EVEN_TERMINAL_TOKEN と不一致になり 401。
+.PHONY: start-even-terminal stop-even-terminal restart-even-terminal
+start-even-terminal: stop-even-terminal
+	@echo "Starting even-terminal in background (BRIDGE_TOKEN fixed from ~/.zshrc)..."
+	@TOKEN=$$(grep '^export BRIDGE_TOKEN=' $$HOME/.zshrc 2>/dev/null | head -1 | cut -d= -f2); \
+	if [ -z "$$TOKEN" ]; then \
+		echo "ERROR: BRIDGE_TOKEN が ~/.zshrc に見つかりません。'export BRIDGE_TOKEN=<32hex>' を追加してください。"; \
+		exit 1; \
+	fi; \
+	echo "Using BRIDGE_TOKEN=$$TOKEN"; \
+	BRIDGE_TOKEN=$$TOKEN nohup /opt/homebrew/bin/even-terminal --tailscale --provider claude > /tmp/even-terminal.log 2>&1 &
+	@sleep 3
+	@echo "even-terminal started on :3456"
+
+stop-even-terminal:
+	-pkill -f "even-terminal" 2>/dev/null || true
+	-lsof -ti:3456 | xargs kill -9 2>/dev/null || true
+
+restart-even-terminal: stop-even-terminal start-even-terminal
+
 # 停止
 .PHONY: stop-backend stop-frontend stop
 
@@ -112,7 +136,7 @@ stop-frontend:
 	-pkill -f "npm.*start" || true
 	-lsof -ti:3333 | xargs kill -9 2>/dev/null || true
 
-stop: stop-backend stop-frontend
+stop: stop-backend stop-frontend stop-even-terminal
 
 # 再起動（kill + start、バックグラウンド）
 .PHONY: restart-backend restart-frontend restart
