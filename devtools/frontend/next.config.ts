@@ -1,8 +1,37 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      {
+        source: "/patrol",
+        destination: "/dashboard",
+        permanent: true,
+      },
+    ];
+  },
   async rewrites() {
     return [
+      {
+        source: "/api/prompt",
+        destination: "http://localhost:3456/api/prompt",
+      },
+      {
+        source: "/api/events",
+        destination: "http://localhost:3456/api/events",
+      },
+      {
+        source: "/api/status",
+        destination: "http://localhost:3456/api/status",
+      },
+      {
+        source: "/api/sessions/:path*",
+        destination: "http://localhost:3456/api/sessions/:path*",
+      },
+      {
+        source: "/api/sessions",
+        destination: "http://localhost:3456/api/sessions",
+      },
       {
         source: "/api/:path*",
         destination: "http://localhost:8888/api/:path*",

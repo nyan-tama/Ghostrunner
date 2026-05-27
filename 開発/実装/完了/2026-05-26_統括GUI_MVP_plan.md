@@ -198,9 +198,9 @@ flowchart TD
 | `devtools/frontend/src/lib/constants.ts` | 修正 | `LOCAL_STORAGE_TTS_ENABLED_KEY = "ghostrunner_tts_enabled"`, `LOCAL_STORAGE_ACTIVE_SESSION_ID_KEY = "ghostrunner_active_session_id"`, `LOCAL_STORAGE_POLLING_ENABLED_KEY = "ghostrunner_polling_enabled"`, `DASHBOARD_POLL_INTERVAL_MS = 15000`（既存の `ghostrunner_` プレフィクス規約を継承） |
 | `devtools/frontend/src/hooks/useDashboard.ts` | 新規 | マウント時に常時 1 回 fetch（初期画面の白防止）。**`polling: boolean, setPolling(b)` をトグルとして公開**（`localStorage.ghostrunner_polling_enabled` で永続、**既定 ON**）。`polling===true` の間だけ `setInterval(15000)`＋`visibilitychange` で `hidden` 停止／`visible` で即 fetch して再開。`polling===false`（手動更新モード）では setInterval を張らず visibility 連動 fetch もしない（初回 1 回 + 明示操作のみ）。`refresh()` を公開、`error: string \| null` を返す |
 | `devtools/frontend/src/hooks/useTTS.ts` | 新規 | Web Speech API ラッパ。`speak(text)`, `cancel()`, `enabled`（localStorage 永続）, `isSpeaking`, `error`。**`speak` 前に `cancel()` を呼び、その後 `setTimeout(() => speakInternal(), 50)` で 50ms 遅延を挟む**（iOS Safari の cancel→speak 不発バグ対策）。**初期化時に `getVoices()` 呼び＋ `voiceschanged` イベント購読で再評価**。**voice 選択ロジック: `getVoices().find(v => v.lang.startsWith("ja"))` があれば `utterance.voice = it`、なければ `utterance.lang = "ja-JP"` のみセット（lang フォールバック）**。`localStorage` アクセスは `useEffect` 内で実行（SSR セーフ） |
-| `devtools/frontend/src/hooks/useChat.ts` | 新規 | アクティブ session 管理（localStorage 永続）＋送信＋応答テキスト集約＋完了通知。**SSE 接続は `visibilitychange` 連動**（既存 `usePatrolSSE.ts` の流儀）：`hidden` で `close()`、`visible` で再接続。**`onerror` 時は close→指数バックオフ（1s, 2s, 4s, 8s、最大 10 回）で再接続**。**完了検知は `type === "result"` を見る**（参考: even-terminal Claude provider が `session.js:674` で emit）。`text_delta` を `text` フィールドで累積 → `result` で `onComplete(fullText)`。途中切断のフォールバックとして「SSE 無音 3 秒 → onStreamIdle」も併用 |
+| `devtools/frontend/src/hooks/useChat.ts` | 新規 | アクティブ session 管理（localStorage 永続）＋送信＋応答テキスト集約＋完了通知。**SSE 接続は `visibilitychange` 連動**（既存 `usePatrolSSE.ts` の流儀）：`hidden` で `close()`、`visible` で再接続。**`onerror` 時は close→指数バックオフ（1s, 2s, 4s, 8s、最大 10 回）で再接続**。**完了検知は `type === "result"` を見る**（参考: even-terminal Claude provider が `session.js:674` で emit）。`text_delta` を `text` フィールドで累積 → `result` で `onComplete(fullText)`。途中切断のフォールバックとして「SSE 無音 3 秒 → onStreamIdle」も併用。**`visible` 復帰時は `getHistory(sessionId, limit=5)` を 1 回叩いて履歴を画面に反映**（iOS Safari の背景中 `text_delta` 取りこぼし対策。TTS は autoplay 制約のため鳴らさず静かに反映、戻った瞬間に「応答が見えない」現象を防ぐ）。**`connectionState: "live" \| "reconnecting" \| "offline"` を公開**（SSE open 中→live、再接続バックオフ待ち→reconnecting、上限まで失敗→offline。`ConnectionIndicator` 表示用） |
 | `devtools/frontend/src/hooks/useDashboardPage.ts` | 新規（任意・実装時判断） | `page.tsx` が 400 行超えそうなら 3 フック合成のコンテナフックに切り出し |
-| `devtools/frontend/src/components/dashboard/DashboardHeader.tsx` | 新規 | タイトル＋PollingToggle＋TTSToggle＋ProgressGraspButton |
+| `devtools/frontend/src/components/dashboard/DashboardHeader.tsx` | 新規 | タイトル＋PollingToggle＋TTSToggle＋ProgressGraspButton＋ConnectionIndicator（右端） |
 | `devtools/frontend/src/components/dashboard/DashboardCard.tsx` | 新規 | 1 プロジェクト分（AccentBar＋名前＋DevSummary＋OpsEntry リスト＋UnansweredList） |
 | `devtools/frontend/src/components/dashboard/DevSummary.tsx` | 新規 | 開発カンバン件数 |
 | `devtools/frontend/src/components/dashboard/OpsEntry.tsx` | 新規 | kind×account 1 件。`progress/today/stats` は型ガード関数で確認後に表示、ガード不通は `JSON.stringify` で 1 行 fallback。stale 自然文表記（`4時間無更新（実行停止疑い）`） |
@@ -212,6 +212,7 @@ flowchart TD
 | `devtools/frontend/src/components/dashboard/PollingToggle.tsx` | 新規 | 自動更新 ON/OFF ボタン（既定 ON、`useDashboard.polling/setPolling` と localStorage で永続）。OFF 時はラベルが「手動更新（聞いたら返す）」になり、状況は進捗把握ボタンとチャット送信完了時のみ更新される |
 | `devtools/frontend/src/components/dashboard/ProgressGraspButton.tsx` | 新規 | ワンタップ「状況は？」送信＋refresh |
 | `devtools/frontend/src/components/dashboard/AccentBar.tsx` | 新規 | 左 4px のアクセントバー。**Tailwind クラス: `bg-red-500`（要対応）/ `bg-yellow-400`（確認事項待ち）/ `bg-blue-500`（実行中）/ `bg-gray-300`（静観）** |
+| `devtools/frontend/src/components/dashboard/ConnectionIndicator.tsx` | 新規 | チャット接続状態のインジケータ。Props: `state: "live" \| "reconnecting" \| "offline"`。小さなドット＋ラベルで `live`（緑・実線）/ `reconnecting`（黄・点滅）/ `offline`（灰）を表示。ヘッダ右端に配置 |
 
 ### 4.2 `next.config.ts` の rewrites 仕様
 
@@ -292,6 +293,7 @@ flowchart TD
 | FE-14 | エラー集約 | 各フックが `error: string \| null` を公開、page.tsx で `chat.error ?? dashboard.error ?? tts.error` を上部バナー |
 | FE-15 | OpsEntry 型 | 固定型 + 型ガード関数で TS strict 通過、未知 kind は `rawExtra` で温存し `JSON.stringify` fallback |
 | FE-16 | ポーリング自動更新の制御 | トグルで ON/OFF。**既定 ON**、localStorage `ghostrunner_polling_enabled` で永続。OFF は「聞かれたら返す」スタイル（手動更新モード）で `setInterval`・`visibilitychange` 連動 fetch とも停止。初回マウントの 1 回 fetch・進捗把握ボタン・チャット送信完了時の refresh は OFF でも効く |
+| FE-17 | iOS 背景復帰時の整合性 | `useChat` が `visible` 復帰時に `getHistory(sessionId, limit=5)` を 1 回叩いて履歴を画面に反映（背景中に流れた `text_delta` 取りこぼし対策、戻り瞬間の「応答が消えた」を解消）。TTS は autoplay 制約のため復帰時には鳴らさず静かに反映。`useChat.connectionState` を公開し `ConnectionIndicator` で live/reconnecting/offline を表示 |
 
 ---
 
@@ -491,6 +493,9 @@ flowchart TD
 | 9 | `visibilitychange` visible で再接続 | 新 EventSource 生成 |
 | 10 | localStorage 永続 | `ghostrunner_active_session_id` に保存・復元 |
 | 11 | listSessions 空 → cwd 未指定で再試行 | 2 回目の `GET /api/sessions` には `cwd` パラメータなし |
+| 12 | `visibilitychange` visible 復帰時に `getHistory` を 1 回叩く | `getHistory(sessionId, 5)` が 1 回呼ばれ、取得した text が transcript に反映される（TTS は呼ばれない） |
+| 13 | `connectionState` の遷移 | SSE open 中=`"live"`／`onerror`→バックオフ中=`"reconnecting"`／10 回失敗後=`"offline"` |
+| 14 | `getHistory` 失敗時のリトライなし | history 取得失敗は黙ってスキップ（SSE 再接続は継続、`error` には書かない） |
 
 #### 8.4.4 `src/__tests__/components/dashboard/DashboardAnswerForm.test.tsx`（新規・最重要 3/3）
 
@@ -595,3 +600,91 @@ npx vitest run --coverage                   # 全体カバレッジ
 9. **DashboardAnswerForm の Question 組み立て** — `options: []` で AnswerForm を自由入力モードに正しく落とす
 
 **テストしない判断の根拠**: ビジュアル中心のコンポーネント（11 個）と薄いラッパ（API クライアント・配線・rewrites）はテスト ROI が低い。ロジックは hook 側に集約されているため、hook をテストすれば実害のあるリグレッションは捕捉できる。実機固有の挙動（iOS Safari の autoplay / `speechSynthesis` の voice 解決 / visibilityState の実挙動）は jsdom では再現できないため手動検証に分離した。
+
+---
+
+## バックエンド実装レポート
+
+### 実装サマリー
+
+- **実装日**: 2026-05-26
+- **対象**: Go バックエンド（`devtools/backend/`）のみ
+- **変更ファイル数**: 15 files（新規 13 + 修正 2）
+
+統括GUI MVP のバックエンド部分として、ダッシュボード状態集約 API (`GET /api/dashboard/state`) と確認事項回答書き戻し API (`POST /api/dashboard/answer`) を実装した。既存の `patrol_projects.json` ローダーを共通パッケージ `internal/projects` として切り出し、`internal/dashboard` パッケージで状態集約・回答ロジックを実装、`internal/handler/dashboard.go` で HTTP ハンドラを提供し、`cmd/server/main.go` でルーティングを配線した。
+
+### 変更ファイル一覧
+
+| ファイル | 種別 | 内容 |
+|---------|------|------|
+| `internal/projects/doc.go` | 新規 | パッケージドキュメント |
+| `internal/projects/loader.go` | 新規 | `Project`, `Config`, `LoadProjects()` - patrol_projects.json の共通ローダー |
+| `internal/projects/loader_test.go` | 新規 | 正常系2件・ファイル不在・JSON破損の4ケース |
+| `internal/dashboard/doc.go` | 新規 | パッケージドキュメント（SSOT共有・読み取り専用・時刻関数注入の方針記載） |
+| `internal/dashboard/types.go` | 新規 | `Attention` enum 3値、`KanbanCounts`, `UnansweredQuestion`, `OpsEntry`（固定型 + `RawExtra`）, `ProjectState`, `State` |
+| `internal/dashboard/scanner.go` | 新規 | `ScanProject()`, `GetPatternForTest()`, カンバン集計・未回答検出・運用状態読み取り・Attention判定・staleness算出（256行） |
+| `internal/dashboard/scanner_test.go` | 新規 | SSOT参照経路・カンバン集計・未回答抽出・Attention判定7パターン・IsSelf・OpsOptedIn・staleness の10テスト（277行） |
+| `internal/dashboard/answer.go` | 新規 | `AnswerQuestion()`, `AnswerRequest`, 窓+-2行再確認・最近接マッチ・次行1行判定・アトミック書き戻し・多層バリデーション（186行） |
+| `internal/dashboard/answer_test.go` | 新規 | バリデーション6件・正常書き戻し・既回答409・既存回答行差し替えの10テスト（246行） |
+| `internal/dashboard/service.go` | 新規 | `Service` インターフェース、`serviceImpl`、`NewService`/`NewServiceWithClock`、`GetState`（ctxキャンセル対応・安定ソート）、`Answer`（143行） |
+| `internal/dashboard/service_test.go` | 新規 | 空設定・複数プロジェクトソート・ctxキャンセル早期returnの3テスト |
+| `internal/handler/dashboard.go` | 新規 | `DashboardHandler`, `HandleState`, `HandleAnswer` - エラー種別に応じた400/409/500分岐（87行） |
+| `internal/handler/dashboard_test.go` | 新規 | gin httptest + mockService で200/500/200/400/409/400の6テスト |
+| `internal/handler/doc.go` | 修正 | DashboardHandler セクションとエンドポイント仕様を追記 |
+| `cmd/server/main.go` | 修正 | `dashboard.NewService` 初期化、`/api/dashboard` グループに `GET /state` と `POST /answer` を登録 |
+
+### 計画からの変更点
+
+- **特になし**: 計画書（セクション3）の設計判断 BE-1 から BE-12 まで全て計画通りに実装された。ファイル構成・API仕様・バリデーション規則・アトミック書き戻し・SSOT参照経路・Attention判定ロジック・staleness算出・ctxキャンセル・ソート順序の全てが計画と一致している。
+
+### 実装時の課題
+
+#### レビュー指摘と修正
+
+- **Critical: `success: false` の欠落** — 初回実装時にエラーレスポンスで `"success": false` を返していなかった。ハンドラの全エラーパス（400/409/500）に `"success": false` を追加して解決
+- **Warning: gofmt フォーマット** — gofmt 違反があったため修正
+
+#### 技術的に難しかった点
+
+- 特になし。計画書の設計が十分に具体的だったため、実装時の判断は最小限で済んだ
+
+### 残存する懸念点
+
+- **`internal/projects` と既存 `PatrolService.loadConfig` の二重管理**: `PatrolService` 側は独自の `loadConfig` を内部に持ったまま。将来的に `internal/projects` に統合すべきだが、既存 patrol 機能への影響を避けるため MVP では温存している
+- **テストカバレッジの差**: `scanner_test.go` は計画の14ケース中10ケースを実装（staleness 3h直前/直後の精密境界テスト、WarningsのappendのMock IO検証、ソート安定性テストが省略）。`answer_test.go` は計画の16ケース中10ケースを実装（窓+-2の位置ズレ精密テスト、tmp同一ディレクトリ観測、LineStart巨大値テストが省略）。コアロジックはカバーされているが、境界条件の一部は未検証
+- **OpsEntry の `SourceFile` がフルパスではなく相対パス**: プロジェクトパスからの相対（`運用/状態/test.json`）を返すが、フロントエンドが期待する形式と合致するか実結合時に確認が必要
+
+### 動作確認フロー
+
+```
+1. make backend でサーバーを起動
+2. curl http://localhost:8888/api/dashboard/state で状態取得を確認
+   - patrol_projects.json に登録済みプロジェクトがある場合:
+     各プロジェクトのカンバン件数・未回答・運用状態が返ること
+   - patrol_projects.json が存在しない場合:
+     {"projects":[],"generatedAt":"..."} が返ること
+3. 未回答確認事項があるプロジェクトで回答書き戻しを確認:
+   curl -X POST http://localhost:8888/api/dashboard/answer \
+     -H 'Content-Type: application/json' \
+     -d '{"projectPath":"/path/to/project","planPath":"開発/実装/実行中/plan.md","lineStart":42,"answer":"A案で"}'
+   - 成功: {"success":true}
+   - 計画書ファイルで **ステータス**: 回答済 に変わり、**回答**: A案で が挿入されること
+4. go test ./internal/projects/... ./internal/dashboard/... ./internal/handler/... -v で全テストがパスすること
+```
+
+### テスト結果
+
+| パッケージ | テスト数 | 結果 | カバレッジ |
+|-----------|---------|------|-----------|
+| `internal/projects` | 4 | 全パス | 88.9% |
+| `internal/dashboard` | 23 | 全パス | 76.6% |
+| `internal/handler` (Dashboard) | 6 | 全パス | -- (モック経由) |
+
+### デプロイ後の確認事項
+
+- [ ] `make backend` でサーバーが正常起動すること
+- [ ] `GET /api/dashboard/state` が実プロジェクトの状態を正しく返すこと
+- [ ] 未回答確認事項がある場合、`POST /api/dashboard/answer` で書き戻しが成功すること
+- [ ] 書き戻し後の `GET /api/dashboard/state` で該当項目が消えること
+- [ ] 既存の `/api/patrol/*` エンドポイントが引き続き動作すること（回帰確認）
+- [ ] フロントエンド実装後に `next.config.ts` の rewrites 経由で疎通すること

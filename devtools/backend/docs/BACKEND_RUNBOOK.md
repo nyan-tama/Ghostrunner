@@ -478,6 +478,65 @@ cat devtools/backend/patrol_projects.json
 
 ---
 
+## ダッシュボード（Dashboard API）
+
+### 概要
+
+統括GUIダッシュボードは、patrol_projects.json に登録された全プロジェクトのカンバン状態、未回答確認事項、運用状態を横断的に集約する。巡回機能（Patrol）と設定ファイルを共有する。
+
+### 状態の取得
+
+```bash
+# 全プロジェクトの集約状態を取得
+curl http://localhost:8888/api/dashboard/state
+```
+
+レスポンスにはプロジェクトごとのカンバン件数、未回答確認事項、運用エントリが含まれる。プロジェクトは注目度（required > progress > watching）順でソートされる。
+
+### 確認事項への回答
+
+```bash
+# 未回答確認事項に回答を書き戻す
+curl -X POST http://localhost:8888/api/dashboard/answer \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projectPath": "/Users/user/my-project",
+    "planPath": "開発/実装/実行中/feature_plan.md",
+    "lineStart": 42,
+    "answer": "A案で進めてください"
+  }'
+```
+
+回答を書き戻すと、計画書の対象行が `**ステータス**: 未回答` から `**ステータス**: 回答済` に更新され、直下に `**回答**: A案で進めてください` が挿入される。
+
+### トラブルシューティング
+
+#### 状態取得で空の配列が返る
+
+**確認事項**:
+1. `patrol_projects.json` にプロジェクトが登録されているか
+   ```bash
+   cat devtools/backend/patrol_projects.json
+   ```
+2. 登録されたプロジェクトのパスが実在するディレクトリか
+
+#### 回答書き戻しが409を返す
+
+**原因**: 対象行が既に回答済みか、行のずれにより前後2行以内に未回答行が見つからない
+
+**対処**: `GET /api/dashboard/state` で最新の `lineStart` を確認してから再送信する
+
+#### 回答書き戻しが400を返す
+
+**原因**: バリデーションエラー（未登録プロジェクト、不正パス、空回答等）
+
+**確認事項**:
+1. `projectPath` がpatrol_projects.jsonに登録されているか
+2. `planPath` が `開発/実装/実装待ち/` または `開発/実装/実行中/` 配下の.mdファイルか
+3. `answer` が空でないか
+
+---
+
 ## gr-run（一括実装CLI）
 
 ### 概要

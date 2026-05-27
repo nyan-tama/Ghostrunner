@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"ghostrunner/backend/internal/dashboard"
 	"ghostrunner/backend/internal/handler"
 	"ghostrunner/backend/internal/service"
 
@@ -38,6 +39,10 @@ func main() {
 	patrolConfigPath := filepath.Join(ghostrunnerRoot, "devtools", "backend", "patrol_projects.json")
 	patrolService := service.NewPatrolService(claudeService, ntfyService, patrolConfigPath)
 	patrolHandler := handler.NewPatrolHandler(patrolService)
+
+	// ダッシュボードサービスの依存性組み立て
+	dashboardService := dashboard.NewService(patrolConfigPath, ghostrunnerRoot)
+	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 
 	// プロジェクト生成関連の依存性組み立て
 	templateService := service.NewTemplateService(ghostrunnerRoot)
@@ -108,6 +113,13 @@ func main() {
 		api.GET("/projects/validate", createHandler.HandleValidate)
 		api.POST("/projects/create/stream", createHandler.HandleCreateStream)
 		api.POST("/projects/open", createHandler.HandleOpen)
+
+		// ダッシュボードAPI
+		dashGroup := api.Group("/dashboard")
+		{
+			dashGroup.GET("/state", dashboardHandler.HandleState)
+			dashGroup.POST("/answer", dashboardHandler.HandleAnswer)
+		}
 
 		// 巡回API
 		patrol := api.Group("/patrol")
