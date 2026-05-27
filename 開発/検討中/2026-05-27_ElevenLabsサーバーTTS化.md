@@ -305,14 +305,18 @@ sequenceDiagram
 ### Q1: 声選び(デフォルト voice) — **Romaco** に確定
 
 - **voice**: `Romaco`
+- **voice_id**: **`KgETZ36CCLD1Cob4xpkv`**(2026-05-27 取得済)
+- **Voice Library URL**: https://elevenlabs.io/app/voice-library?voiceId=KgETZ36CCLD1Cob4xpkv
 - **タイプ**: コミュニティ Voice(ElevenLabs Voice Library)
 - **キャラクタ**: "Lovely and cheerful Anime-style cute female voice"(アニメ調・明るい女性声)
-- **取得手順**:
-  1. ElevenLabs Voice Library(`https://elevenlabs.io/voice-library`)で "Romaco" を検索
+- **取得済み手順**(参考):
+  1. ElevenLabs Voice Library で "Romaco" を検索
   2. "Add to Voices" で自分の Voices に追加
-  3. Voices ページで `voice_id` をコピー
-  4. backend env `ELEVENLABS_DEFAULT_VOICE_ID` に設定
-- **備考**: コミュニティ Voice なので利用可否は本人がアカウントに Add した時点で確定する。試聴段階で voice_id を確定させ、計画書に記録する。
+  3. voice_id `KgETZ36CCLD1Cob4xpkv` を取得
+- **backend env 設定値**:
+  ```
+  ELEVENLABS_DEFAULT_VOICE_ID=KgETZ36CCLD1Cob4xpkv
+  ```
 
 検討時の他候補(参考、現時点では不採用):
 | 案 | 内容 |
@@ -437,8 +441,9 @@ sequenceDiagram
 - [ ] `/plan` で実装計画を作成
   - フルスタック: go-planner(`/api/tts` ハンドラ・LRU キャッシュ) + nextjs-planner(useTTS 内部差し替え・`<audio>` 化)
   - テスト計画(test-planner): フォールバック分岐の網羅、キャッシュキー衝突、エラー伝播
-- [ ] ElevenLabs アカウント開設 → Voice Library で **Romaco** を Add → `voice_id` 確定
-- [ ] backend `.env` に `ELEVENLABS_API_KEY` / `ELEVENLABS_DEFAULT_VOICE_ID`(Romaco) / `ELEVENLABS_DEFAULT_MODEL`(eleven_flash_v2_5) 設定
+- [x] ElevenLabs アカウント開設 → Voice Library で **Romaco** を Add → voice_id `KgETZ36CCLD1Cob4xpkv` 確定(2026-05-27)
+- [ ] ElevenLabs API キー発行 → backend `.env` に `ELEVENLABS_API_KEY` を設定
+- [ ] backend `.env` に `ELEVENLABS_DEFAULT_VOICE_ID=KgETZ36CCLD1Cob4xpkv` / `ELEVENLABS_DEFAULT_MODEL=eleven_flash_v2_5` 設定
 - [ ] 実装着手(`開発/実装/実装待ち/` に移動 → `/coding`)
 - [ ] 実機検証(iPhone Safari + AirPods で読み上げが Bluetooth 経由に乗ること)
 
