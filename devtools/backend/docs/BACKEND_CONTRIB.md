@@ -33,6 +33,9 @@ cp .env.example .env
 | `GEMINI_API_KEY` | No | Gemini Live API 用のAPIキー |
 | `OPENAI_API_KEY` | No | OpenAI Realtime API 用のAPIキー（sk-xxx形式） |
 | `NTFY_TOPIC` | No | ntfy.sh のトピック名（プッシュ通知用） |
+| `ELEVENLABS_API_KEY` | No | ElevenLabs TTS 用のAPIキー（未設定時 `/api/tts` は503） |
+| `ELEVENLABS_DEFAULT_VOICE_ID` | No | TTSデフォルトvoice_id（未指定時 `KgETZ36CCLD1Cob4xpkv`） |
+| `ELEVENLABS_DEFAULT_MODEL` | No | TTSデフォルトmodel_id（未指定時 `eleven_flash_v2_5`） |
 
 各環境変数が未設定の場合、対応する機能は無効になるが、サーバーの起動自体には影響しない。
 
@@ -139,8 +142,34 @@ backend/
 |   |-- grrun/        # gr-run CLIのコアロジック（ロック、クレーム、結果分類）
 |   |-- projects/     # patrol_projects.json読み込み（PatrolServiceとdashboardの共通依存）
 |   |-- dashboard/    # ダッシュボード状態集約・回答書き戻し（カンバン/未回答/運用）
+|   |-- tts/          # ElevenLabs TTSプロキシ（handler + service + client + cache を集約）
 |-- docs/             # ドキュメント
 ```
+
+### パッケージ一覧
+
+| パッケージ | 責務 |
+|-----------|------|
+| `internal/handler` | HTTPハンドラー（リクエスト受信、レスポンス返却） |
+| `internal/service` | ビジネスロジック（Claude CLI実行、外部API連携、通知、プロジェクト生成） |
+| `internal/grrun` | gr-run CLIのコアロジック（ロック、クレーム、結果分類） |
+| `internal/projects` | patrol_projects.jsonの読み込み（PatrolServiceとdashboardの共通依存） |
+| `internal/dashboard` | ダッシュボード状態集約・回答書き戻し（カンバン/未回答/運用） |
+| `internal/tts` | ElevenLabs Text-to-Speech プロキシ。handler / service / client / cache を1パッケージに集約。単機能・閉じたドメインで client/cache が他から利用されないため（grrunと同じ集約方針） |
+
+### 依存ライブラリ
+
+主要な外部依存:
+
+| ライブラリ | 用途 |
+|-----------|------|
+| `github.com/gin-gonic/gin` | HTTPルーティング |
+| `github.com/gin-contrib/cors` | CORSミドルウェア |
+| `google.golang.org/genai` | Gemini Live API クライアント |
+| `github.com/hashicorp/golang-lru/v2` | TTSキャッシュ（LRUエビクション） |
+| `golang.org/x/sync` | TTS singleflight（重複リクエスト統合） |
+| `gopkg.in/yaml.v3` | テンプレートメタデータの読み込み |
+| `github.com/stretchr/testify` | テスト用アサーション |
 
 ## アーキテクチャ
 
@@ -169,6 +198,10 @@ main.go
   |           |-- projects/LoadProjects (設定読み込み)
   |           |-- dashboard/ScanProject (ファイルシステム読み取り)
   |           |-- dashboard/AnswerQuestion (アトミック書き戻し)
+  |-- tts/Handler
+  |     |-- tts/Service (singleflight + cache を統合するビジネスロジック)
+  |           |-- tts/Client (ElevenLabs APIクライアント)
+  |           |-- tts/Cache (LRU + TTL + バイト数上限のインメモリキャッシュ)
 ```
 
 ### NtfyService の注入パターン
@@ -276,6 +309,27 @@ type Service interface {
 - 回答書き戻しはwrite-to-temp + renameパターンでアトミックに書き込み
 - テスト用にclock注入（NewServiceWithClock）をサポート
 - ScanProject失敗時もwarning付きで結果に含め、他プロジェクトの集約を継続
+
+### TTSService の注入パターン
+
+TTSService はElevenLabs Text-to-Speechのプロキシ機能を提供する。`NewService()` は環境変数 `ELEVENLABS_API_KEY` が未設定の場合に `nil` を返し、Handler は `nil` チェックを行って503を返す（NtfyService と同型のオプショナル機能パターン）。
+
+```go
+// main.go での初期化
+ttsService := tts.NewService()        // nil の場合がある
+ttsHandler := tts.NewHandler(ttsService)
+api.POST("/tts", ttsHandler.HandleTTS)
+```
+
+tts.Service / tts.Handler は同パッケージ内に集約されている。これは TTS が単機能・閉じたドメインで、client/cache が他パッケージから利用されないため（`internal/grrun` と同じ集約方針）。
+
+主要な設計判断:
+- non-streamエンドポイントを採用（バックエンドで読み切る前提なら stream のメリットなし、Content-Length が確定して扱いやすい）
+- キャッシュは LRU + TTL + バイト数のハイブリッド（エントリ数固定では1リクエストあたりのサイズ変動に追従できない）
+- singleflight中の上流呼び出しは個別の context cancel に従わず、最初に開始したリクエストの ctx が支配する
+- エラーボディは先頭200文字のみ保持し、APIキー混入リスクを避ける
+- 上流401（キー無効）は backend ログのみで把握し、フロントには502に丸める（攻撃者にキー状態を漏らさない）
+- リクエストは `text` のみ受け付け、voice_id / model_id はbackend env固定。フロント↔バックエンド契約の片側化を防ぎ、将来のVoice選択UI追加時に camelCase で `voiceId` / `modelId` を足す拡張余地を残す
 
 ### TemplateService の責務
 

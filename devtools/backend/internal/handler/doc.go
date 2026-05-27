@@ -14,6 +14,7 @@
 //   - FilesHandler: /api/files 関連のエンドポイントを処理（ファイル一覧取得）
 //   - ProjectsHandler: /api/projects 関連のエンドポイントを処理（プロジェクト一覧取得、プロジェクト削除）
 //   - OpenAIHandler: /api/openai 関連のエンドポイントを処理（音声対話用エフェメラルキー発行）
+//   - TTSHandler: /api/tts エンドポイントを処理（ElevenLabs TTS プロキシ。tts パッケージ側に定義）
 //   - CreateHandler: /api/projects/validate, /api/projects/create/stream, /api/projects/open を処理（プロジェクト生成）
 //   - PatrolHandler: /api/patrol 関連のエンドポイントを処理（複数プロジェクト自動巡回）
 //   - DashboardHandler: /api/dashboard 関連のエンドポイントを処理（統括GUIダッシュボード状態集約・回答書き戻し）
@@ -123,6 +124,15 @@
 // OpenAI Realtime API用のエフェメラルキー発行を処理するエンドポイント。
 // フロントエンドの音声対話機能がWebRTC接続に使用する短期トークンを発行する。
 // OPENAI_API_KEY環境変数が未設定の場合は503エラーを返す。
+//
+// # TTSHandler（ttsパッケージに定義）
+//
+// ElevenLabs TTS API を中継するエンドポイント。本体は internal/tts パッケージに
+// 定義されているが、エンドポイントは handler パッケージの他ハンドラと同じ
+// /api グループに登録される。リクエストは text のみ受け取り、レスポンスは
+// 成功時 audio/mpeg バイナリ、失敗時は JSON エラー（TTSErrorResponse）を返す。
+// ELEVENLABS_API_KEY 環境変数が未設定の場合は 503 エラーを返す。
+// 無条件登録パターン（ハンドラ内で nil ガード）を採用。
 //
 // # HealthHandler
 //
@@ -290,6 +300,37 @@
 //	    "expireTime": "2025-01-27T12:34:56Z"  // 有効期限（ISO8601形式）
 //	}
 //
+// ## TTS API (ElevenLabs テキスト音声合成プロキシ)
+//
+// POST /api/tts - ElevenLabs TTS による音声合成
+//
+// リクエスト:
+//
+//	{
+//	    "text": "読み上げたいテキスト"  // 1〜2000 文字
+//	}
+//
+// レスポンス（成功時）: audio/mpeg バイナリ
+//
+//   - Content-Type: audio/mpeg
+//   - X-TTS-Cache: hit または miss (キャッシュヒット可否、観測用)
+//   - Body: MP3 バイナリ (mp3_44100_128)
+//
+// レスポンス（エラー時）: application/json
+//
+//	{
+//	    "success": false,
+//	    "error": "エラーメッセージ"
+//	}
+//
+// エラー時のステータスコード:
+//
+//   - 400: text が空 / 長さ超過 / JSON 不正
+//   - 429: ElevenLabs レート制限・クレジット超過
+//   - 502: ElevenLabs から音声を取得できなかった (4xx/5xx, 非 audio Content-Type)
+//   - 503: ELEVENLABS_API_KEY 未設定
+//   - 504: ElevenLabs リクエストタイムアウト
+//
 // ## Patrol API (複数プロジェクト自動巡回)
 //
 // POST /api/patrol/projects - 巡回対象プロジェクトの登録
@@ -405,8 +446,11 @@
 //   - 200 OK: 正常完了
 //   - 400 Bad Request: リクエスト不正、バリデーションエラー、許可されていないコマンド
 //   - 404 Not Found: リソースが存在しない（/api/filesで開発ディレクトリが存在しない場合、/api/projects/destroyで対象ディレクトリが存在しない場合）
+//   - 429 Too Many Requests: 上流サービスのレート制限（/api/tts で ElevenLabs が 429 を返した場合）
 //   - 500 Internal Server Error: Claude CLI実行エラー、ファイルシステムエラー、API呼び出しエラー
-//   - 503 Service Unavailable: サービス利用不可（OpenAI API キー未設定など）
+//   - 502 Bad Gateway: 上流サービス側エラー（/api/tts で ElevenLabs が 4xx/5xx を返した場合、または非 audio Content-Type）
+//   - 503 Service Unavailable: サービス利用不可（OpenAI/ElevenLabs API キー未設定など）
+//   - 504 Gateway Timeout: 上流サービスへのリクエストがタイムアウトした場合（/api/tts で ElevenLabs がタイムアウト）
 //
 // # 使用例
 //
@@ -446,12 +490,15 @@
 //	api.GET("/projects", projectsHandler.Handle)
 //	api.POST("/projects/destroy", projectsHandler.HandleDestroy)
 //
-//	// OpenAIHandler
-//	openaiService := service.NewOpenAIService()
-//	if openaiService != nil {
-//	    openaiHandler := handler.NewOpenAIHandler(openaiService)
-//	    api.POST("/openai/realtime/session", openaiHandler.HandleSession)
-//	}
+//	// OpenAIHandler（無条件登録パターン: ハンドラ内で nil ガード → 503）
+//	openaiService := service.NewOpenAIService() // nil の場合あり
+//	openaiHandler := handler.NewOpenAIHandler(openaiService)
+//	api.POST("/openai/realtime/session", openaiHandler.HandleSession)
+//
+//	// TTSHandler（無条件登録パターン、ttsパッケージに定義）
+//	ttsService := tts.NewService() // nil の場合あり（ELEVENLABS_API_KEY 未設定時）
+//	ttsHandler := tts.NewHandler(ttsService)
+//	api.POST("/tts", ttsHandler.HandleSynthesize)
 //
 //	// CreateHandler
 //	templateService := service.NewTemplateService(ghostrunnerRoot)

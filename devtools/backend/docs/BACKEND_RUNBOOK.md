@@ -670,3 +670,119 @@ lsof -i :8080
 # それでも解決しない場合
 lsof -ti:8080 | xargs kill -9
 ```
+
+---
+
+## ElevenLabs TTS 設定
+
+### 概要
+
+ElevenLabs Text-to-Speech APIをbackendで中継し、フロントエンドのチャット読み上げ等に高品質な音声合成を提供する機能。環境変数 `ELEVENLABS_API_KEY` を設定することで `/api/tts` が有効になる。未設定時は503を返し、フロントエンドはWeb Speech APIへフォールバックする。
+
+APIキーをbackendに隔離し、インメモリLRUキャッシュ（TTL 24h / 50MB上限）とsingleflightにより同一テキストの重複読み上げを抑制して課金事故を防ぐ。
+
+### APIキーの取得
+
+1. ElevenLabsの設定ページにアクセス: https://elevenlabs.io/app/settings/api-keys
+2. Profile → API Keys から新規発行（"Create API Key"）
+3. 発行されたキー文字列をコピーする（一度しか表示されない）
+
+### voice_idの確認方法
+
+1. Voice Libraryで使いたい声（例: Romaco）を検索して "Add" でMy Voicesに追加
+2. My Voicesページで対象の声のカードから voice_id をコピー
+3. 本実装ではデフォルト voice_id として `KgETZ36CCLD1Cob4xpkv`（Romaco）を使用する
+
+### 環境変数の設定
+
+```bash
+# devtools/backend/.env に追加
+ELEVENLABS_API_KEY=sk-...your-api-key...
+ELEVENLABS_DEFAULT_VOICE_ID=KgETZ36CCLD1Cob4xpkv
+ELEVENLABS_DEFAULT_MODEL=eleven_flash_v2_5
+```
+
+`ELEVENLABS_DEFAULT_VOICE_ID` と `ELEVENLABS_DEFAULT_MODEL` は任意。未指定時は上記の値が使用される。
+
+### サーバーの再起動
+
+```bash
+make restart-backend-logs
+```
+
+### 有効化の確認
+
+起動ログに以下が表示されれば有効。
+
+```
+[TTSService] Initialized with voice_id=KgETZ36CCLD1Cob4xpkv, model_id=eleven_flash_v2_5
+```
+
+未設定の場合は以下が表示される（正常動作、エンドポイントは503を返す）。
+
+```
+[TTSService] ELEVENLABS_API_KEY is not set, TTS endpoint will return 503
+```
+
+### 動作確認
+
+```bash
+curl -X POST http://localhost:8888/api/tts \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"テストです"}' \
+  --output test.mp3
+```
+
+成功すると `test.mp3` が生成され、`Content-Type: audio/mpeg` と `X-TTS-Cache: miss`（初回）/ `hit`（2回目以降）が返る。
+
+### トラブルシューティング（ElevenLabs TTS）
+
+#### 503 Service Unavailable が返る
+
+**原因**: `ELEVENLABS_API_KEY` が未設定。
+
+**対処**:
+1. `devtools/backend/.env` に `ELEVENLABS_API_KEY` を記載
+2. `make restart-backend-logs` でサーバーを再起動
+3. 起動ログに `[TTSService] Initialized` が出ることを確認
+
+#### 429 Too Many Requests が返る
+
+**原因**: ElevenLabs側のクレジット超過、またはレート制限。
+
+**対処**:
+- ElevenLabsダッシュボード（https://elevenlabs.io/app/usage）でクレジット消費量を確認
+- 期間リセットまで待つ、またはプランをアップグレード
+- キャッシュ（24h TTL）が効いていない短文を繰り返し読み上げていないか確認
+
+#### 502 Bad Gateway が返る
+
+**原因**: ElevenLabs側で4xx/5xxが返った（401キー無効も502に丸められる）、または上流応答のパース失敗。
+
+**対処**:
+1. backendログで `[TTSService]` の出力を確認
+   ```bash
+   make logs-backend
+   ```
+2. 401（キー無効）が原因の場合、`ELEVENLABS_API_KEY` の文字列が正しいか、ElevenLabsダッシュボードでキーがrevokeされていないか確認
+3. ElevenLabsのステータスページで障害情報を確認: https://status.elevenlabs.io
+
+#### 504 Gateway Timeout が返る
+
+**原因**: ElevenLabsからの応答が間に合わなかった（ネットワーク遅延、上流障害等）。retryは実装していない。
+
+**対処**:
+- フロントエンドはWeb Speech APIへ自動フォールバックするため、ユーザー体験への影響は限定的
+- 継続的に発生する場合はネットワーク状況とElevenLabsの稼働状況を確認
+
+#### 音声品質を変えたい
+
+`ELEVENLABS_DEFAULT_VOICE_ID` を変更してサーバーを再起動する。voice_idは Voice Library で別の声を選び My Voicesに追加してからコピーする。
+
+#### キャッシュをクリアしたい
+
+インメモリキャッシュのため、サーバー再起動でクリアされる。
+
+```bash
+make restart-backend-logs
+```

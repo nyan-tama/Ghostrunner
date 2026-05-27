@@ -1022,7 +1022,19 @@ OpenAI Realtime API を使用したリアルタイム音声会話機能を提供
 |-------|---------|------|
 | useDashboard | `hooks/useDashboard.ts` | ダッシュボード状態のポーリング取得、自動更新の ON/OFF 制御、visibilitychange 連動 |
 | useChat | `hooks/useChat.ts` | even-terminal への SSE 接続・プロンプト送信・応答テキスト蓄積、セッション自動復元 |
-| useTTS | `hooks/useTTS.ts` | Web Speech API による日本語音声読み上げ、voiceschanged イベント購読、iOS Safari 対策 |
+| useTTS | `hooks/useTTS.ts` | ElevenLabs サーバー TTS（主経路）と Web Speech API（フォールバック）の切り替え管理。`<audio>` 要素・AbortController・Blob URL のライフサイクル管理、iOS Safari の autoplay unlock（prime） |
+
+#### TTS 関連の補助モジュール
+
+useTTS は内部実装を `lib/tts/` 配下の純関数群に分離している。dashboard/page.tsx 側からは `useTTS` の公開 API（`speak`, `cancel`, `enabled`, `setEnabled`, `isSpeaking`, `error`, `prime`）のみが見える。
+
+| ファイル | 役割 |
+|---------|------|
+| `lib/tts/elevenlabsClient.ts` | `POST /api/tts` を叩き、レスポンスを `audio/*` Blob として返す。HTTP エラー / Content-Type 欠落・不正 / 空 Body は `TTSError` を throw（`AbortError` はそのまま伝播） |
+| `lib/tts/webSpeech.ts` | Web Speech API ラッパー。`speakWithWebSpeech` / `cancelWebSpeech` / `primeWebSpeech` を提供。日本語 voice 選択、`voiceschanged` 購読、iOS Safari の cancel→speak 50ms 遅延、prime 用の無音 utterance を含む |
+| `lib/tts/silentMp3.ts` | iOS Safari の `<audio>` autoplay unlock 用、約 0.1 秒の無音 MP3 を data URL でエクスポート（`SILENT_MP3_DATA_URL`） |
+| `lib/tts/errors.ts` | `TTSError` クラスと `TTSFallbackReason` union（`http_error` / `missing_content_type` / `invalid_content_type` / `empty_body` / `audio_error` / `network_error`） |
+| `types/tts.ts` | `TTSRequest`（`{ text }`）型定義。voice_id / model_id は backend env で固定 |
 
 ### API 関数
 
@@ -1033,6 +1045,7 @@ OpenAI Realtime API を使用したリアルタイム音声会話機能を提供
 | listSessions | `lib/chatApi.ts` | `GET /api/sessions` | even-terminal のセッション一覧取得 |
 | sendPrompt | `lib/chatApi.ts` | `POST /api/prompt` | even-terminal へプロンプト送信 |
 | openEventStream | `lib/chatApi.ts` | `GET /api/events` | even-terminal の SSE イベントストリーム接続 |
+| requestTTS | `lib/tts/elevenlabsClient.ts` | `POST /api/tts` | ElevenLabs TTS Blob（`audio/*`）取得。失敗時は `TTSError` を throw |
 
 ### API プロキシ（next.config.ts rewrites）
 
@@ -1040,6 +1053,7 @@ even-terminal（ポート 3456）と devtools バックエンド（ポート 888
 
 | ソース | プロキシ先 | 対象 |
 |-------|----------|------|
+| `/api/tts` | `http://localhost:8888/api/tts` | devtools バックエンド（ElevenLabs プロキシ）。catch-all より前に明示エントリを置き、将来 even-terminal へのルート分岐が増えた際の順序ミスを防ぐ |
 | `/api/prompt` | `http://localhost:3456/api/prompt` | even-terminal |
 | `/api/events` | `http://localhost:3456/api/events` | even-terminal |
 | `/api/sessions` | `http://localhost:3456/api/sessions` | even-terminal |
@@ -1097,15 +1111,62 @@ even-terminal（ポート 3456）と devtools バックエンド（ポート 888
 | visibilitychange | タブ非表示で SSE 切断、表示復帰で再接続 |
 | セッション無効時 | 4xx レスポンスでセッション一覧を再取得し、リトライ1回 |
 
-### TTS（Web Speech API）
+### TTS（ElevenLabs 主経路 + Web Speech フォールバック）
+
+主経路は ElevenLabs のサーバー TTS（`POST /api/tts` → `audio/mpeg` Blob → `<audio>` で再生）。失敗時は Web Speech API に自動降格し、`error` に `"ElevenLabs 接続失敗。Web Speech に降格しました"` をセットしてユーザーに通知する。
+
+#### 主経路（ElevenLabs）
 
 | 項目 | 値 |
 |-----|-----|
-| 音声合成 | SpeechSynthesisUtterance |
-| 音声選択 | 日本語（`ja` プレフィックス）の音声を自動選択 |
+| エンドポイント | `POST /api/tts`（`{ text }` を JSON で送信） |
+| レスポンス | `audio/*` Blob（典型: `audio/mpeg`） |
+| 再生方法 | `URL.createObjectURL(blob)` で `<audio>.src` に紐付け、`audio.play()` |
+| 音声 | Romaco（voice_id / model_id は backend 側 env で固定） |
+| 出力 | AirPods など Bluetooth デバイスにも乗る（`<audio>` 経路のため OS 出力ルーティング準拠） |
+| キャンセル | `AbortController.abort()` で進行中の fetch を中断 |
+| `<audio>` 要素 | マウント時に 1 つだけ生成して使い回す（iOS Safari の unlock 状態を維持するため） |
+
+#### フォールバック経路（Web Speech）
+
+| 項目 | 値 |
+|-----|-----|
+| 音声合成 | `SpeechSynthesisUtterance` |
+| 音声選択 | 日本語（`ja` プレフィックス）の音声を自動選択、`voiceschanged` で再選択 |
+| 起動条件 | ElevenLabs 経路の fetch 失敗 / HTTP 4xx-5xx / Content-Type 欠落・不正 / 空 Blob / `audio.onerror` 発火 / `audio.play()` の reject |
+| iOS Safari 対策 | cancel → speak 間に 50ms の遅延を挿入 |
+| 既知制約 | iOS Safari の SpeechSynthesis は内蔵スピーカー固定（Bluetooth に乗らない）。Romaco の声は AirPods に乗るが、フォールバック中は内蔵スピーカーから出る |
+
+#### 共通仕様
+
+| 項目 | 値 |
+|-----|-----|
 | 既定状態 | OFF |
-| 永続化 | localStorage に保存 |
-| iOS Safari 対策 | cancel -> speak 間に 50ms の遅延を挿入 |
+| 永続化 | localStorage（`ghostrunner_tts_enabled`） |
+| `isSpeaking` の更新 | ElevenLabs 経路は `<audio>.onplaying`（実再生開始）、Web Speech 経路は `utterance.onstart` |
+| `error` のクリア | 次回 `speak()` で実再生が始まったタイミング（`<audio>.onplaying`）に `null` に戻る。`play` メソッドの resolve ではなく実再生開始イベントで判定 |
+| `prime()` の役割 | iOS Safari の autoplay 制約対策。ユーザージェスチャ（タップ / トグル）の同期スコープで呼ぶ |
+
+#### prime() の autoplay unlock パターン
+
+ユーザージェスチャの同期スコープ内で、`<audio>` 要素と Web Speech の両方を unlock する。
+
+1. `<audio>.muted = true` にする（無音再生時のクリック音漏れ防止）
+2. `<audio>.src = SILENT_MP3_DATA_URL`（約 0.1 秒の無音 MP3 data URL）をセット
+3. `<audio>.play()` を呼ぶ（同期スコープ内）
+4. `play()` の resolve 後に `pause()` → `currentTime = 0` → `muted = false`
+5. `play()` の reject 時は `muted = false` に戻し、`error` に「音声再生の準備に失敗しました」をセット
+6. 並行して `primeWebSpeech()` を呼び、Web Speech 側も同期スコープ内で unlock（無音 utterance を `volume=0, rate=10, " "` で speak）
+
+`prime()` 冒頭では `<audio>` の `onplaying` / `onended` / `onerror` ハンドラを `null` に戻し、残留 Blob URL を revoke する（前回 `speak()` のハンドラが残ったまま SILENT_MP3 のデコード失敗で `handleError` が発火し、`triggerFallback` が空文字テキストで二重発火するのを防ぐ）。
+
+#### prime() の呼び出し箇所
+
+| 箇所 | 役割 |
+|-----|------|
+| TTS トグル ON | `setEnabled(true)` 内で自動呼び出し |
+| チャット送信ボタン | `handleChatSend` で `tts.prime()` → `chat.send(text)` |
+| 「状況は？」ボタン | `handleGrasp` で `tts.prime()` → `chat.send("状況は？")` → `dashboard.refresh()` |
 
 ### SessionPicker
 
@@ -1178,10 +1239,15 @@ even-terminal（ポート 3456）と devtools バックエンド（ポート 888
 | `components/dashboard/ConnectionIndicator.tsx` | SSE 接続状態ドット |
 | `hooks/useDashboard.ts` | ダッシュボードポーリングフック |
 | `hooks/useChat.ts` | チャット SSE フック |
-| `hooks/useTTS.ts` | TTS フック |
+| `hooks/useTTS.ts` | TTS フック（ElevenLabs 主経路 + Web Speech フォールバック） |
 | `lib/dashboardApi.ts` | ダッシュボード API 関数 |
 | `lib/chatApi.ts` | チャット API 関数 |
+| `lib/tts/elevenlabsClient.ts` | ElevenLabs TTS リクエスト（`POST /api/tts`、Blob 返却） |
+| `lib/tts/webSpeech.ts` | Web Speech API ラッパー（`speakWithWebSpeech` / `cancelWebSpeech` / `primeWebSpeech`） |
+| `lib/tts/silentMp3.ts` | autoplay unlock 用 無音 MP3 data URL |
+| `lib/tts/errors.ts` | `TTSError` クラスと `TTSFallbackReason` union 型 |
 | `types/dashboard.ts` | `DashboardState`, `ProjectCardData`, `KanbanCounts`, `UnansweredItem`, `OpsEntry`, `Attention` 型定義 |
 | `types/chat.ts` | `ChatSession`, `PromptRequest`, `ChatStreamEvent` 型定義 |
+| `types/tts.ts` | `TTSRequest` 型定義 |
 | `lib/constants.ts` | `GHOSTRUNNER_CWD`, `DASHBOARD_POLL_INTERVAL_MS`, localStorage キー定義 |
-| `next.config.ts` | even-terminal (`:3456`) へのプロキシ rewrites 設定 |
+| `next.config.ts` | `/api/tts` を devtools backend (`:8888`) にプロキシ（catch-all より前に明示エントリ）、even-terminal (`:3456`) へのプロキシ rewrites 設定 |

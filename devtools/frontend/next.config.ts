@@ -13,6 +13,13 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
+        // ElevenLabs TTS プロキシは devtools backend (:8888) 側。
+        // catch-all より前に明示エントリを置き、将来 even-terminal (:3456) へ
+        // ルート分岐が増えた際の順序ミスを防ぐ。
+        source: "/api/tts",
+        destination: "http://localhost:8888/api/tts",
+      },
+      {
         source: "/api/prompt",
         destination: "http://localhost:3456/api/prompt",
       },

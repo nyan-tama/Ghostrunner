@@ -13,6 +13,10 @@
 // OpenAIService インターフェースがOpenAI Realtime API操作を抽象化する。
 // 音声対話機能のためのエフェメラルキー発行を担当する。
 //
+// TTSService（internal/tts パッケージ）は ElevenLabs TTS API のプロキシを
+// 担当する。handler/service/client/cache を 1 パッケージに集約しており、
+// 詳細はそちらの doc.go を参照すること。
+//
 // # ClaudeService
 //
 // Claude CLIの実行を担当するサービス。
@@ -61,6 +65,21 @@
 // セッション作成パラメータ:
 //   - model: 使用するモデル（未指定時: gpt-4o-realtime-preview-2024-12-17）
 //   - voice: 音声タイプ（未指定時: verse）
+//
+// # TTSService（internal/tts パッケージ）
+//
+// ElevenLabs TTS API のプロキシを担当するサービス。本体は internal/tts
+// パッケージに集約されている（handler + service + client + cache を
+// 1 パッケージにまとめる grrun と同じ集約方針）。
+// ELEVENLABS_API_KEY 環境変数が未設定の場合は nil を返し、機能が無効になる。
+//
+// 主なメソッド:
+//   - Synthesize: テキストから音声を合成し、audio/mpeg バイナリを返却
+//
+// 内部構成:
+//   - tts.Client: ElevenLabs API への HTTP クライアント
+//   - tts.Cache: LRU + TTL + バイト数上限のインメモリキャッシュ
+//   - tts.serviceImpl: cache + singleflight + client を統合
 //
 // # CreateProjectService
 //

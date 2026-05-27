@@ -1049,17 +1049,101 @@ flowchart TD
 | 送信成功 | `onAnswered` コールバックでダッシュボードをリフレッシュ |
 | 送信失敗 | alert でエラーメッセージ表示 |
 
-### TTS フロー
+### TTS フロー（ElevenLabs 主経路 + Web Speech フォールバック）
+
+主経路は ElevenLabs のサーバー TTS（`POST /api/tts` → `audio/*` Blob → `<audio>` 再生）。失敗時は自動で Web Speech にフォールバックする。
+
+#### 概要
 
 ```mermaid
 flowchart TD
-    A[TTS OFF] -->|TTS トグル ON| B[TTS ON<br>日本語音声選択]
-    B -->|チャット応答完了| C[SpeechSynthesisUtterance<br>音声読み上げ]
-    C -->|読み上げ完了| B
-    C -->|cancel 呼び出し| B
-    B -->|TTS トグル OFF| D[cancel + 状態リセット]
-    D --> A
+    A[TTS OFF] -->|TTS トグル ON<br>prime 実行| B[TTS ON<br>待機]
+    B -->|チャット応答完了<br>speak 呼び出し| C["ElevenLabs 主経路<br>POST /api/tts"]
+    C -->|"audio Blob 取得 + play 成功"| D["再生中<br>onplaying で isSpeaking true<br>error クリア"]
+    C -->|失敗| F["Web Speech 降格<br>error: ElevenLabs 接続失敗。Web Speech に降格しました"]
+    F --> G["SpeechSynthesisUtterance<br>onstart で isSpeaking true"]
+    D -->|onended| B
+    G -->|utterance.onend| B
+    D -->|"cancel / setEnabled false"| H["stopAll<br>fetch abort + audio.pause + Blob URL revoke"]
+    G -->|"cancel / setEnabled false"| H
+    H --> B
+    B -->|TTS トグル OFF| A
 ```
+
+#### フォールバック分岐の詳細
+
+ElevenLabs 主経路では 7 つの分岐点で Web Speech フォールバックが発火する。いずれの分岐でも `error` に同じメッセージ（`"ElevenLabs 接続失敗。Web Speech に降格しました"`）がセットされ、次回 `speak()` の `<audio>.onplaying` 発火（実再生開始）で `null` に戻る。
+
+```mermaid
+flowchart TD
+    S[speak 呼び出し] --> A["stopAll<br>前回 fetch / audio / Web Speech を片付け"]
+    A --> B[fetch POST /api/tts]
+    B -->|AbortError| Z[何もしない<br>意図的キャンセル]
+    B -->|fetch failure<br>ネットワーク等| F[Web Speech フォールバック]
+    B -->|"response.ok=false<br>HTTP 4xx-5xx"| F
+    B -->|Content-Type 欠落| F
+    B -->|"Content-Type が audio で始まらない"| F
+    B -->|"blob.size=0<br>空 Blob"| F
+    B -->|Blob 取得成功| C["URL.createObjectURL<br>audio.src 設定<br>audio.play 呼び出し"]
+    C -->|"play メソッド reject<br>autoplay block 等"| F
+    C -->|play メソッド resolve| D[再生開始待ち]
+    D -->|"audio.onerror 発火<br>デコード失敗等"| F
+    D -->|audio.onplaying 発火| E["実再生開始<br>isSpeaking=true<br>error=null"]
+    E -->|audio.onended| OK[再生完了]
+```
+
+#### フォールバック発火原因一覧（`TTSFallbackReason`）
+
+| reason | 発火タイミング | 補足 |
+|--------|------------|------|
+| `network_error` | fetch 自体が失敗（DNS / 接続断 / `TypeError`） | AbortError は除外して再 throw |
+| `http_error` | `response.ok === false`（4xx / 5xx） | `status` / `statusText` を `TTSError` に保持 |
+| `missing_content_type` | レスポンスに `Content-Type` ヘッダがない | |
+| `invalid_content_type` | `Content-Type` が `audio/` で始まらない | 大文字小文字差は吸収 |
+| `empty_body` | `blob.size === 0` | |
+| `audio_error` | `<audio>.onerror` 発火、または `audio.play()` の reject | autoplay block / デコード失敗等 |
+
+#### prime() の autoplay unlock パターン
+
+iOS Safari は、ユーザージェスチャ外からの `<audio>.play()` を握りつぶす。チャット応答完了は SSE 受信の非同期イベントなので、ユーザージェスチャ（送信タップ / トグル ON / 「状況は？」タップ）の**同期スコープ**で `prime()` を呼び、`<audio>` と Web Speech の両方を事前に unlock しておく必要がある。
+
+```mermaid
+flowchart TD
+    A["ユーザージェスチャ<br>送信タップ / トグル ON / 状況は？タップ"] -->|同期スコープ| B[prime 呼び出し]
+    B --> C["残留ハンドラ null 化<br>onplaying / onended / onerror を null に"]
+    C --> D[残留 Blob URL revoke]
+    D --> E["audio.muted = true"]
+    E --> F["audio.src = SILENT_MP3_DATA_URL<br>約 0.1 秒の無音 MP3"]
+    F --> G[audio.play 呼び出し]
+    G -->|resolve| H["audio.pause<br>currentTime = 0<br>audio.muted = false"]
+    G -->|reject| I["audio.muted = false<br>error: 音声再生の準備に失敗しました"]
+    B -->|同期で並行| J["primeWebSpeech<br>無音 utterance<br>volume=0 rate=10 半角スペース 1 文字"]
+    H --> K[unlock 完了<br>後続の非同期 audio.play が許可される]
+    J --> K
+```
+
+#### TTS 状態遷移詳細
+
+| 現在の状態 | トリガー | 次の状態 | 処理 |
+|-----------|---------|---------|------|
+| TTS OFF | トグル ON | TTS ON（待機） | `setEnabled(true)` → localStorage 保存 → `prime()` で unlock |
+| TTS ON（待機） | `speak(text)` 呼び出し | ElevenLabs fetch 中 | `stopAll` で前段を片付け、`AbortController` 生成、`POST /api/tts` 開始 |
+| ElevenLabs fetch 中 | Blob 取得成功 + `audio.play()` resolve | 再生開始待ち | `<audio>.src` に Blob URL を設定、`onplaying` / `onended` / `onerror` ハンドラ登録 |
+| 再生開始待ち | `<audio>.onplaying` | 再生中 | `isSpeaking=true`、`error=null` にクリア |
+| 再生中 | `<audio>.onended` | TTS ON（待機） | `isSpeaking=false`、Blob URL を revoke |
+| 任意（ElevenLabs 経路） | フェッチ / Content-Type / 空 Blob / `onerror` / `play()` reject のいずれか | Web Speech フォールバック | `error` セット、`isFallbackActiveRef=true`、`speakWithWebSpeech` 呼び出し |
+| Web Speech フォールバック | `utterance.onstart` | 再生中（フォールバック） | `isSpeaking=true` |
+| 再生中（フォールバック） | `utterance.onend` / `onerror` | TTS ON（待機） | `isSpeaking=false` |
+| 任意 | `cancel()` / `setEnabled(false)` | TTS ON（待機）または OFF | `stopAll`: fetch abort → `audio.pause` → ハンドラ null 化 → Blob URL revoke → Web Speech cancel |
+| 任意 | unmount | クリーンアップ | fetch abort → `audio.pause` → src 除去 → ハンドラ null 化 → Blob URL revoke → Web Speech cancel |
+
+#### prime() 呼び出し箇所
+
+| 箇所 | 役割 |
+|-----|------|
+| TTS トグル ON | `setEnabled(true)` 内で自動呼び出し |
+| チャット送信ボタン（`handleChatSend`） | `tts.prime()` → `chat.send(text)` の順 |
+| 「状況は？」ボタン（`handleGrasp`） | `tts.prime()` → `chat.send("状況は？")` → `dashboard.refresh()` の順 |
 
 ### API 通信フロー
 

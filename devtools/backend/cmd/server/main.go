@@ -10,6 +10,7 @@ import (
 	"ghostrunner/backend/internal/dashboard"
 	"ghostrunner/backend/internal/handler"
 	"ghostrunner/backend/internal/service"
+	"ghostrunner/backend/internal/tts"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -23,6 +24,7 @@ func main() {
 	claudeService := service.NewClaudeService(ntfyService)
 	geminiService := service.NewGeminiService() // nil の場合がある（API キー未設定時）
 	openaiService := service.NewOpenAIService() // nil の場合がある（API キー未設定時）
+	ttsService := tts.NewService()              // nil の場合がある（ELEVENLABS_API_KEY 未設定時）
 	// Ghostrunnerリポジトリルートを取得（devtools/backend/cmd/server/main.go から4階層上）
 	_, thisFile, _, _ := runtime.Caller(0)
 	ghostrunnerRoot := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..")
@@ -31,6 +33,8 @@ func main() {
 	commandHandler := handler.NewCommandHandler(claudeService, ghostrunnerRoot)
 	geminiHandler := handler.NewGeminiHandler(geminiService)
 	openaiHandler := handler.NewOpenAIHandler(openaiService)
+	// ElevenLabs TTS プロキシ(handler/service/client/cache を tts パッケージに集約、Q-BE-1 A案)
+	ttsHandler := tts.NewHandler(ttsService)
 	filesHandler := handler.NewFilesHandler()
 	projectsHandler := handler.NewProjectsHandler()
 	healthHandler := handler.NewHealthHandler()
@@ -108,6 +112,9 @@ func main() {
 
 		// OpenAI Realtime API
 		api.POST("/openai/realtime/session", openaiHandler.HandleSession)
+
+		// ElevenLabs TTS プロキシ
+		api.POST("/tts", ttsHandler.HandleSynthesize)
 
 		// プロジェクト生成API
 		api.GET("/projects/validate", createHandler.HandleValidate)

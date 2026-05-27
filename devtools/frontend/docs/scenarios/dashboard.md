@@ -155,27 +155,103 @@ even-terminal 経由で任意のテキスト指示を送信し、応答を受け
 
 ### 目的
 
-チャット応答完了時の音声読み上げを ON/OFF する。
+チャット応答完了時の音声読み上げを ON/OFF する。主経路は ElevenLabs のサーバー TTS（Romaco の声）、失敗時は自動で Web Speech にフォールバックする。
 
 ### 前提条件
 
-- ブラウザが Web Speech API（SpeechSynthesis）に対応している
+- バックエンド `/api/tts` が稼働している（ElevenLabs API キーは backend env で設定）
+- フォールバック経路が必要な場合はブラウザが Web Speech API（SpeechSynthesis）に対応している
 
 ### 操作フロー
 
 1. ヘッダーの TTS トグルボタンをクリックする
-2. ON 時: 「TTS ON」（青背景）と表示
-3. OFF 時: 「TTS OFF」（白背景）と表示
-4. TTS ON の状態でチャット応答が完了すると、日本語音声で読み上げが行われる
-
-### 非対応ブラウザ
-
-- ボタンが無効化される（disabled）
-- ツールチップに「このブラウザは音声合成に対応していません」と表示される
+2. ON 時: 「TTS ON」（青背景）と表示。同時に `prime()` が走り、iOS Safari の autoplay 制約が解除される
+3. OFF 時: 「TTS OFF」（白背景）と表示。進行中の fetch / 再生 / フォールバックを全て停止
+4. TTS ON の状態でチャット応答が完了すると、Romaco の声で読み上げが行われる
 
 ### 状態の永続化
 
-- localStorage に保存され、ページ再読み込み後も維持される
+- localStorage（`ghostrunner_tts_enabled`）に保存され、ページ再読み込み後も維持される
+
+---
+
+## 6-A. 応答音声読み上げ（ElevenLabs 主経路）
+
+### 目的
+
+チャット応答を ElevenLabs の Romaco 声で AirPods 等から再生する。
+
+### 前提条件
+
+- TTS トグル ON
+- バックエンド `/api/tts` が ElevenLabs に到達できる（API キー設定済み、ネットワーク疎通あり）
+
+### 操作フロー
+
+1. ChatInput でテキストを入力 → 送信ボタン or Enter
+   - 送信タップの同期スコープで `tts.prime()` が走り、`<audio>` 要素が unlock される
+2. SSE 経由でストリーミング応答が蓄積される
+3. 応答完了（`result` イベント / `status:idle` / 3秒無音タイムアウトのいずれか）で `tts.speak(fullText)` が呼ばれる
+4. `POST /api/tts` に `{ text }` を JSON 送信
+5. 数秒以内に `audio/mpeg`（`audio/*`）の Blob レスポンスが返る
+6. `URL.createObjectURL(blob)` で `<audio>.src` に紐付け、`audio.play()` を呼ぶ
+7. `<audio>.onplaying`（実再生開始）で `isSpeaking=true`、`error` が `null` にクリアされる
+8. AirPods / Bluetooth デバイスから Romaco の声が再生される
+9. `<audio>.onended` で `isSpeaking=false` に戻り、Blob URL が revoke される
+
+### 成功時
+
+- AirPods / Bluetooth スピーカーから Romaco の声で応答が読み上げられる
+- TopError バナーが消える（前回フォールバックが残っていた場合）
+
+### 補足
+
+- 再生中に次の `speak()` が来た場合、`stopAll` で進行中の fetch を abort、`<audio>` を pause、Blob URL を revoke してから新規 fetch を開始する
+- セッション切替（`onSessionSwitch`）でも `tts.cancel()` が走る
+
+---
+
+## 6-B. ElevenLabs 失敗時の Web Speech フォールバック
+
+### 目的
+
+ElevenLabs 経路の失敗（API キー未設定 / レート超過 / ネットワーク失敗 / レスポンス不正 / autoplay block 等）に対して、無音にならずに Web Speech で読み上げを続ける。
+
+### 発火条件（7 経路）
+
+| 経路 | 発火タイミング |
+|-----|-------------|
+| fetch failure | ネットワーク失敗、CORS、DNS 解決失敗等（`AbortError` は除く） |
+| HTTP 4xx-5xx | `response.ok === false`（401 認証失敗、429 レート超過、5xx サーバーエラー等） |
+| Content-Type 欠落 | レスポンスに `Content-Type` ヘッダがない |
+| Content-Type 不正 | `audio/` で始まらない（例: `application/json` のエラーレスポンス） |
+| 空 Blob | `blob.size === 0` |
+| `<audio>.onerror` | デコード失敗、不正な Blob 等 |
+| `audio.play()` reject | autoplay block、ユーザージェスチャ未取得状態など |
+
+### 動作フロー（自動）
+
+1. ElevenLabs 経路のいずれかで失敗が検知される
+2. `error` に `"ElevenLabs 接続失敗。Web Speech に降格しました"` がセットされる
+3. TopError バナー（赤背景）に上記メッセージが表示される
+4. `speakWithWebSpeech(text, ...)` で Web Speech 経由の読み上げに切り替わる
+5. `utterance.onstart` で `isSpeaking=true`、`onend` で `isSpeaking=false` に戻る
+
+### 既知制約
+
+- iOS Safari の SpeechSynthesis は**内蔵スピーカー固定**で、AirPods / Bluetooth デバイスには乗らない
+- ElevenLabs 主経路（`<audio>` 再生）は OS の出力ルーティングに従うので、Romaco の声は AirPods 等にも乗る
+- つまりフォールバック中だけ「音が内蔵スピーカーから出る」現象が発生する
+
+### エラー復旧
+
+- 次回 `speak()` で ElevenLabs 経路の再生が成功し、`<audio>.onplaying` が発火したタイミングで `error` が `null` にクリアされる
+- `play` メソッドの resolve ではなく、実再生開始イベント（`playing`）で判定するため、autoplay block 等で「`play()` は resolve したが音は出ていない」状態を誤って成功扱いしない
+
+### 失敗時のフェールセーフ
+
+- Web Speech 経路でもエラーが起きた場合（`utterance.onerror`）、`isSpeaking=false` に戻すだけで追加通知はしない
+- ブラウザが Web Speech にも対応していない環境では `speakWithWebSpeech` が no-op になり、音は出ないが UI はフリーズしない
 
 ---
 
