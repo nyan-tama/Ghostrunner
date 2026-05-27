@@ -10,6 +10,7 @@ import (
 	"ghostrunner/backend/internal/dashboard"
 	"ghostrunner/backend/internal/handler"
 	"ghostrunner/backend/internal/service"
+	"ghostrunner/backend/internal/tts"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -43,6 +44,10 @@ func main() {
 	// ダッシュボードサービスの依存性組み立て
 	dashboardService := dashboard.NewService(patrolConfigPath, ghostrunnerRoot)
 	dashboardHandler := handler.NewDashboardHandler(dashboardService)
+
+	// TTS (VOICEVOX) の依存性組み立て
+	ttsService := tts.NewService()
+	ttsHandler := tts.NewHandler(ttsService)
 
 	// プロジェクト生成関連の依存性組み立て
 	templateService := service.NewTemplateService(ghostrunnerRoot)
@@ -113,6 +118,9 @@ func main() {
 		api.GET("/projects/validate", createHandler.HandleValidate)
 		api.POST("/projects/create/stream", createHandler.HandleCreateStream)
 		api.POST("/projects/open", createHandler.HandleOpen)
+
+		// TTS API (VOICEVOX)
+		api.POST("/tts", ttsHandler.HandleSynthesize)
 
 		// ダッシュボードAPI
 		dashGroup := api.Group("/dashboard")

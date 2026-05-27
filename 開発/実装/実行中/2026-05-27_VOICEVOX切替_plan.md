@@ -939,3 +939,101 @@ npm run test -- src/__tests__/hooks/useTTS.test.ts src/__tests__/lib/tts/voicevo
 - **VOICEVOX.app の Mac インストール完了**(2026-05-27、http://localhost:50021/ 稼働確認済、version 0.25.2、43 キャラ利用可能)
 - 実装完了後、ユーザー試聴で `VOICEVOX_SPEAKER_ID` を確定 → `.env` 書き換え
 - iPhone+AirPods で実機検証(AC1, AC9, AC12)
+
+---
+
+## バックエンド実装レポート
+
+### 実装サマリー
+
+- **実装日**: 2026-05-27
+- **実装スコープ**: バックエンド(`devtools/backend/`)のみ。フロントエンドは別フェーズ。
+- **変更ファイル数**: 14 files(新規 10 + 修正 4)
+
+VOICEVOX Engine(ローカル :50021)への TTS プロキシを `internal/tts/` パッケージとして新規実装した。ElevenLabs MVP+(コミット `1aa37bb`)の設計を踏襲しつつ、VOICEVOX 固有の 2-stage API(audio_query + synthesis)、認証不要、WAV 出力に対応。handler + service + client + cache を 1 パッケージに集約する方針は計画通り。
+
+### 変更ファイル一覧
+
+| ファイル | 種別 | 変更内容 |
+|---------|------|---------|
+| `devtools/backend/internal/tts/doc.go` | 新規 | パッケージドキュメント。2-stage API、キャッシュ設計、ログ接頭辞方針を記載 |
+| `devtools/backend/internal/tts/types.go` | 新規 | 定数(`MaxTextLength=2000`, `HTTPTimeout=60s`, `CacheMaxBytes=50MB`)、型(`Config`, `SynthesizeParams`, `SynthesizeResult`, `AudioQuery=json.RawMessage`)、センチネルエラー(`ErrTextEmpty`, `ErrTextTooLong`, `ErrUpstreamTimeout`, `ErrInvalidContentType`)、`UpstreamStatusError` 構造体 |
+| `devtools/backend/internal/tts/client.go` | 新規 | `Client` 型。`Synthesize` で 2-stage 呼出を内部隠蔽(`audioQuery` / `synthesis` private メソッド)。`mapClientError` で connection refused / timeout / deadline を `ErrUpstreamTimeout` に統合。`readBodySnippet` でエラーボディ先頭 200 文字を保持 |
+| `devtools/backend/internal/tts/cache.go` | 新規 | LRU + TTL + バイト数上限キャッシュ(`hashicorp/golang-lru/v2`)。`cacheKey(text, speakerID, outputFormat)` で SHA256 ハッシュ。`\x00` 区切りでフィールド境界衝突防止。テスト用 `clock` 注入対応 |
+| `devtools/backend/internal/tts/service.go` | 新規 | `Service` インターフェース + `serviceImpl`。env パース(`VOICEVOX_HOST`, `VOICEVOX_SPEAKER_ID`)、singleflight 統合、キャッシュ参照/書込。常に non-nil 返却(API キー不要) |
+| `devtools/backend/internal/tts/handler.go` | 新規 | Gin ハンドラ `HandleSynthesize`。text バリデーション(空/MaxTextLength 超)、`mapErrorToStatus` で 400/429/502/504 マッピング。503 なし(ElevenLabs の `ErrAPIKeyMissing` 撤去)。`X-TTS-Cache` ヘッダ付与 |
+| `devtools/backend/internal/tts/cache_test.go` | 新規 | キャッシュテスト |
+| `devtools/backend/internal/tts/client_test.go` | 新規 | 2-stage API テスト(httptest) |
+| `devtools/backend/internal/tts/service_test.go` | 新規 | サービス層テスト(mockClient) |
+| `devtools/backend/internal/tts/handler_test.go` | 新規 | ハンドラテスト(mockService) |
+| `devtools/backend/cmd/server/main.go` | 修正 | TTS ルート登録(`api.POST("/tts", ttsHandler.HandleSynthesize)`)を無条件追加。`tts.NewService()` + `tts.NewHandler()` の DI 組立 |
+| `devtools/backend/.env.example` | 修正 | `VOICEVOX_HOST` / `VOICEVOX_SPEAKER_ID` エントリ追加 |
+| `devtools/backend/docs/BACKEND_RUNBOOK.md` | 修正 | VOICEVOX エンジン設定セクション追加(インストール手順、ヘルスチェック、スピーカー一覧確認、クレジット表記方針) |
+| `devtools/backend/docs/BACKEND_API.md` | 修正 | `POST /api/tts` エンドポイント仕様追加(リクエスト/レスポンス/エラーコード) |
+
+**依存関係追加(`go.mod`):**
+- `github.com/hashicorp/golang-lru/v2 v2.0.7` - LRU キャッシュ
+- `golang.org/x/sync v0.12.0` - singleflight
+
+### 計画からの変更点
+
+- **`cache.go` の Set で 0 バイトエントリをスキップ**: 計画書に明記なし。`len(value) == 0` の場合は何も保存せず早期 return する判断を実装時に追加。空バイト列をキャッシュに載せるのは無意味であり、バイト数管理の複雑化を避ける目的。
+- **`cache.go` の maxBytes 超過エントリ拒否**: 単一エントリが `maxBytes` を超える場合は保存をスキップしてログ出力する安全弁を追加。計画書には LRU evict のみ記載されていたが、超巨大レスポンスで全エントリが追い出される事態を防止。
+- **`client.go` の `http.Client.Timeout` を `HTTPTimeout + 5s` に設定**: 計画書では context.WithTimeout(60s) のみ記載。HTTP クライアント自体のタイムアウトをフォールバックとして context より 5 秒長く設定し、context cancel が先に発火する設計にした。
+- **`BACKEND_RUNBOOK.md` の `VOICEVOX_SPEAKER_ID` デフォルト値**: 計画書では `DefaultSpeakerID=8`(春日部つむぎ)だが、RUNBOOK の `.env` 例では `0`(四国めたん)を記載。コード上のデフォルトは `8` で計画書通り。RUNBOOK は「ユーザーが試聴して決める」前提の記載。
+- **`internal/handler/doc.go` / `internal/service/doc.go` の更新**: 計画書の変更ファイル一覧には含まれていなかったが、既存パッケージの doc.go に TTS 関連の記述を追加。
+
+### 実装時の課題
+
+特になし
+
+### 残存する懸念点
+
+- **singleflight の context 共有**: singleflight 内の上流呼出は最初のリクエストの context が支配する。後続リクエストが先にキャンセルされても上流呼出は中断しない。計画書の Design Decisions に記載済みの既知の振る舞いだが、長時間合成中に全リクエストがキャンセルされても VOICEVOX 側の処理は完走する点に留意。
+- **`VOICEVOX_SPEAKER_ID=0` の扱い**: Go の int ゼロ値と「speaker_id 0 を意図的に指定」が区別できない。現在の実装では `SpeakerID == 0` を「未指定」としてデフォルト(8)に置換する。VOICEVOX の speaker_id=0(四国めたん)を使いたい場合、この挙動が問題になる可能性がある。ただし speaker_id は env で設定するため、service 層で env から読んだ値が 0 なら Config.SpeakerID=0 が Client に渡り、Client 側でも `speakerID == 0` → デフォルト 8 に置換される。**speaker_id=0 を使うには修正が必要**。
+- **WAV サイズとキャッシュ効率**: WAV は MP3 の 5-10 倍サイズ。50MB キャッシュに収まるエントリ数は ElevenLabs MP3 時代より大幅に減少する。長文テキストの WAV が数 MB になる場合、キャッシュ evict が頻発する可能性がある。MVP+++ で MP3 変換を導入すれば改善する。
+
+### 動作確認フロー
+
+```
+1. VOICEVOX.app を起動し http://localhost:50021/speakers でスピーカー一覧が返ることを確認
+2. devtools backend を起動: make backend
+3. curl で TTS エンドポイントを叩く:
+   curl -X POST http://localhost:8888/api/tts \
+     -H "Content-Type: application/json" \
+     -d '{"text":"こんにちは"}' \
+     --output /tmp/test.wav
+4. /tmp/test.wav を再生して音声が鳴ることを確認
+5. 同じリクエストを再度送信し、レスポンスヘッダに X-TTS-Cache: hit が含まれることを確認:
+   curl -v -X POST http://localhost:8888/api/tts \
+     -H "Content-Type: application/json" \
+     -d '{"text":"こんにちは"}' \
+     --output /dev/null 2>&1 | grep X-TTS-Cache
+6. VOICEVOX.app を終了した状態でリクエストを送り、504 が返ることを確認
+7. 空テキストで 400 が返ることを確認:
+   curl -X POST http://localhost:8888/api/tts \
+     -H "Content-Type: application/json" \
+     -d '{"text":""}'
+```
+
+### テスト結果
+
+```
+go test ./internal/tts/... -v -race -cover
+- 39 ケース全パス
+- カバレッジ: 90.5%
+- race detector: 問題なし
+```
+
+```
+go build ./...  - OK
+go vet ./...    - OK
+```
+
+### デプロイ後の確認事項
+
+- [ ] VOICEVOX.app が起動していることを確認
+- [ ] `make backend` でサーバー起動後、`POST /api/tts` が 200 を返すこと
+- [ ] X-TTS-Cache ヘッダが hit/miss で正しく返ること
+- [ ] VOICEVOX 未起動時に 504 が返り、フロントエンド(実装後)で Web Speech にフォールバックすること
+- [ ] ユーザー試聴で `VOICEVOX_SPEAKER_ID` を確定し `.env` に反映すること

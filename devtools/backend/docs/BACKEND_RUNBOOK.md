@@ -138,6 +138,71 @@ curl -d "Test notification from Ghostrunner" \
 
 ---
 
+## VOICEVOX エンジン設定
+
+### インストール
+
+1. VOICEVOX 公式サイト（https://voicevox.hiroshiba.jp/）から macOS 用 .dmg をダウンロード
+2. .dmg を開き、VOICEVOX.app を `/Applications` にドラッグ＆ドロップ
+3. VOICEVOX.app を起動（初回はモデルデータのダウンロードが走る。完了まで待つ）
+
+### ヘルスチェック
+
+```bash
+# バージョン確認（正常時: バージョン文字列が返る）
+curl http://localhost:50021/version
+
+# Swagger UI で全エンドポイントを確認
+open http://localhost:50021/docs
+```
+
+### スピーカー一覧の取得
+
+```bash
+# スピーカー名とIDの一覧を取得
+curl -s http://localhost:50021/speakers | jq '.[].styles[] | {name: .name, id: .id}'
+```
+
+出力例:
+
+```json
+{ "name": "ノーマル", "id": 0 }
+{ "name": "あまあま", "id": 1 }
+```
+
+`id` の値を `VOICEVOX_SPEAKER_ID` に設定する。
+
+### 環境変数の設定
+
+```bash
+# backend/.env に追加
+VOICEVOX_HOST=http://localhost:50021
+VOICEVOX_SPEAKER_ID=0
+```
+
+| 環境変数 | デフォルト | 説明 |
+|----------|-----------|------|
+| `VOICEVOX_HOST` | `http://localhost:50021` | VOICEVOX エンジンのベースURL |
+| `VOICEVOX_SPEAKER_ID` | `0` | 使用するスピーカーのID（スピーカー一覧から選択） |
+
+設定後、サーバーを再起動する。
+
+```bash
+make restart-backend-logs
+```
+
+### クレジット表記
+
+TTS音声を使用する画面には `VOICEVOX:<スピーカー名>` のクレジット表記を掲載する。個人利用の範囲では厳密に必須ではないが、配布・公開する場合は必須。
+
+### 配布時の注意事項
+
+- スピーカーごとに利用規約が異なる。配布前に使用するスピーカーの個別ライセンスを確認すること
+- 立ち絵画像は使用しないため、立ち絵に関するライセンスは対象外
+- 音声データの再配布条件はスピーカーごとに異なる。再配布が必要な場合は個別に確認すること
+
+---
+
 ## トラブルシューティング
 
 ### サーバーが起動しない
