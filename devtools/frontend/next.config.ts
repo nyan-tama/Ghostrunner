@@ -33,6 +33,10 @@ const nextConfig: NextConfig = {
         destination: "http://localhost:3456/api/sessions",
       },
       {
+        source: "/api/tts",
+        destination: "http://localhost:8888/api/tts",
+      },
+      {
         source: "/api/:path*",
         destination: "http://localhost:8888/api/:path*",
       },

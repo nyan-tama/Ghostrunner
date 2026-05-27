@@ -1009,7 +1009,7 @@ flowchart TD
     A[テキスト入力<br>Enter で送信] -->|POST /api/prompt| B{レスポンス}
     B -->|200 OK| C[SSE でストリーミング受信<br>text_delta イベント]
     C -->|テキスト蓄積| D[ChatTranscript に表示]
-    C -->|result / status:idle| E[完了<br>TTS 読み上げ]
+    C -->|result / status:idle| E[完了<br>TTS 読み上げ<br>VOICEVOX優先]
     C -->|3秒無音| E
     B -->|4xx| F[セッション再取得<br>リトライ1回]
     F -->|成功| C
@@ -1023,9 +1023,9 @@ flowchart TD
 |-----------|---------|---------|------|
 | idle | テキスト送信 | busy | `POST /api/prompt` でプロンプト送信、応答テキストをリセット |
 | busy | text_delta イベント受信 | busy | テキストを蓄積、ChatTranscript に表示 |
-| busy | result イベント受信 | idle | テキスト蓄積を完了、TTS 読み上げ実行 |
-| busy | status:idle イベント受信（テキストあり） | idle | テキスト蓄積を完了、TTS 読み上げ実行 |
-| busy | 3秒間イベントなし | idle | 無音タイムアウトで完了扱い、TTS 読み上げ実行 |
+| busy | result イベント受信 | idle | テキスト蓄積を完了、TTS 読み上げ実行（VOICEVOX 優先、失敗時 Web Speech 降格） |
+| busy | status:idle イベント受信（テキストあり） | idle | テキスト蓄積を完了、TTS 読み上げ実行（同上） |
+| busy | 3秒間イベントなし | idle | 無音タイムアウトで完了扱い、TTS 読み上げ実行（同上） |
 | busy | error イベント受信 | error | エラーメッセージを表示 |
 | idle | 4xx レスポンス | busy（リトライ） | セッション一覧を再取得し、新しいセッションで再送信 |
 
@@ -1049,16 +1049,22 @@ flowchart TD
 | 送信成功 | `onAnswered` コールバックでダッシュボードをリフレッシュ |
 | 送信失敗 | alert でエラーメッセージ表示 |
 
-### TTS フロー
+### TTS フロー（VOICEVOX 主経路 + Web Speech フォールバック）
 
 ```mermaid
 flowchart TD
-    A[TTS OFF] -->|TTS トグル ON| B[TTS ON<br>日本語音声選択]
-    B -->|チャット応答完了| C[SpeechSynthesisUtterance<br>音声読み上げ]
-    C -->|読み上げ完了| B
-    C -->|cancel 呼び出し| B
-    B -->|TTS トグル OFF| D[cancel + 状態リセット]
-    D --> A
+    A[TTS OFF] -->|TTS トグル ON<br>prime 発火| B[TTS ON<br>待機中]
+    B -->|チャット応答完了| C[POST /api/tts<br>VOICEVOX 経由]
+    C -->|WAV Blob 取得成功| D["audio.play()<br>音声再生"]
+    D -->|再生完了<br>ended イベント| B
+    C -->|接続失敗/タイムアウト<br>HTTP エラー| E[Web Speech フォールバック<br>TopError に理由表示]
+    D -->|play 拒否<br>autoplay block| E
+    D -->|audio.onerror| E
+    E -->|読み上げ完了| B
+    B -->|cancel 呼び出し| F[停止<br>abort + audio.pause<br>+ Web Speech cancel]
+    F --> B
+    B -->|TTS トグル OFF| G[stopAll + 状態リセット]
+    G --> A
 ```
 
 ### API 通信フロー
@@ -1085,7 +1091,19 @@ sequenceDiagram
     Note right of Frontend: {sessionId, text, provider, cwd}
     EvenTerminal-->>Frontend: SSE text_delta (複数回)
     EvenTerminal-->>Frontend: SSE result
-    Frontend->>User: テキスト表示 + TTS 読み上げ
+
+    Note over Frontend,DevtoolsAPI: TTS 読み上げ（チャット応答完了時）
+    Frontend->>DevtoolsAPI: POST /api/tts
+    Note right of Frontend: {text} → VOICEVOX Engine にプロキシ
+    alt VOICEVOX 成功
+        DevtoolsAPI-->>Frontend: audio/wav Blob
+        Frontend->>Frontend: audio.play() で再生
+    else VOICEVOX 失敗
+        DevtoolsAPI-->>Frontend: エラー / 接続拒否
+        Frontend->>Frontend: Web Speech API にフォールバック
+        Frontend->>Frontend: TopError に降格理由を表示
+    end
+    Frontend->>User: テキスト表示 + 音声再生
 
     Note over Frontend,DevtoolsAPI: 未回答質問への回答
     User->>Frontend: 質問クリック + テキスト入力 + 送信

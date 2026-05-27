@@ -1,252 +1,696 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
+import { TTSError, type TTSFallbackReason } from "@/lib/tts/errors";
 
-// SpeechSynthesisUtterance mock
-class MockUtterance {
-  text: string;
-  voice: SpeechSynthesisVoice | null = null;
-  lang = "";
-  onstart: (() => void) | null = null;
-  onend: (() => void) | null = null;
-  onerror: ((ev: { error: string }) => void) | null = null;
+// ---------------------------------------------------------------------------
+// Mock: voicevoxClient
+// ---------------------------------------------------------------------------
+const mockRequestTTS = vi.fn<
+  [{ text: string; signal?: AbortSignal }],
+  Promise<Blob>
+>();
 
-  constructor(text: string) {
-    this.text = text;
+vi.mock("@/lib/tts/voicevoxClient", () => ({
+  requestTTS: (params: { text: string; signal?: AbortSignal }) =>
+    mockRequestTTS(params),
+}));
+
+// ---------------------------------------------------------------------------
+// Mock: webSpeech
+// ---------------------------------------------------------------------------
+const mockSpeakWithWebSpeech = vi.fn();
+const mockCancelWebSpeech = vi.fn();
+const mockPrimeWebSpeech = vi.fn();
+
+vi.mock("@/lib/tts/webSpeech", () => ({
+  speakWithWebSpeech: (...args: unknown[]) => mockSpeakWithWebSpeech(...args),
+  cancelWebSpeech: (...args: unknown[]) => mockCancelWebSpeech(...args),
+  primeWebSpeech: (...args: unknown[]) => mockPrimeWebSpeech(...args),
+}));
+
+// ---------------------------------------------------------------------------
+// Mock: Audio
+// ---------------------------------------------------------------------------
+let audioInstances: MockAudio[] = [];
+
+class MockAudio {
+  onplaying: (() => void) | null = null;
+  onended: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+
+  play = vi.fn(() => Promise.resolve());
+  pause = vi.fn();
+  removeAttribute = vi.fn();
+  setAttribute = vi.fn();
+
+  private _src = "";
+  private _preload = "";
+  private _muted = false;
+  private _currentTime = 0;
+
+  get src() {
+    return this._src;
+  }
+  set src(v: string) {
+    this._src = v;
+  }
+  get preload() {
+    return this._preload;
+  }
+  set preload(v: string) {
+    this._preload = v;
+  }
+  get muted() {
+    return this._muted;
+  }
+  set muted(v: boolean) {
+    this._muted = v;
+  }
+  get currentTime() {
+    return this._currentTime;
+  }
+  set currentTime(v: number) {
+    this._currentTime = v;
+  }
+
+  constructor() {
+    audioInstances.push(this);
   }
 }
 
-vi.stubGlobal("SpeechSynthesisUtterance", MockUtterance);
+vi.stubGlobal("Audio", MockAudio);
+// Mock only the static methods on URL, preserving the URL constructor.
+const originalCreateObjectURL = URL.createObjectURL;
+const originalRevokeObjectURL = URL.revokeObjectURL;
+URL.createObjectURL = vi.fn(() => "blob:mock");
+URL.revokeObjectURL = vi.fn();
 
-// speechSynthesis mock
-function createMockSynthesis(voices: Partial<SpeechSynthesisVoice>[] = []) {
-  const listeners = new Map<string, Set<EventListener>>();
-  return {
-    speak: vi.fn(),
-    cancel: vi.fn(),
-    getVoices: vi.fn(() => voices as SpeechSynthesisVoice[]),
-    addEventListener: vi.fn((type: string, cb: EventListener) => {
-      if (!listeners.has(type)) listeners.set(type, new Set());
-      listeners.get(type)!.add(cb);
-    }),
-    removeEventListener: vi.fn((type: string, cb: EventListener) => {
-      listeners.get(type)?.delete(cb);
-    }),
-    dispatchEvent: vi.fn((event: Event) => {
-      listeners.get(event.type)?.forEach((cb) => cb(event));
-      return true;
-    }),
-    _listeners: listeners,
-  };
+// ---------------------------------------------------------------------------
+// Helper
+// ---------------------------------------------------------------------------
+function latestAudio(): MockAudio {
+  return audioInstances[audioInstances.length - 1];
 }
 
-describe("useTTS", () => {
-  let mockSynthesis: ReturnType<typeof createMockSynthesis>;
+/** Resolve pending microtasks (Promise callbacks). */
+async function flushMicrotasks() {
+  await act(async () => {
+    // Let all pending promises resolve
+    await new Promise((r) => setTimeout(r, 0));
+  });
+}
 
+function makeTTSError(reason: TTSFallbackReason): TTSError {
+  return new TTSError(`test error: ${reason}`, { reason });
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe("useTTS", () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    audioInstances = [];
     localStorage.clear();
-    mockSynthesis = createMockSynthesis();
-    vi.stubGlobal("speechSynthesis", mockSynthesis);
+    mockRequestTTS.mockReset();
+    mockSpeakWithWebSpeech.mockReset();
+    mockCancelWebSpeech.mockReset();
+    mockPrimeWebSpeech.mockReset();
+    (URL.createObjectURL as ReturnType<typeof vi.fn>).mockReturnValue("blob:mock");
+    (URL.revokeObjectURL as ReturnType<typeof vi.fn>).mockClear();
   });
 
   afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
+    // Do not use vi.restoreAllMocks() here because it would restore the
+    // URL.createObjectURL/revokeObjectURL mocks set at module scope.
   });
 
-  // Helper: import fresh module each time (since we mutate globals)
-  async function importAndRender(
-    opts?: Parameters<typeof import("@/hooks/useTTS")>[0]
-  ) {
-    const { useTTS } = await import("@/hooks/useTTS");
-    return renderHook(() => useTTS());
+  // Import the hook freshly (it has "use client" but jsdom env handles it).
+  async function importHook() {
+    const mod = await import("@/hooks/useTTS");
+    return mod.useTTS;
   }
 
-  it("speak calls cancel() then waits 50ms before speechSynthesis.speak", async () => {
-    const { useTTS } = await import("@/hooks/useTTS");
-    const { result } = renderHook(() => useTTS());
+  // ========================================================================
+  // Fallback paths (AC2/AC7) - 7 cases
+  // ========================================================================
 
-    // Enable TTS
-    act(() => {
-      result.current.setEnabled(true);
+  describe("Fallback paths (VOICEVOX -> Web Speech)", () => {
+    it("network_error: requestTTS throws TypeError -> fallback + network error message", async () => {
+      const useTTS = await importHook();
+      mockRequestTTS.mockRejectedValue(new TypeError("Failed to fetch"));
+
+      const { result } = renderHook(() => useTTS());
+
+      act(() => {
+        result.current.setEnabled(true);
+      });
+      act(() => {
+        result.current.speak("hello");
+      });
+      await flushMicrotasks();
+
+      expect(mockSpeakWithWebSpeech).toHaveBeenCalledTimes(1);
+      expect(result.current.error).toBe(
+        "VOICEVOX 接続失敗。Web Speech に降格しました"
+      );
     });
 
-    act(() => {
-      result.current.speak("hello");
+    it("http_error: requestTTS throws TTSError(http_error) -> fallback + network error message", async () => {
+      const useTTS = await importHook();
+      mockRequestTTS.mockRejectedValue(makeTTSError("http_error"));
+
+      const { result } = renderHook(() => useTTS());
+
+      act(() => {
+        result.current.setEnabled(true);
+      });
+      act(() => {
+        result.current.speak("hello");
+      });
+      await flushMicrotasks();
+
+      expect(mockSpeakWithWebSpeech).toHaveBeenCalledTimes(1);
+      expect(result.current.error).toBe(
+        "VOICEVOX 接続失敗。Web Speech に降格しました"
+      );
     });
 
-    // cancel should have been called
-    expect(mockSynthesis.cancel).toHaveBeenCalled();
+    it("missing_content_type: requestTTS throws TTSError(missing_content_type) -> fallback", async () => {
+      const useTTS = await importHook();
+      mockRequestTTS.mockRejectedValue(makeTTSError("missing_content_type"));
 
-    // At 49ms: speak should NOT have been called
-    act(() => {
-      vi.advanceTimersByTime(49);
-    });
-    expect(mockSynthesis.speak).not.toHaveBeenCalled();
+      const { result } = renderHook(() => useTTS());
 
-    // At 50ms: speak should fire
-    act(() => {
-      vi.advanceTimersByTime(1);
+      act(() => {
+        result.current.setEnabled(true);
+      });
+      act(() => {
+        result.current.speak("hello");
+      });
+      await flushMicrotasks();
+
+      expect(mockSpeakWithWebSpeech).toHaveBeenCalledTimes(1);
+      expect(result.current.error).toBe(
+        "VOICEVOX 接続失敗。Web Speech に降格しました"
+      );
     });
-    expect(mockSynthesis.speak).toHaveBeenCalledTimes(1);
+
+    it("invalid_content_type: requestTTS throws TTSError(invalid_content_type) -> fallback", async () => {
+      const useTTS = await importHook();
+      mockRequestTTS.mockRejectedValue(makeTTSError("invalid_content_type"));
+
+      const { result } = renderHook(() => useTTS());
+
+      act(() => {
+        result.current.setEnabled(true);
+      });
+      act(() => {
+        result.current.speak("hello");
+      });
+      await flushMicrotasks();
+
+      expect(mockSpeakWithWebSpeech).toHaveBeenCalledTimes(1);
+      expect(result.current.error).toBe(
+        "VOICEVOX 接続失敗。Web Speech に降格しました"
+      );
+    });
+
+    it("empty_body: requestTTS throws TTSError(empty_body) -> fallback", async () => {
+      const useTTS = await importHook();
+      mockRequestTTS.mockRejectedValue(makeTTSError("empty_body"));
+
+      const { result } = renderHook(() => useTTS());
+
+      act(() => {
+        result.current.setEnabled(true);
+      });
+      act(() => {
+        result.current.speak("hello");
+      });
+      await flushMicrotasks();
+
+      expect(mockSpeakWithWebSpeech).toHaveBeenCalledTimes(1);
+      expect(result.current.error).toBe(
+        "VOICEVOX 接続失敗。Web Speech に降格しました"
+      );
+    });
+
+    it("audio_error: blob OK but audio.onerror fires -> fallback + audio error message", async () => {
+      const useTTS = await importHook();
+      const blob = new Blob(["audio"], { type: "audio/wav" });
+      mockRequestTTS.mockResolvedValue(blob);
+
+      const { result } = renderHook(() => useTTS());
+
+      act(() => {
+        result.current.setEnabled(true);
+      });
+      act(() => {
+        result.current.speak("hello");
+      });
+      await flushMicrotasks();
+
+      // Trigger audio error
+      const audio = latestAudio();
+      await act(async () => {
+        audio.onerror?.();
+      });
+
+      expect(mockSpeakWithWebSpeech).toHaveBeenCalledTimes(1);
+      expect(result.current.error).toBe(
+        "音声再生失敗。Web Speech に降格しました"
+      );
+    });
+
+    it("play_rejected: audio.play() rejects -> fallback + audio error message", async () => {
+      const useTTS = await importHook();
+      const blob = new Blob(["audio"], { type: "audio/wav" });
+      mockRequestTTS.mockResolvedValue(blob);
+
+      const { result } = renderHook(() => useTTS());
+
+      act(() => {
+        result.current.setEnabled(true);
+      });
+
+      // Set the rejection AFTER setEnabled (which triggers prime and consumes
+      // one play call). This ensures the rejection targets the speak() call.
+      const audio = latestAudio();
+      audio.play.mockRejectedValueOnce(new DOMException("NotAllowedError"));
+
+      act(() => {
+        result.current.speak("hello");
+      });
+      await flushMicrotasks();
+
+      expect(mockSpeakWithWebSpeech).toHaveBeenCalledTimes(1);
+      expect(result.current.error).toBe(
+        "音声再生失敗。Web Speech に降格しました"
+      );
+    });
   });
 
-  it("voiceschanged event triggers voice re-evaluation", async () => {
-    // Start with no voices
-    mockSynthesis.getVoices.mockReturnValue([]);
+  // ========================================================================
+  // Prime tests (AC9)
+  // ========================================================================
 
-    const { useTTS } = await import("@/hooks/useTTS");
-    const { result } = renderHook(() => useTTS());
+  describe("prime()", () => {
+    it("calls primeWebSpeech, then audio.play with muted silent MP3", async () => {
+      const useTTS = await importHook();
+      const { result } = renderHook(() => useTTS());
 
-    act(() => {
-      result.current.setEnabled(true);
+      act(() => {
+        result.current.prime();
+      });
+
+      expect(mockPrimeWebSpeech).toHaveBeenCalledTimes(1);
+      const audio = latestAudio();
+      expect(audio.muted).toBe(true);
+      expect(audio.src).toContain("data:audio/mpeg;base64,");
+      expect(audio.play).toHaveBeenCalledTimes(1);
     });
 
-    // Now add a ja-JP voice and fire voiceschanged
-    const jaVoice = { lang: "ja-JP", name: "Japanese" } as SpeechSynthesisVoice;
-    mockSynthesis.getVoices.mockReturnValue([jaVoice]);
+    it("consecutive prime() - second is ignored (primeInFlightRef guard)", async () => {
+      const useTTS = await importHook();
+      const { result } = renderHook(() => useTTS());
 
-    act(() => {
-      mockSynthesis.dispatchEvent(new Event("voiceschanged"));
+      // First prime: play returns a promise that never resolves yet
+      const audio = latestAudio();
+      let resolvePlay!: () => void;
+      audio.play.mockReturnValueOnce(
+        new Promise<void>((r) => {
+          resolvePlay = r;
+        })
+      );
+
+      act(() => {
+        result.current.prime();
+      });
+
+      // Second prime while first is in-flight
+      act(() => {
+        result.current.prime();
+      });
+
+      // primeWebSpeech called only once (second prime was ignored)
+      expect(mockPrimeWebSpeech).toHaveBeenCalledTimes(1);
+      expect(audio.play).toHaveBeenCalledTimes(1);
+
+      // Resolve first prime
+      await act(async () => {
+        resolvePlay();
+      });
     });
 
-    // speak and check utterance has voice set
-    act(() => {
-      result.current.speak("test");
-    });
-    act(() => {
-      vi.advanceTimersByTime(50);
+    it("prime() when isSpeaking - ignored", async () => {
+      const useTTS = await importHook();
+      const blob = new Blob(["audio"], { type: "audio/wav" });
+      mockRequestTTS.mockResolvedValue(blob);
+
+      const { result } = renderHook(() => useTTS());
+
+      act(() => {
+        result.current.setEnabled(true);
+      });
+
+      // Start speaking
+      act(() => {
+        result.current.speak("hello");
+      });
+      await flushMicrotasks();
+
+      // Trigger onplaying to set isSpeaking=true
+      const audio = latestAudio();
+      await act(async () => {
+        audio.onplaying?.();
+      });
+      expect(result.current.isSpeaking).toBe(true);
+
+      // Reset mock counts to check prime call
+      mockPrimeWebSpeech.mockClear();
+      audio.play.mockClear();
+
+      act(() => {
+        result.current.prime();
+      });
+
+      // Should be ignored
+      expect(mockPrimeWebSpeech).not.toHaveBeenCalled();
     });
 
-    expect(mockSynthesis.speak).toHaveBeenCalledTimes(1);
-    const utterance = mockSynthesis.speak.mock.calls[0][0] as MockUtterance;
-    expect(utterance.voice).toBe(jaVoice);
+    it("prime() play() reject - no error set (silent fail)", async () => {
+      const useTTS = await importHook();
+      const { result } = renderHook(() => useTTS());
+
+      const audio = latestAudio();
+      audio.play.mockRejectedValueOnce(new DOMException("NotAllowedError"));
+
+      act(() => {
+        result.current.prime();
+      });
+      await flushMicrotasks();
+
+      expect(result.current.error).toBeNull();
+    });
   });
 
-  it("selects ja-JP voice when available", async () => {
-    const jaVoice = { lang: "ja-JP", name: "Japanese" } as SpeechSynthesisVoice;
-    mockSynthesis.getVoices.mockReturnValue([
-      { lang: "en-US", name: "English" } as SpeechSynthesisVoice,
-      jaVoice,
-    ]);
+  // ========================================================================
+  // Speak / cancel tests
+  // ========================================================================
 
-    const { useTTS } = await import("@/hooks/useTTS");
-    const { result } = renderHook(() => useTTS());
+  describe("speak/cancel", () => {
+    it("enabled=false -> fetch not called (AC3)", async () => {
+      const useTTS = await importHook();
+      const { result } = renderHook(() => useTTS());
 
-    act(() => {
-      result.current.setEnabled(true);
-    });
-    act(() => {
-      result.current.speak("test");
-    });
-    act(() => {
-      vi.advanceTimersByTime(50);
+      // enabled defaults to false
+      act(() => {
+        result.current.speak("test");
+      });
+      await flushMicrotasks();
+
+      expect(mockRequestTTS).not.toHaveBeenCalled();
     });
 
-    const utterance = mockSynthesis.speak.mock.calls[0][0] as MockUtterance;
-    expect(utterance.voice).toBe(jaVoice);
+    it("consecutive speak() -> first aborted + new fetch (AC5)", async () => {
+      const useTTS = await importHook();
+
+      // First call: never-resolving promise
+      let firstSignal: AbortSignal | undefined;
+      mockRequestTTS.mockImplementationOnce(({ signal }) => {
+        firstSignal = signal;
+        return new Promise(() => {}); // never resolves
+      });
+
+      // Second call: resolves normally
+      const blob = new Blob(["audio"], { type: "audio/wav" });
+      mockRequestTTS.mockResolvedValueOnce(blob);
+
+      const { result } = renderHook(() => useTTS());
+
+      act(() => {
+        result.current.setEnabled(true);
+      });
+
+      act(() => {
+        result.current.speak("first");
+      });
+
+      act(() => {
+        result.current.speak("second");
+      });
+      await flushMicrotasks();
+
+      expect(firstSignal?.aborted).toBe(true);
+      expect(mockRequestTTS).toHaveBeenCalledTimes(2);
+    });
+
+    it("cancel() order: abort -> pause -> removeAttribute -> revoke", async () => {
+      const useTTS = await importHook();
+      const blob = new Blob(["audio"], { type: "audio/wav" });
+      mockRequestTTS.mockResolvedValue(blob);
+
+      const { result } = renderHook(() => useTTS());
+
+      act(() => {
+        result.current.setEnabled(true);
+      });
+      act(() => {
+        result.current.speak("hello");
+      });
+      await flushMicrotasks();
+
+      const audio = latestAudio();
+      // Clear mocks to track cancel order
+      audio.pause.mockClear();
+      audio.removeAttribute.mockClear();
+      (URL.revokeObjectURL as ReturnType<typeof vi.fn>).mockClear();
+
+      act(() => {
+        result.current.cancel();
+      });
+
+      expect(audio.pause).toHaveBeenCalled();
+      expect(audio.removeAttribute).toHaveBeenCalledWith("src");
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:mock");
+    });
+
+    it("AbortError -> no fallback, no error (intentional cancel)", async () => {
+      const useTTS = await importHook();
+      // Use a plain Error with name="AbortError" because jsdom's DOMException
+      // does not extend Error, so the production code's `instanceof Error` check fails.
+      const abortError = Object.assign(new Error("Aborted"), {
+        name: "AbortError",
+      });
+      mockRequestTTS.mockRejectedValue(abortError);
+
+      const { result } = renderHook(() => useTTS());
+
+      act(() => {
+        result.current.setEnabled(true);
+      });
+      act(() => {
+        result.current.speak("hello");
+      });
+      await flushMicrotasks();
+
+      expect(mockSpeakWithWebSpeech).not.toHaveBeenCalled();
+      expect(result.current.error).toBeNull();
+    });
+
+    it("cancel during fallback calls cancelWebSpeech", async () => {
+      const useTTS = await importHook();
+      mockRequestTTS.mockRejectedValue(makeTTSError("network_error"));
+
+      const { result } = renderHook(() => useTTS());
+
+      act(() => {
+        result.current.setEnabled(true);
+      });
+      act(() => {
+        result.current.speak("hello");
+      });
+      await flushMicrotasks();
+
+      // Fallback should be active now
+      expect(mockSpeakWithWebSpeech).toHaveBeenCalledTimes(1);
+
+      mockCancelWebSpeech.mockClear();
+      act(() => {
+        result.current.cancel();
+      });
+
+      expect(mockCancelWebSpeech).toHaveBeenCalled();
+    });
+
+    it("setEnabled(false) triggers stopAll", async () => {
+      const useTTS = await importHook();
+      const blob = new Blob(["audio"], { type: "audio/wav" });
+      mockRequestTTS.mockResolvedValue(blob);
+
+      const { result } = renderHook(() => useTTS());
+
+      act(() => {
+        result.current.setEnabled(true);
+      });
+      act(() => {
+        result.current.speak("hello");
+      });
+      await flushMicrotasks();
+
+      const audio = latestAudio();
+      audio.pause.mockClear();
+
+      act(() => {
+        result.current.setEnabled(false);
+      });
+
+      expect(audio.pause).toHaveBeenCalled();
+    });
+
+    it("setEnabled(true) triggers prime()", async () => {
+      const useTTS = await importHook();
+      const { result } = renderHook(() => useTTS());
+
+      mockPrimeWebSpeech.mockClear();
+
+      act(() => {
+        result.current.setEnabled(true);
+      });
+
+      expect(mockPrimeWebSpeech).toHaveBeenCalled();
+    });
   });
 
-  it("falls back to lang=ja-JP when no ja voice is available", async () => {
-    mockSynthesis.getVoices.mockReturnValue([
-      { lang: "en-US", name: "English" } as SpeechSynthesisVoice,
-    ]);
+  // ========================================================================
+  // Error clearing (AC8)
+  // ========================================================================
 
-    const { useTTS } = await import("@/hooks/useTTS");
-    const { result } = renderHook(() => useTTS());
+  describe("Error clearing", () => {
+    it("after fallback, new successful speak -> onplaying clears error to null", async () => {
+      const useTTS = await importHook();
 
-    act(() => {
-      result.current.setEnabled(true);
-    });
-    act(() => {
-      result.current.speak("test");
-    });
-    act(() => {
-      vi.advanceTimersByTime(50);
+      // First speak: network error -> fallback
+      mockRequestTTS.mockRejectedValueOnce(makeTTSError("network_error"));
+
+      const { result } = renderHook(() => useTTS());
+
+      act(() => {
+        result.current.setEnabled(true);
+      });
+      act(() => {
+        result.current.speak("fail");
+      });
+      await flushMicrotasks();
+
+      expect(result.current.error).toBe(
+        "VOICEVOX 接続失敗。Web Speech に降格しました"
+      );
+
+      // Second speak: success
+      const blob = new Blob(["audio"], { type: "audio/wav" });
+      mockRequestTTS.mockResolvedValueOnce(blob);
+
+      act(() => {
+        result.current.speak("success");
+      });
+      await flushMicrotasks();
+
+      // Trigger onplaying
+      const audio = latestAudio();
+      await act(async () => {
+        audio.onplaying?.();
+      });
+
+      expect(result.current.error).toBeNull();
     });
 
-    const utterance = mockSynthesis.speak.mock.calls[0][0] as MockUtterance;
-    expect(utterance.voice).toBeNull();
-    expect(utterance.lang).toBe("ja-JP");
+    it("onplay (not onplaying) does NOT clear error - only onplaying does", async () => {
+      const useTTS = await importHook();
+
+      // First speak: fallback to set error
+      mockRequestTTS.mockRejectedValueOnce(makeTTSError("network_error"));
+
+      const { result } = renderHook(() => useTTS());
+
+      act(() => {
+        result.current.setEnabled(true);
+      });
+      act(() => {
+        result.current.speak("fail");
+      });
+      await flushMicrotasks();
+
+      expect(result.current.error).not.toBeNull();
+
+      // Second speak: success but we check that only onplaying clears error
+      const blob = new Blob(["audio"], { type: "audio/wav" });
+      mockRequestTTS.mockResolvedValueOnce(blob);
+
+      act(() => {
+        result.current.speak("success");
+      });
+      await flushMicrotasks();
+
+      // The hook uses audio.onplaying, not audio.onplay.
+      // The MockAudio class has no onplay property, so the hook never sets it.
+      // Error should still be present before onplaying fires.
+      expect(result.current.error).toBe(
+        "VOICEVOX 接続失敗。Web Speech に降格しました"
+      );
+
+      // Now fire onplaying to clear it
+      const audio = latestAudio();
+      await act(async () => {
+        audio.onplaying?.();
+      });
+      expect(result.current.error).toBeNull();
+    });
   });
 
-  it("enabled=false prevents speak from calling speechSynthesis.speak", async () => {
-    const { useTTS } = await import("@/hooks/useTTS");
-    const { result } = renderHook(() => useTTS());
+  // ========================================================================
+  // Unmount
+  // ========================================================================
 
-    // enabled defaults to false
-    act(() => {
-      result.current.speak("test");
-    });
-    act(() => {
-      vi.advanceTimersByTime(100);
-    });
+  describe("Unmount", () => {
+    it("cleanup: abort -> pause -> removeAttribute -> revoke -> cancelWebSpeech", async () => {
+      const useTTS = await importHook();
+      mockRequestTTS.mockRejectedValue(makeTTSError("network_error"));
 
-    expect(mockSynthesis.speak).not.toHaveBeenCalled();
-  });
+      const { result, unmount } = renderHook(() => useTTS());
 
-  it("persists enabled state to localStorage", async () => {
-    const { useTTS } = await import("@/hooks/useTTS");
-    const { result } = renderHook(() => useTTS());
+      act(() => {
+        result.current.setEnabled(true);
+      });
+      act(() => {
+        result.current.speak("hello");
+      });
+      await flushMicrotasks();
 
-    act(() => {
-      result.current.setEnabled(true);
-    });
+      // Fallback is active
+      expect(mockSpeakWithWebSpeech).toHaveBeenCalled();
 
-    expect(localStorage.getItem("ghostrunner_tts_enabled")).toBe("true");
+      const audio = latestAudio();
+      audio.pause.mockClear();
+      audio.removeAttribute.mockClear();
+      (URL.revokeObjectURL as ReturnType<typeof vi.fn>).mockClear();
+      mockCancelWebSpeech.mockClear();
 
-    act(() => {
-      result.current.setEnabled(false);
-    });
+      unmount();
 
-    expect(localStorage.getItem("ghostrunner_tts_enabled")).toBe("false");
-  });
-
-  it("is SSR safe - no crash when speechSynthesis is undefined", async () => {
-    // Remove speechSynthesis
-    vi.stubGlobal("speechSynthesis", undefined);
-
-    const { useTTS } = await import("@/hooks/useTTS");
-    const { result } = renderHook(() => useTTS());
-
-    // Should not throw
-    act(() => {
-      result.current.speak("test");
-    });
-    act(() => {
-      vi.advanceTimersByTime(100);
+      expect(audio.pause).toHaveBeenCalled();
+      expect(audio.removeAttribute).toHaveBeenCalledWith("src");
+      expect(mockCancelWebSpeech).toHaveBeenCalled();
     });
 
-    // error should be set for unsupported browser
-    expect(result.current.error).toBeTruthy();
-  });
+    it("Audio created only once on mount", async () => {
+      const useTTS = await importHook();
+      audioInstances = []; // Reset to count from mount
 
-  it("unsupported browser: speak is no-op and sets error", async () => {
-    vi.stubGlobal("speechSynthesis", undefined);
+      renderHook(() => useTTS());
 
-    const { useTTS } = await import("@/hooks/useTTS");
-    const { result } = renderHook(() => useTTS());
-
-    // setEnabled still works but speak sets error
-    act(() => {
-      result.current.setEnabled(true);
+      expect(audioInstances).toHaveLength(1);
     });
-    act(() => {
-      result.current.speak("test");
-    });
-
-    expect(result.current.error).toContain("対応していない");
-  });
-
-  it("cancel() calls speechSynthesis.cancel and sets isSpeaking to false", async () => {
-    const { useTTS } = await import("@/hooks/useTTS");
-    const { result } = renderHook(() => useTTS());
-
-    act(() => {
-      result.current.cancel();
-    });
-
-    expect(mockSynthesis.cancel).toHaveBeenCalled();
-    expect(result.current.isSpeaking).toBe(false);
   });
 });

@@ -17,6 +17,7 @@
 //   - CreateHandler: /api/projects/validate, /api/projects/create/stream, /api/projects/open を処理（プロジェクト生成）
 //   - PatrolHandler: /api/patrol 関連のエンドポイントを処理（複数プロジェクト自動巡回）
 //   - DashboardHandler: /api/dashboard 関連のエンドポイントを処理（統括GUIダッシュボード状態集約・回答書き戻し）
+//   - TTSHandler: /api/tts エンドポイントを処理（VOICEVOXによるテキスト音声合成）
 //
 // ClaudeServiceへの依存性注入によりテスタビリティを確保する。
 //
@@ -111,6 +112,19 @@
 // エンドポイント:
 //   - GET /api/dashboard/state: 全プロジェクトの集約状態取得
 //   - POST /api/dashboard/answer: 確認事項への回答書き戻し
+//
+// # TTSHandler
+//
+// VOICEVOXエンジンを使ったテキスト音声合成のエンドポイントを処理するハンドラー。
+// ttsパッケージのServiceインターフェースに依存する。
+//
+// エンドポイント:
+//   - POST /api/tts: テキストを音声合成しWAVバイナリを返却
+//
+// HandleSynthesize がリクエストのバリデーション（テキスト空チェック等）を行い、
+// サービス層のエラーをHTTPステータスコード（400/429/502/504）にマッピングして返却する。
+// 成功時はContent-Type: audio/wav でWAVバイナリをレスポンスボディに書き込む。
+// X-TTS-Cache ヘッダーでキャッシュヒット有無を通知する。
 //
 // # PlanHandler
 //
@@ -341,6 +355,19 @@
 //	{
 //	    "success": true
 //	}
+//
+// ## TTS API (テキスト音声合成)
+//
+// POST /api/tts - テキストをVOICEVOXで音声合成
+//
+// リクエスト:
+//
+//	{
+//	    "text": "こんにちは、世界"
+//	}
+//
+// レスポンス: Content-Type: audio/wav でWAVバイナリを返却
+// ヘッダー: X-TTS-Cache: hit|miss
 //
 // ## Plan API (後方互換性)
 //

@@ -989,7 +989,7 @@ OpenAI Realtime API を使用したリアルタイム音声会話機能を提供
 
 | 要素 | 役割 | 備考 |
 |-----|------|------|
-| エラー表示 | 集約エラーメッセージの表示 | チャット・ダッシュボード・TTS のいずれかでエラー発生時に表示 |
+| エラー表示（TopError） | 集約エラーメッセージの表示 | チャット・ダッシュボード・TTS のいずれかでエラー発生時に表示。TTS エラーは VOICEVOX 接続失敗や音声再生失敗時のフォールバック通知を含む |
 | DashboardHeader | ポーリングトグル、TTS トグル、「状況は？」ボタン | |
 | DashboardCard 一覧 | 各プロジェクトのステータスカード | 開発カンバン、運用状態、未回答質問を表示 |
 | ChatTranscript | even-terminal からの応答テキスト表示 | |
@@ -1022,7 +1022,7 @@ OpenAI Realtime API を使用したリアルタイム音声会話機能を提供
 |-------|---------|------|
 | useDashboard | `hooks/useDashboard.ts` | ダッシュボード状態のポーリング取得、自動更新の ON/OFF 制御、visibilitychange 連動 |
 | useChat | `hooks/useChat.ts` | even-terminal への SSE 接続・プロンプト送信・応答テキスト蓄積、セッション自動復元 |
-| useTTS | `hooks/useTTS.ts` | Web Speech API による日本語音声読み上げ、voiceschanged イベント購読、iOS Safari 対策 |
+| useTTS | `hooks/useTTS.ts` | VOICEVOX サーバー TTS（主経路）+ Web Speech API フォールバックによる日本語音声読み上げ、iOS Safari autoplay 制約対策 |
 
 ### API 関数
 
@@ -1033,6 +1033,7 @@ OpenAI Realtime API を使用したリアルタイム音声会話機能を提供
 | listSessions | `lib/chatApi.ts` | `GET /api/sessions` | even-terminal のセッション一覧取得 |
 | sendPrompt | `lib/chatApi.ts` | `POST /api/prompt` | even-terminal へプロンプト送信 |
 | openEventStream | `lib/chatApi.ts` | `GET /api/events` | even-terminal の SSE イベントストリーム接続 |
+| requestTTS | `lib/tts/voicevoxClient.ts` | `POST /api/tts` | VOICEVOX Engine 経由の音声合成リクエスト。WAV Blob を返却 |
 
 ### API プロキシ（next.config.ts rewrites）
 
@@ -1043,7 +1044,7 @@ even-terminal（ポート 3456）と devtools バックエンド（ポート 888
 | `/api/prompt` | `http://localhost:3456/api/prompt` | even-terminal |
 | `/api/events` | `http://localhost:3456/api/events` | even-terminal |
 | `/api/sessions` | `http://localhost:3456/api/sessions` | even-terminal |
-| `/api/:path*` | `http://localhost:8888/api/:path*` | devtools バックエンド |
+| `/api/:path*` | `http://localhost:8888/api/:path*` | devtools バックエンド（`/api/tts` を含む） |
 
 ### DashboardCard の表示内容
 
@@ -1097,15 +1098,21 @@ even-terminal（ポート 3456）と devtools バックエンド（ポート 888
 | visibilitychange | タブ非表示で SSE 切断、表示復帰で再接続 |
 | セッション無効時 | 4xx レスポンスでセッション一覧を再取得し、リトライ1回 |
 
-### TTS（Web Speech API）
+### TTS（VOICEVOX + Web Speech フォールバック）
+
+主経路として VOICEVOX Engine（ローカル起動）をバックエンド経由で利用し、失敗時は Web Speech API に自動降格する。
 
 | 項目 | 値 |
 |-----|-----|
-| 音声合成 | SpeechSynthesisUtterance |
-| 音声選択 | 日本語（`ja` プレフィックス）の音声を自動選択 |
+| 主経路 | VOICEVOX Engine。`POST /api/tts` でバックエンドにテキストを送信し、バックエンドが VOICEVOX Engine にプロキシして WAV 音声を返却。フロントエンドは Blob URL を `<audio>` 要素で再生する |
+| フォールバック | Web Speech API（`SpeechSynthesisUtterance`）。VOICEVOX 経路の失敗（接続拒否、タイムアウト、HTTP エラー、Content-Type 不正、空ボディ、`audio.play()` 拒否）時に自動降格 |
+| 音声選択（フォールバック時） | 日本語（`ja` プレフィックス）の音声を自動選択。`voiceschanged` イベントで更新 |
 | 既定状態 | OFF |
 | 永続化 | localStorage に保存 |
-| iOS Safari 対策 | cancel -> speak 間に 50ms の遅延を挿入 |
+| iOS Safari autoplay 対策 | `prime()` でユーザージェスチャの同期スコープ内に無音 MP3（data URL）を `<audio>.play()` + Web Speech の無音 utterance を発火し、後続の非同期再生を unlock する |
+| iOS Safari フォールバック対策 | Web Speech の `cancel` -> `speak` 間に 50ms の遅延を挿入 |
+| エラー表示 | TopError バナー（`bg-red-50 border-red-200`）にフォールバック理由を表示。ネットワーク/サーバー側: 「VOICEVOX 接続失敗。Web Speech に降格しました」、再生クライアント側: 「音声再生失敗。Web Speech に降格しました」 |
+| エラークリア | VOICEVOX 経路での再生成功時（`playing` イベント）にエラーを自動クリア |
 
 ### SessionPicker
 
@@ -1178,7 +1185,11 @@ even-terminal（ポート 3456）と devtools バックエンド（ポート 888
 | `components/dashboard/ConnectionIndicator.tsx` | SSE 接続状態ドット |
 | `hooks/useDashboard.ts` | ダッシュボードポーリングフック |
 | `hooks/useChat.ts` | チャット SSE フック |
-| `hooks/useTTS.ts` | TTS フック |
+| `hooks/useTTS.ts` | TTS フック（VOICEVOX 主経路 + Web Speech フォールバック） |
+| `lib/tts/voicevoxClient.ts` | VOICEVOX バックエンド TTS リクエストクライアント（`POST /api/tts`） |
+| `lib/tts/webSpeech.ts` | Web Speech API フォールバック経路（speak / cancel / prime） |
+| `lib/tts/errors.ts` | `TTSError` クラス、`TTSFallbackReason` 型定義 |
+| `lib/tts/silentMp3.ts` | iOS Safari autoplay unlock 用の無音 MP3 data URL |
 | `lib/dashboardApi.ts` | ダッシュボード API 関数 |
 | `lib/chatApi.ts` | チャット API 関数 |
 | `types/dashboard.ts` | `DashboardState`, `ProjectCardData`, `KanbanCounts`, `UnansweredItem`, `OpsEntry`, `Attention` 型定義 |
