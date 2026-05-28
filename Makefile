@@ -18,6 +18,7 @@ help:
 	@echo "  make start-backend       - バックエンドを起動してログ表示"
 	@echo "  make start-frontend      - フロントエンドを起動してログ表示"
 	@echo "  make start-even-terminal - even-terminal を起動(BRIDGE_TOKEN 固定)"
+	@echo "  make g2                  - Even G2 用 even-terminal を起動(--name G2)"
 	@echo "  make start-voicevox      - VOICEVOX を起動(:50021 まで待機)"
 	@echo ""
 	@echo "停止:"
@@ -136,6 +137,28 @@ stop-even-terminal:
 	-lsof -ti:3456 | xargs kill -9 2>/dev/null || true
 
 restart-even-terminal: stop-even-terminal start-even-terminal
+
+# Even G2(スマートグラス)用 even-terminal 起動
+# 既存セッションを kill してから G2 向けに新規起動。
+# --name G2 で識別、ログも /tmp/even-terminal-g2.log に分離。
+.PHONY: g2 stop-g2
+g2: stop-even-terminal
+	@echo "Starting even-terminal for Even G2..."
+	@TOKEN=$$(grep '^export BRIDGE_TOKEN=' $$HOME/.zshrc 2>/dev/null | head -1 | cut -d= -f2); \
+	if [ -z "$$TOKEN" ]; then \
+		echo "ERROR: BRIDGE_TOKEN が ~/.zshrc に見つかりません。"; \
+		exit 1; \
+	fi; \
+	echo "Using BRIDGE_TOKEN=$$TOKEN"; \
+	BRIDGE_TOKEN=$$TOKEN nohup /opt/homebrew/bin/even-terminal \
+		--tailscale --provider claude --name G2 \
+		--cwd $(PROJECT_ROOT) \
+		> /tmp/even-terminal-g2.log 2>&1 &
+	@sleep 3
+	@echo "even-terminal (G2 mode) started on :3456"
+	@echo "ログ: /tmp/even-terminal-g2.log"
+
+stop-g2: stop-even-terminal
 
 # VOICEVOX on-demand 起動/停止
 # VOICEVOX Engine は起動中 1-17 GB のメモリを保持する。使わない時は停止しておく。
