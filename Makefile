@@ -154,9 +154,14 @@ g2: stop-even-terminal
 		--tailscale --provider claude --name G2 \
 		--cwd $(PROJECT_ROOT) \
 		> /tmp/even-terminal-g2.log 2>&1 &
-	@sleep 3
+	@sleep 4
+	@echo ""
+	@echo "===== Even G2 接続 QR (G2 グラスでスキャン) ====="
+	@# QR コード行は箱罫線文字 (█▀▄) で構成される。connection URL も含めて先頭の起動メッセージを表示
+	@awk '/^http:\/\/.+\?token=/{print; flag=1; next} flag && (/^\[/ || /Logging to/){exit} flag{print}' /tmp/even-terminal-g2.log
+	@echo "================================================"
 	@echo "even-terminal (G2 mode) started on :3456"
-	@echo "ログ: /tmp/even-terminal-g2.log"
+	@echo "詳細ログ: /tmp/even-terminal-g2.log"
 
 stop-g2: stop-even-terminal
 
