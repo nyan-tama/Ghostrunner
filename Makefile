@@ -18,12 +18,19 @@ help:
 	@echo "  make start-backend       - バックエンドを起動してログ表示"
 	@echo "  make start-frontend      - フロントエンドを起動してログ表示"
 	@echo "  make start-even-terminal - even-terminal を起動(BRIDGE_TOKEN 固定)"
+	@echo "  make start-voicevox      - VOICEVOX を起動(:50021 まで待機)"
 	@echo ""
 	@echo "停止:"
 	@echo "  make stop-backend        - バックエンドを停止"
 	@echo "  make stop-frontend       - フロントエンドを停止"
 	@echo "  make stop-even-terminal  - even-terminal を停止"
-	@echo "  make stop                - 全て停止"
+	@echo "  make stop-voicevox       - VOICEVOX を停止(17 GB 解放)"
+	@echo "  make stop                - 全て停止(寝る前用)"
+	@echo ""
+	@echo "メモリリーク保険(launchd auto-restart):"
+	@echo "  make install-restart-cron   - 毎日 03:00 にガード付き auto-restart を登録"
+	@echo "  make uninstall-restart-cron - launchd から削除"
+	@echo "  make status-restart-cron    - 登録状態を確認"
 	@echo ""
 	@echo "再起動（バックグラウンド）:"
 	@echo "  make restart-backend  - バックエンドを再起動"
@@ -58,7 +65,15 @@ dev: stop
 	@make -j2 backend frontend
 
 # 起動（バックグラウンド + ログ自動表示）
-.PHONY: start-backend start-frontend start
+.PHONY: start-backend start-backend-debug start-frontend start
+
+# ENABLE_PPROF=1 つきで起動。メモリリーク調査時に使う。
+# 取得例: go tool pprof http://localhost:8888/debug/pprof/heap
+start-backend-debug: stop-backend
+	@echo "Starting backend with ENABLE_PPROF=1..."
+	@nohup sh -c 'cd $(DEVTOOLS_ROOT)/backend && [ -f .env ] && set -a && . ./.env && set +a; ENABLE_PPROF=1 go run ./cmd/server' > /tmp/backend.log 2>&1 &
+	@sleep 3
+	@echo "pprof: http://localhost:8888/debug/pprof/"
 
 start-backend:
 	@echo "Starting backend in background..."
@@ -122,6 +137,30 @@ stop-even-terminal:
 
 restart-even-terminal: stop-even-terminal start-even-terminal
 
+# VOICEVOX on-demand 起動/停止
+# VOICEVOX Engine は起動中 1-17 GB のメモリを保持する。使わない時は停止しておく。
+.PHONY: start-voicevox stop-voicevox restart-voicevox
+start-voicevox:
+	@echo "Starting VOICEVOX.app..."
+	@open -a VOICEVOX
+	@echo "Waiting for VOICEVOX Engine on :50021..."
+	@for i in $$(seq 1 30); do \
+		if curl -s -o /dev/null --max-time 1 http://127.0.0.1:50021/version; then \
+			echo "VOICEVOX Engine ready ($$i seconds)"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "ERROR: VOICEVOX Engine did not become ready within 30s"; \
+	exit 1
+
+stop-voicevox:
+	-osascript -e 'tell application "VOICEVOX" to quit' 2>/dev/null || true
+	-pkill -f "VOICEVOX.app/Contents" 2>/dev/null || true
+	-lsof -ti:50021 | xargs kill -9 2>/dev/null || true
+
+restart-voicevox: stop-voicevox start-voicevox
+
 # 停止
 .PHONY: stop-backend stop-frontend stop
 
@@ -136,7 +175,30 @@ stop-frontend:
 	-pkill -f "npm.*start" || true
 	-lsof -ti:3333 | xargs kill -9 2>/dev/null || true
 
-stop: stop-backend stop-frontend stop-even-terminal
+stop: stop-backend stop-frontend stop-even-terminal stop-voicevox
+
+# メモリリーク保険(launchd auto-restart) - 詳細は scripts/launchd/maybe-restart-backend.sh
+# 毎日 03:00 にチェック → RSS > 1 GB かつ 巡回アイドル の時だけ restart 実行
+.PHONY: install-restart-cron uninstall-restart-cron status-restart-cron
+install-restart-cron:
+	@chmod +x $(PROJECT_ROOT)/scripts/launchd/maybe-restart-backend.sh
+	@cp $(PROJECT_ROOT)/scripts/launchd/com.ghostrunner.backend-restart.plist $$HOME/Library/LaunchAgents/
+	@launchctl unload $$HOME/Library/LaunchAgents/com.ghostrunner.backend-restart.plist 2>/dev/null || true
+	@launchctl load $$HOME/Library/LaunchAgents/com.ghostrunner.backend-restart.plist
+	@echo "Installed: 毎日 03:00 にガード付き auto-restart チェック実行"
+	@echo "ログ: /tmp/ghostrunner-backend-restart.log"
+
+uninstall-restart-cron:
+	-launchctl unload $$HOME/Library/LaunchAgents/com.ghostrunner.backend-restart.plist 2>/dev/null || true
+	-rm -f $$HOME/Library/LaunchAgents/com.ghostrunner.backend-restart.plist
+	@echo "Uninstalled launchd auto-restart"
+
+status-restart-cron:
+	@echo "=== launchctl list ==="
+	@launchctl list | grep ghostrunner || echo "(未登録)"
+	@echo ""
+	@echo "=== 最新ログ (tail) ==="
+	@if [ -f /tmp/ghostrunner-backend-restart.log ]; then tail -20 /tmp/ghostrunner-backend-restart.log; else echo "(まだ実行されていません)"; fi
 
 # 再起動（kill + start、バックグラウンド）
 .PHONY: restart-backend restart-frontend restart

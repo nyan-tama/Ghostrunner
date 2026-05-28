@@ -13,6 +13,7 @@ import (
 	"ghostrunner/backend/internal/tts"
 
 	"github.com/gin-contrib/cors"
+	ginpprof "github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
 )
 
@@ -60,6 +61,16 @@ func main() {
 
 	// Ginエンジン初期化
 	r := gin.Default()
+
+	// pprof エンドポイント (メモリリーク調査用)
+	// ENABLE_PPROF=1 のときだけ有効化。本番事故防止のため明示 opt-in。
+	// 取得例:
+	//   go tool pprof http://localhost:8888/debug/pprof/heap
+	//   curl -s http://localhost:8888/debug/pprof/heap > heap.pprof
+	if os.Getenv("ENABLE_PPROF") == "1" {
+		ginpprof.Register(r)
+		log.Println("[Server] pprof enabled at /debug/pprof/")
+	}
 
 	// CORS設定（ローカル開発時およびTailscale経由のアクセスを許可）
 	r.Use(cors.New(cors.Config{
