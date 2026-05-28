@@ -141,9 +141,9 @@ restart-even-terminal: stop-even-terminal start-even-terminal
 # Even G2(スマートグラス)用 even-terminal 起動
 # 既存セッションを kill してから G2 向けに新規起動。
 # --name G2 で識別、ログも /tmp/even-terminal-g2.log に分離。
-# G2 は音声対話が前提なので VOICEVOX も同時起動する。
+# VOICEVOX(17 GB メモリ)は任意起動。音声対話が要る時は別途 make start-voicevox。
 .PHONY: g2 stop-g2
-g2: stop-even-terminal start-voicevox
+g2: stop-even-terminal
 	@echo "Starting even-terminal for Even G2..."
 	@TOKEN=$$(grep '^export BRIDGE_TOKEN=' $$HOME/.zshrc 2>/dev/null | head -1 | cut -d= -f2); \
 	if [ -z "$$TOKEN" ]; then \
