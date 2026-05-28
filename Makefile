@@ -19,6 +19,9 @@ help:
 	@echo "  make start-frontend      - フロントエンドを起動してログ表示"
 	@echo "  make start-even-terminal - even-terminal を起動(BRIDGE_TOKEN 固定)"
 	@echo "  make g2                  - Even G2 用 even-terminal を起動(--name G2)"
+	@echo "  make g2-all              - patrol 全プロジェクトを並列起動 + 全 QR 表示"
+	@echo "  make stop-g2-all         - g2-all 全インスタンス停止"
+	@echo "  make g2-status           - 起動中の even-terminal 一覧"
 	@echo "  make start-voicevox      - VOICEVOX を起動(:50021 まで待機)"
 	@echo ""
 	@echo "停止:"
@@ -165,6 +168,48 @@ g2: stop-even-terminal
 	@echo "詳細ログ: /tmp/even-terminal-g2.log"
 
 stop-g2: stop-even-terminal
+
+# patrol_projects.json の全プロジェクトを並列起動(各 port は 3456 から index 順)
+# G2 アプリは複数接続先を保存・切替可能(実機検証済)。
+# 1 回登録すれば G2 側でプロジェクト切替できるので、Mac 側の操作は不要。
+.PHONY: g2-all stop-g2-all g2-status
+g2-all: stop-g2-all
+	@echo "Starting even-terminal for all patrol projects in parallel..."
+	@TOKEN=$$(grep '^export BRIDGE_TOKEN=' $$HOME/.zshrc 2>/dev/null | head -1 | cut -d= -f2); \
+	if [ -z "$$TOKEN" ]; then echo "ERROR: BRIDGE_TOKEN not found in ~/.zshrc"; exit 1; fi; \
+	python3 -c "import json; d=json.load(open('$(PROJECT_ROOT)/devtools/backend/patrol_projects.json')); [print(f'{i+3456} {p[\"name\"]} {p[\"path\"]}') for i, p in enumerate(d['projects'])]" > /tmp/g2-all-projects.txt; \
+	while read PORT NAME PROJECT_PATH; do \
+		echo "  -> $$NAME on :$$PORT ($$PROJECT_PATH)"; \
+		BRIDGE_TOKEN=$$TOKEN nohup /opt/homebrew/bin/even-terminal \
+			--tailscale --provider claude --name "$$NAME" \
+			--cwd "$$PROJECT_PATH" \
+			-p $$PORT \
+			> /tmp/even-terminal-$$NAME.log 2>&1 & \
+	done < /tmp/g2-all-projects.txt
+	@sleep 6
+	@echo ""
+	@while read PORT NAME PROJECT_PATH; do \
+		echo "===== $$NAME 接続 QR (:$$PORT) ====="; \
+		awk '/^http:\/\/.+\?token=/{print; flag=1; next} flag && (/^\[/ || /Logging to/){exit} flag{print}' /tmp/even-terminal-$$NAME.log; \
+		echo "==============================================="; \
+		echo ""; \
+	done < /tmp/g2-all-projects.txt
+	@rm -f /tmp/g2-all-projects.txt
+	@echo "全 even-terminal インスタンス起動完了。G2 アプリで全 QR を登録してください。"
+	@echo "状態確認: make g2-status / 停止: make stop-g2-all"
+
+stop-g2-all:
+	-pkill -f "/opt/homebrew/bin/even-terminal" 2>/dev/null || true
+	-for p in 3456 3457 3458 3459 3460 3461 3462; do \
+		lsof -ti:$$p 2>/dev/null | xargs kill -9 2>/dev/null || true; \
+	done
+
+g2-status:
+	@echo "=== running even-terminal instances ==="
+	@lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null | awk '/node.*:(345[0-9]|346[0-9])/ {for(i=1;i<=NF;i++) if($$i ~ /:345[0-9]|:346[0-9]/) print "  " $$i, "PID=" $$2}'
+	@echo ""
+	@echo "=== ログファイル ==="
+	@ls -la /tmp/even-terminal-*.log 2>/dev/null | awk '{print "  " $$NF " (" $$5 " bytes)"}'
 
 # VOICEVOX on-demand 起動/停止
 # VOICEVOX Engine は起動中 1-17 GB のメモリを保持する。使わない時は停止しておく。
