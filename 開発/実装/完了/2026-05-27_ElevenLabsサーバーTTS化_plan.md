@@ -1,5 +1,11 @@
 # ElevenLabsサーバーTTS化 (MVP+) 実装計画
 
+> **【完了・方針転換済 (2026-05-28 追記)】**
+> 本計画は 2026-05-27 にコミット `1aa37bb feat: ElevenLabsサーバーTTS化(MVP+)をフルスタックで実装` で**フルスタック実装完了**。
+> その後、日本語の自然性に根本限界があったため **VOICEVOX へ全面移行**（`7408eaa feat: VOICEVOX TTS切替(MVP++) - ElevenLabsからローカルVOICEVOX Engineへ全面移行` で置換、main マージ済 `9b70a65`）。
+> ElevenLabs 実装は `git tag tts-mvp-plus`（コミット `1aa37bb`）で永続化。ブランチ `feat/elevenlabs-tts` は破棄済。
+> 現行 TTS は VOICEVOX（春日部つむぎ `speaker_id=8`）。詳細は `開発/実装/完了/2026-05-27_VOICEVOX切替_plan.md` 参照。
+
 検討書: `開発/検討中/2026-05-27_ElevenLabsサーバーTTS化.md`(Q1-Q10 全確定済)
 ベースブランチ: **`feat/dashboard-gui`**(MVP の useTTS.ts/useChat.ts/dashboard 配下がここに存在、main 未マージ)
 実装ブランチ: **`feat/elevenlabs-tts`**(`feat/dashboard-gui` から派生して新規作成)
