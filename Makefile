@@ -20,6 +20,7 @@ help:
 	@echo "  make start-even-terminal - even-terminal を起動(BRIDGE_TOKEN 固定)"
 	@echo "  make g2                  - Even G2 用 even-terminal を起動(--name G2)"
 	@echo "  make g2-all              - patrol 全プロジェクトを並列起動 + 全 QR 表示"
+	@echo "  make g2-qr               - 起動中の全 QR を再表示(G2 への登録時)"
 	@echo "  make stop-g2-all         - g2-all 全インスタンス停止"
 	@echo "  make g2-status           - 起動中の even-terminal 一覧"
 	@echo "  make start-voicevox      - VOICEVOX を起動(:50021 まで待機)"
@@ -210,6 +211,23 @@ g2-status:
 	@echo ""
 	@echo "=== ログファイル ==="
 	@ls -la /tmp/even-terminal-*.log 2>/dev/null | awk '{print "  " $$NF " (" $$5 " bytes)"}'
+
+# 起動済み even-terminal の QR を再表示(再起動なし)。G2 への登録忘れリカバリ用。
+.PHONY: g2-qr
+g2-qr:
+	@python3 -c "import json; d=json.load(open('$(PROJECT_ROOT)/devtools/backend/patrol_projects.json')); [print(p['name']) for p in d['projects']]" | \
+	while read NAME; do \
+		LOG=/tmp/even-terminal-$$NAME.log; \
+		if [ -f "$$LOG" ]; then \
+			echo "===== $$NAME 接続 QR ====="; \
+			awk '/^http:\/\/.+\?token=/{print; flag=1; next} flag && (/^\[/ || /Logging to/){exit} flag{print}' "$$LOG"; \
+			echo "==============================================="; \
+			echo ""; \
+		else \
+			echo "===== $$NAME: ログなし(起動していない?)====="; \
+			echo ""; \
+		fi; \
+	done
 
 # VOICEVOX on-demand 起動/停止
 # VOICEVOX Engine は起動中 1-17 GB のメモリを保持する。使わない時は停止しておく。
