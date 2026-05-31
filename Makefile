@@ -19,7 +19,7 @@ help:
 	@echo "  make start-frontend      - フロントエンドを起動してログ表示"
 	@echo "  make start-even-terminal - even-terminal を起動(BRIDGE_TOKEN 固定)"
 	@echo "  make g2                  - Even G2 用 even-terminal を起動(--name G2)"
-	@echo "  make g2-all              - patrol 全プロジェクトを並列起動 + 全 QR 表示"
+	@echo "  make g2-all              - patrol 全プロジェクトを並列起動 + 全 QR 表示(.claude/ports.json で固有ポート)"
 	@echo "  make g2-qr               - 起動中の全 QR を再表示(G2 への登録時)"
 	@echo "  make stop-g2-all         - g2-all 全インスタンス停止"
 	@echo "  make g2-status           - 起動中の even-terminal 一覧"
@@ -170,7 +170,8 @@ g2: stop-even-terminal
 
 stop-g2: stop-even-terminal
 
-# patrol_projects.json の全プロジェクトを並列起動(各 port は 3456 から index 順)
+# patrol_projects.json の全プロジェクトを並列起動。
+# 各 port は scripts/g2_resolve_ports.py が解決(各プロジェクトの .claude/ports.json の even_terminal を優先、なければ 3456 から index 順)。
 # G2 アプリは複数接続先を保存・切替可能(実機検証済)。
 # 1 回登録すれば G2 側でプロジェクト切替できるので、Mac 側の操作は不要。
 .PHONY: g2-all stop-g2-all g2-status
@@ -178,7 +179,7 @@ g2-all: stop-g2-all
 	@echo "Starting even-terminal for all patrol projects in parallel..."
 	@TOKEN=$$(grep '^export BRIDGE_TOKEN=' $$HOME/.zshrc 2>/dev/null | head -1 | cut -d= -f2); \
 	if [ -z "$$TOKEN" ]; then echo "ERROR: BRIDGE_TOKEN not found in ~/.zshrc"; exit 1; fi; \
-	python3 -c "import json; d=json.load(open('$(PROJECT_ROOT)/devtools/backend/patrol_projects.json')); [print(f'{i+3456} {p[\"name\"]} {p[\"path\"]}') for i, p in enumerate(d['projects'])]" > /tmp/g2-all-projects.txt; \
+	python3 $(PROJECT_ROOT)/scripts/g2_resolve_ports.py $(PROJECT_ROOT)/devtools/backend/patrol_projects.json > /tmp/g2-all-projects.txt; \
 	while read PORT NAME PROJECT_PATH; do \
 		echo "  -> $$NAME on :$$PORT ($$PROJECT_PATH)"; \
 		BRIDGE_TOKEN=$$TOKEN nohup /opt/homebrew/bin/even-terminal \
@@ -191,6 +192,7 @@ g2-all: stop-g2-all
 	@echo ""
 	@while read PORT NAME PROJECT_PATH; do \
 		echo "===== $$NAME 接続 QR (:$$PORT) ====="; \
+		echo "プロジェクトパス: $$PROJECT_PATH"; \
 		awk '/^http:\/\/.+\?token=/{print; flag=1; next} flag && (/^\[/ || /Logging to/){exit} flag{print}' /tmp/even-terminal-$$NAME.log; \
 		echo "==============================================="; \
 		echo ""; \
@@ -201,13 +203,19 @@ g2-all: stop-g2-all
 
 stop-g2-all:
 	-pkill -f "/opt/homebrew/bin/even-terminal" 2>/dev/null || true
+	@# 解決済みポート(.claude/ports.json の even_terminal 優先)を停止
+	-python3 $(PROJECT_ROOT)/scripts/g2_resolve_ports.py $(PROJECT_ROOT)/devtools/backend/patrol_projects.json 2>/dev/null | \
+		while read PORT NAME PROJECT_PATH; do \
+			lsof -ti:$$PORT 2>/dev/null | xargs kill -9 2>/dev/null || true; \
+		done
+	@# 旧固定範囲も停止(移行期互換)
 	-for p in 3456 3457 3458 3459 3460 3461 3462; do \
 		lsof -ti:$$p 2>/dev/null | xargs kill -9 2>/dev/null || true; \
 	done
 
 g2-status:
 	@echo "=== running even-terminal instances ==="
-	@lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null | awk '/node.*:(345[0-9]|346[0-9])/ {for(i=1;i<=NF;i++) if($$i ~ /:345[0-9]|:346[0-9]/) print "  " $$i, "PID=" $$2}'
+	@lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null | awk '/node.*:(345[0-9]|346[0-9]|4[0-9][0-9][0-9])/ {for(i=1;i<=NF;i++) if($$i ~ /:(345[0-9]|346[0-9]|4[0-9][0-9][0-9])$$/) print "  " $$i, "PID=" $$2}'
 	@echo ""
 	@echo "=== ログファイル ==="
 	@ls -la /tmp/even-terminal-*.log 2>/dev/null | awk '{print "  " $$NF " (" $$5 " bytes)"}'
@@ -215,11 +223,12 @@ g2-status:
 # 起動済み even-terminal の QR を再表示(再起動なし)。G2 への登録忘れリカバリ用。
 .PHONY: g2-qr
 g2-qr:
-	@python3 -c "import json; d=json.load(open('$(PROJECT_ROOT)/devtools/backend/patrol_projects.json')); [print(p['name']) for p in d['projects']]" | \
-	while read NAME; do \
+	@python3 $(PROJECT_ROOT)/scripts/g2_resolve_ports.py $(PROJECT_ROOT)/devtools/backend/patrol_projects.json | \
+	while read PORT NAME PROJECT_PATH; do \
 		LOG=/tmp/even-terminal-$$NAME.log; \
 		if [ -f "$$LOG" ]; then \
-			echo "===== $$NAME 接続 QR ====="; \
+			echo "===== $$NAME 接続 QR (:$$PORT) ====="; \
+			echo "プロジェクトパス: $$PROJECT_PATH"; \
 			awk '/^http:\/\/.+\?token=/{print; flag=1; next} flag && (/^\[/ || /Logging to/){exit} flag{print}' "$$LOG"; \
 			echo "==============================================="; \
 			echo ""; \

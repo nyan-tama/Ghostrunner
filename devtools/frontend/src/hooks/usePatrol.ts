@@ -27,6 +27,7 @@ interface UsePatrolReturn {
   isPolling: boolean;
   error: string | null;
   connectionStatus: SSEConnectionStatus;
+  reconnect: () => void;
   registerProject: (path: string) => Promise<void>;
   removeProject: (path: string) => Promise<void>;
   handleStartPatrol: () => Promise<void>;
@@ -71,29 +72,46 @@ export function usePatrol(): UsePatrolReturn {
     }
   }, []);
 
-  const { connectionStatus } = usePatrolSSE({ onEvent: handleSSEEvent });
+  const { connectionStatus, reconnect } = usePatrolSSE({ onEvent: handleSSEEvent });
+
+  // REST API で最新状態を一括取得する共通関数
+  const refreshStates = useCallback(async () => {
+    try {
+      const [projectsRes, statesRes] = await Promise.all([
+        fetchPatrolProjects(),
+        fetchPatrolStates(),
+      ]);
+      if (projectsRes.success && projectsRes.projects) {
+        setProjects(projectsRes.projects);
+      }
+      if (statesRes.success && statesRes.states) {
+        setProjectStates(statesRes.states);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load data";
+      setError(message);
+    }
+  }, []);
 
   // 初回マウント時にデータ取得
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        const [projectsRes, statesRes] = await Promise.all([
-          fetchPatrolProjects(),
-          fetchPatrolStates(),
-        ]);
-        if (projectsRes.success && projectsRes.projects) {
-          setProjects(projectsRes.projects);
-        }
-        if (statesRes.success && statesRes.states) {
-          setProjectStates(statesRes.states);
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to load initial data";
-        setError(message);
+    refreshStates();
+  }, [refreshStates]);
+
+  // visibilitychange: タブ復帰時に REST API で最新状態を取得
+  // SSE 再接続は usePatrolSSE 側で行うが、切断中に逃したイベントを補完する
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        refreshStates();
       }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-    loadInitialData();
-  }, []);
+  }, [refreshStates]);
 
   const registerProject = useCallback(async (path: string) => {
     try {
@@ -199,6 +217,7 @@ export function usePatrol(): UsePatrolReturn {
     isPolling,
     error,
     connectionStatus,
+    reconnect,
     registerProject,
     removeProject,
     handleStartPatrol,

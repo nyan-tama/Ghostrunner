@@ -191,10 +191,13 @@ PORT_DB=5${PORT_SUFFIX}
 PORT_MINIO=9${PORT_SUFFIX}
 PORT_MINIO_CONSOLE=$((PORT_MINIO + 1))
 PORT_REDIS=6${PORT_SUFFIX}
+PORT_EVEN_TERMINAL=4${PORT_SUFFIX}
 ```
 
-予約済みポートとの衝突チェック（8080, 8888, 3000, 3333, 5432, 9000, 9001, 6379 に該当したら再生成）。
-使用中ポートのチェック（`lsof -ti:${PORT_BACKEND}` 等で確認、使用中なら再生成）。
+`PORT_EVEN_TERMINAL`（先頭桁 4）は Even G2 連携用 even-terminal の固有ポート。`make g2-all` が後述の `.claude/ports.json` から読み取る。
+
+予約済みポートとの衝突チェック（8080, 8888, 3000, 3333, 5432, 9000, 9001, 6379, 4040, 4444 に該当したら再生成）。
+使用中ポートのチェック（`lsof -ti:${PORT_BACKEND}`, `lsof -ti:${PORT_EVEN_TERMINAL}` 等で確認、使用中なら再生成）。
 
 #### 4.2 プレースホルダー一括置換
 
@@ -307,6 +310,33 @@ cat > ~/<プロジェクト名>/.claude/settings.local.json << SETTINGS_EOF
 }
 SETTINGS_EOF
 ```
+
+#### 7.1.1 ポート台帳 .claude/ports.json の生成
+
+Step 4 で決定したポートを台帳として記録する。これは統括ハブの `make g2-all`（Even G2 連携）が
+even-terminal の固有ポートを解決するために参照する。台帳がないと index 連番にフォールバックし、
+patrol_projects.json の順序変更でポートがズレる原因になるため、新規プロジェクトでは必ず生成する。
+
+含めるキー（選択したサービスに応じて出し分ける。未選択のキーは含めない）:
+- 必須: `backend`, `frontend`, `even_terminal`
+- PostgreSQL 選択時: `db`
+- ストレージ選択時: `minio`, `minio_console`
+- Redis 選択時: `redis`
+
+まず必須キーで生成する:
+
+```bash
+cat > ~/<プロジェクト名>/.claude/ports.json << PORTS_EOF
+{
+  "backend": ${PORT_BACKEND},
+  "frontend": ${PORT_FRONTEND},
+  "even_terminal": ${PORT_EVEN_TERMINAL}
+}
+PORTS_EOF
+```
+
+PostgreSQL / ストレージ / Redis を選択した場合は、対応するキー（`db` / `minio`・`minio_console` / `redis`）を
+Edit ツールで JSON に追加する（末尾キーのカンマ整合に注意）。値は Step 4 の各変数（`${PORT_DB}` 等）を使う。
 
 未選択のオプションに対応するエージェントを削除:
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePatrol } from "@/hooks/usePatrol";
+import { useWakeLock } from "@/hooks/useWakeLock";
 import PatrolHeader from "@/components/patrol/PatrolHeader";
 import ProjectRegister from "@/components/patrol/ProjectRegister";
 import ProjectCard from "@/components/patrol/ProjectCard";
@@ -15,6 +16,7 @@ export default function PatrolPage() {
     isPolling,
     error,
     connectionStatus,
+    reconnect,
     registerProject,
     removeProject,
     handleStartPatrol,
@@ -22,6 +24,8 @@ export default function PatrolPage() {
     handleSendAnswer,
     handleTogglePolling,
   } = usePatrol();
+
+  const wakeLock = useWakeLock();
 
   const [isAnswerSubmitting, setIsAnswerSubmitting] = useState(false);
   const [isPatrolLoading, setIsPatrolLoading] = useState(false);
@@ -83,6 +87,8 @@ export default function PatrolPage() {
           onStart={handleStart}
           onStop={handleStop}
           onTogglePolling={handleTogglePolling}
+          onReconnect={reconnect}
+          wakeLock={wakeLock}
         />
       </div>
 
