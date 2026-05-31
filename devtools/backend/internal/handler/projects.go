@@ -3,6 +3,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +14,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// patrolConfig は patrol_projects.json のトップレベル構造
+type patrolConfig struct {
+	Projects []patrolProject `json:"projects"`
+}
+
+// patrolProject は patrol_projects.json 内の各プロジェクト定義
+type patrolProject struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+}
 
 // ProjectInfo はプロジェクトディレクトリの情報を表します
 type ProjectInfo struct {
@@ -39,13 +51,18 @@ type DestroyRequest struct {
 // HomeDir はプロジェクト削除時のパス制限に使用するホームディレクトリ。
 // テスト時にディレクトリを差し替え可能にするために公開フィールドとしている。
 type ProjectsHandler struct {
-	BaseDir string
-	HomeDir string
+	BaseDir         string
+	HomeDir         string
+	PatrolConfigPath string
 }
 
-// NewProjectsHandler は新しいProjectsHandlerを生成します
-func NewProjectsHandler() *ProjectsHandler {
-	return &ProjectsHandler{}
+// NewProjectsHandler は新しいProjectsHandlerを生成します。
+// patrolConfigPath が指定された場合、Handle は patrol_projects.json に
+// 登録されたプロジェクトのみを返す。空文字の場合は従来どおり全ディレクトリをスキャンする。
+func NewProjectsHandler(patrolConfigPath string) *ProjectsHandler {
+	return &ProjectsHandler{
+		PatrolConfigPath: patrolConfigPath,
+	}
 }
 
 // baseDir はスキャン対象のベースディレクトリを返します
@@ -174,16 +191,62 @@ func (h *ProjectsHandler) HandleDestroy(c *gin.Context) {
 	})
 }
 
-// Handle はベースディレクトリ直下のディレクトリ一覧を取得する。
+// Handle はプロジェクト一覧を取得する。
 //
-// /Users/user/ 直下のディレクトリをスキャンし、プロジェクト候補として返却する。
-// 隠しディレクトリ（.で始まるもの）とファイル、シンボリックリンクはスキップする。
-// os.ReadDir はエントリをファイル名のアルファベット順で返すため、追加ソートは不要。
+// PatrolConfigPath が設定されている場合は patrol_projects.json に登録された
+// プロジェクトのみを返す。未設定の場合はベースディレクトリ直下の全ディレクトリを返す（後方互換）。
 //
 // レスポンス:
-//   - 200: 成功（ProjectsResponse.Projects にディレクトリ一覧）
-//   - 500: ディレクトリ読み取りエラー
+//   - 200: 成功（ProjectsResponse.Projects にプロジェクト一覧）
+//   - 500: 読み取りエラー
 func (h *ProjectsHandler) Handle(c *gin.Context) {
+	// patrol_projects.json が指定されていればそこから読む
+	if h.PatrolConfigPath != "" {
+		h.handleFromPatrolConfig(c)
+		return
+	}
+
+	// フォールバック: ベースディレクトリ全スキャン（後方互換）
+	h.handleFromDirectory(c)
+}
+
+// handleFromPatrolConfig は patrol_projects.json に登録されたプロジェクトを返す
+func (h *ProjectsHandler) handleFromPatrolConfig(c *gin.Context) {
+	log.Printf("[ProjectsHandler] Handle started: patrolConfig=%s", h.PatrolConfigPath)
+
+	data, err := os.ReadFile(h.PatrolConfigPath)
+	if err != nil {
+		log.Printf("[ProjectsHandler] Handle failed: failed to read patrol config, path=%s, error=%v", h.PatrolConfigPath, err)
+		// フォールバック: ディレクトリスキャン
+		h.handleFromDirectory(c)
+		return
+	}
+
+	var config patrolConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		log.Printf("[ProjectsHandler] Handle failed: failed to parse patrol config, error=%v", err)
+		h.handleFromDirectory(c)
+		return
+	}
+
+	var projects []ProjectInfo
+	for _, p := range config.Projects {
+		projects = append(projects, ProjectInfo{
+			Name: p.Name,
+			Path: p.Path,
+		})
+	}
+
+	log.Printf("[ProjectsHandler] Handle completed: patrolConfig=%s, projects=%d", h.PatrolConfigPath, len(projects))
+
+	c.JSON(http.StatusOK, ProjectsResponse{
+		Success:  true,
+		Projects: projects,
+	})
+}
+
+// handleFromDirectory はベースディレクトリ直下のディレクトリ一覧を返す（後方互換）
+func (h *ProjectsHandler) handleFromDirectory(c *gin.Context) {
 	dir := h.baseDir()
 
 	log.Printf("[ProjectsHandler] Handle started: baseDir=%s", dir)
@@ -200,14 +263,12 @@ func (h *ProjectsHandler) Handle(c *gin.Context) {
 
 	var projects []ProjectInfo
 	for _, entry := range entries {
-		// ディレクトリ以外はスキップ（ファイル、シンボリックリンクを除外）
 		if !entry.IsDir() {
 			continue
 		}
 
 		name := entry.Name()
 
-		// 隠しディレクトリはスキップ
 		if strings.HasPrefix(name, ".") {
 			continue
 		}

@@ -29,16 +29,18 @@ func main() {
 	_, thisFile, _, _ := runtime.Caller(0)
 	ghostrunnerRoot := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..")
 
+	// patrol_projects.json パス（複数ハンドラ/サービスで共用）
+	patrolConfigPath := filepath.Join(ghostrunnerRoot, "devtools", "backend", "patrol_projects.json")
+
 	planHandler := handler.NewPlanHandler(claudeService)
 	commandHandler := handler.NewCommandHandler(claudeService, ghostrunnerRoot)
 	geminiHandler := handler.NewGeminiHandler(geminiService)
 	openaiHandler := handler.NewOpenAIHandler(openaiService)
 	filesHandler := handler.NewFilesHandler()
-	projectsHandler := handler.NewProjectsHandler()
+	projectsHandler := handler.NewProjectsHandler(patrolConfigPath)
 	healthHandler := handler.NewHealthHandler()
 
 	// 巡回サービスの依存性組み立て
-	patrolConfigPath := filepath.Join(ghostrunnerRoot, "devtools", "backend", "patrol_projects.json")
 	patrolService := service.NewPatrolService(claudeService, ntfyService, patrolConfigPath)
 	patrolHandler := handler.NewPatrolHandler(patrolService)
 
