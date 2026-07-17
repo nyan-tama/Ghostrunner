@@ -1,6 +1,6 @@
 ---
 name: release-manager
-description: "staging を main にマージし、本番リリースを実行する。staging リセット、feat ブランチ削除、Cloud Build デプロイ完了確認も担当。"
+description: "staging を main にマージし、本番リリースを実行する。staging リセット、feat ブランチ削除、GitHub Actions(deploy.yml)の候補デプロイ確認＋promote.ymlでの手動昇格も担当。"
 tools: Read, Bash, Grep, Glob
 model: opus
 ---
@@ -11,7 +11,8 @@ model: opus
 
 ## 前提条件
 
-- main ブランチへの push で Cloud Build が自動トリガーされる（設定済みの場合）
+- main ブランチへの push で GitHub Actions(deploy.yml) が走り、**候補リビジョン(0%/tag=candidate)**が作られる（push＝公開ではない）
+- 公開は **promote.yml(Promote / Rollback)** で人が手動昇格する（昇格ゲート）
 - staging で確認済みのコードのみ main にマージする
 - リリース後は staging を main にリセットする
 
@@ -40,14 +41,20 @@ git merge staging
 git push origin main
 ```
 
-### Step 4: Cloud Build デプロイ確認（トリガー設定済みの場合）
+### Step 4: GitHub Actions 候補デプロイ確認 ＋ 手動昇格
+
+main への push で **GitHub Actions(deploy.yml)** が走り、backend/frontend の**候補リビジョン(トラフィック0%・tag=candidate)**を作る。backend は匿名スモークが自動実行される。**push＝公開ではない**（候補は0%）。
 
 ```bash
-# Cloud Build のステータス確認
-gcloud builds list --limit=5 --format="table(id,status,startTime,source.repoSource.branchName)"
+# GitHub Actions の run 状態を確認（スモークが緑か）
+gh run list --workflow=deploy.yml --limit 3
+
+# 候補URL（手動確認用・<PROJECT> は自プロジェクトの Cloud Run サービス名に置き換え）
+gcloud run services describe <PROJECT>-backend --region asia-northeast1 \
+  --format=json | jq -r '.status.traffic[] | select(.tag=="candidate") | .url'
 ```
 
-トリガーが未設定の場合は、手動デプロイの案内を表示する。
+スモーク緑を確認したら、**「Promote / Rollback」workflow（promote.yml）で手動昇格**して公開する（service ごと・連動変更は backend を先に）。手順は `docs/DEPLOY_GATE_RUNBOOK.md` を参照。**昇格して `status.traffic` が候補100%になるまでがリリース完了**。
 
 ### Step 5: staging を main にリセット
 
@@ -85,7 +92,8 @@ git checkout main
 ## 本番リリース完了
 
 - main コミット: [commit hash]
-- Cloud Build: [ステータス / 未設定]
+- GitHub Actions(deploy.yml): [候補デプロイ＋スモークの run 状態]
+- 手動昇格(promote.yml): [backend/frontend を候補100%へ昇格したか]
 - staging リセット: 完了
 - feat ブランチ削除: [削除したブランチ名]
 ```
@@ -107,5 +115,5 @@ git push origin main
 
 - main への直接コミットは行わない（マージのみ）
 - force push は staging リセット時のみ許可
-- Cloud Build のデプロイが完了するまで次のリリースは行わない
-- 本番で問題が発覚した場合は /hotfix コマンドを使用する
+- 候補のスモークが緑になり、promote.yml で昇格して `status.traffic` が候補100%になるまでがリリース完了。完了するまで次のリリースは行わない
+- 本番で問題が発覚した場合は promote.yml の rollback（旧リビジョンへ100%）で即時復旧。詳細は `docs/DEPLOY_GATE_RUNBOOK.md`

@@ -11,7 +11,7 @@ model: opus
 
 ## 前提条件
 
-- staging ブランチへの push で Cloud Build が自動トリガーされる（設定済みの場合）
+- staging は「複数機能を束ねる（バッチ）」場所。**staging への push では本番デプロイは走らない**（deploy.yml は main の push のみが対象）。本番反映は release-manager が main へマージし、候補デプロイ→手動昇格したとき
 - 1 feat = 1 squash commit で staging に統合
 - staging 上の問題は git revert で個別に取り消し可能
 
@@ -110,8 +110,8 @@ git checkout $FEAT_BRANCH
 - staging コミット: [commit hash]
 - push 結果: 成功
 
-Cloud Build トリガーが設定されている場合、ステージング環境に自動デプロイされます。
-設定されていない場合は手動でデプロイしてください。
+staging への push では本番デプロイは走りません（deploy.yml は main の push のみ）。
+本番反映は release-manager が main へマージ→候補デプロイ→promote.yml で手動昇格して行います。
 ```
 
 ## 注意事項

@@ -15,6 +15,13 @@ model: opus
 
 ## レビュー観点
 
+### 0. アーキテクチャ3公理（最優先・frontend/docs/architecture.md）
+
+- [ ] **FE-1** 計画が「判断・業務ルール・IO は Go」「Next は描画と転送だけ」に従うか（Server Action にロジックを置く計画になっていないか）
+- [ ] **FE-2** 既定 server を前提に、`"use client"` 化が4項目（フック/イベント/ブラウザAPI/client専用lib）で正当化されているか
+- [ ] **FE-3** feature 越境・循環がない設計か。共有物（API client/ApiError/env）を `lib` 単一に置く計画か
+- [ ] RSC は「リンクで開く新規ページ」に限定され、error/Suspense/graceful degrade が計画されているか
+
 ### 1. コンポーネント設計チェック
 
 - [ ] Server Components / Client Components の境界が明確か？

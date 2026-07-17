@@ -24,6 +24,7 @@ date +%s > /tmp/claude-timer-coding-start
 - タスクがフロントエンドのみの場合: フェーズ0.5, フェーズ1をスキップ
 - DB変更なしの場合: フェーズ0.5をスキップ
 - **Swift macOS アプリの場合: フェーズ0.5, フェーズ1, フェーズ2をスキップし、フェーズ S（Swift）を実行**
+- **CI/インフラ・本番検証ハーネス（GitHub Actions・スモーク・Playwright E2E）の場合: フェーズ0.5, フェーズ1, フェーズ2をスキップし、フェーズ C（CI/インフラ）を実行**
 - フェーズ0（ブランチ作成）は常に実行する
 
 ```mermaid
@@ -319,6 +320,65 @@ flowchart TD
 - 変更をコミット（ブランチはフェーズ0で作成済み）
 
 
+## フェーズ C: CI/インフラ・本番検証ハーネス実装（CI/インフラの場合のみ）
+
+GitHub Actions ワークフロー・bash/curl スモーク・Playwright E2E など「デプロイされた本番システムが動くか」を検証するハーネスの場合、フェーズ1・2 の代わりにこのフェーズを実行する。
+
+このレーンの成果物は**それ自体がテスト（検証ハーネス）**のため、独立した tester / documenter フェーズを持たない。検証（break-confirm-red）と runbook 追記は impl の完了条件に畳まれている。完了の判定は「ビルドが通る」ではなく「**CI 緑＋break-confirm-red で赤が出ることを確認済み＋失敗モードを runbook 追記済み**」。
+
+```mermaid
+flowchart TD
+    A[ci-infra-impl] -->|実装＋break-confirm-red＋runbook追記| B[ci-infra-reviewer]
+    B -->|問題なし| E[reporter]
+    B -->|修正必要| A
+    B -->|計画見直し必要| D[ci-infra-planner]
+    D -->|計画再作成| A
+    E -->|レポート作成| F[コミット]
+```
+
+### C.1 ハーネス実装
+
+- 必ず `ci-infra-impl` エージェントを使用する
+- 作法A（GitHub Actions）/ B（bash/curl スモーク）/ C（Playwright）に従って実装する
+- **完了条件に break-confirm-red（対象をわざと壊して赤を確認 → 戻す）と runbook 追記まで含める**。緑を見ただけで完了にしない
+- ワークフローは実走（PR）で緑を確認する。スモーク/E2E は `API_BASE` を候補/本番に向けて実行する
+
+### C.2 レビュー
+
+- 必ず `ci-infra-reviewer` エージェントを使用する
+- anti-false-green（テストが実際に走った証明・外部依存の silent skip 検知・否定系が正しい理由で返るか・本番シームを mock で潰していないか）を監査する
+- break-confirm-red の証跡と runbook 反映があるかを確認する
+- 修正必要 → C.1 に戻る
+
+### C.3 計画見直しが必要な場合
+
+`ci-infra-reviewer` が「計画見直しが必要」と判断した場合：
+- `ci-infra-planner` エージェントに問題を報告
+- `ci-infra-planner` が計画を再作成
+- C.1 に戻って再実装
+
+**エスカレーション:** planner でも解決できない問題が発生した場合は、計画書に確認事項を追記して停止する。フォーマットは `.claude/agents/chief-director.md` の正規形（SSOT）に従う:
+```
+## 確認事項
+
+### Q1: <質問の要約>
+**ステータス**: 未回答
+**背景**: <なぜ判断が要るか>
+**選択肢**: A) ... / B) ...
+**回答**: <回答済にする際にここへ記入>
+```
+追記後、タスクファイルは `実行中/` に残して停止する（ユーザーが回答後に再開）。
+
+### C.4 レポート作成
+
+- `reporter` エージェントを使用する
+- 実装内容、break-confirm-red の結果（どの run で赤を確認したか）、runbook の追記箇所をまとめる
+
+### C.5 コミット
+
+- 変更をコミット（ブランチはフェーズ0で作成済み）
+
+
 ## 実装完了後
 
 ### 仕様書の移動
@@ -369,6 +429,12 @@ feat ブランチへのコミットが完了しています。
 - ビルド（`swift build`）がパス
 - レビューで Critical / Warning の指摘がない
 - ドキュメントが更新されている
+
+### CI/インフラ・本番検証ハーネス
+- ワークフロー/スモーク/E2E が緑、かつ break-confirm-red で「わざと壊すと赤が出る」ことを確認済み
+- 外部依存テストの silent skip が検知される構成になっている（走らなかったのに緑、を許さない）
+- ci-infra-reviewer のレビューで Critical / Warning の指摘がない
+- 失敗モードと対処が runbook に追記されている
 
 ### 全体
 - 実装要件を完全に満たしている

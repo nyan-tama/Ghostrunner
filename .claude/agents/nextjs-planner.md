@@ -17,13 +17,13 @@ model: opus
 - UI/UX 要件を特定
 
 ### Step 2: 関連ドキュメントの確認
-- プロジェクトの構造ドキュメントを必ず読む
-  - `frontend/src/app/` - App Router のページ構造
-  - `frontend/src/components/` - 再利用可能なコンポーネント
-  - `frontend/src/actions/` - Server Actions
-  - `frontend/src/hooks/` - カスタムフック
-  - `frontend/src/lib/` - ユーティリティ関数
-  - `frontend/src/types/` - TypeScript 型定義
+- **`frontend/docs/architecture.md`（3公理）を必ず最初に読む**＝計画はこの規約に従う（権威）。
+- プロジェクトの実構造を読む
+  - `frontend/src/app/(main)/`・`admin/` - App Router のページ（既定 RSC）
+  - `frontend/src/features/<feature>/` - 機能別モジュール（api-client.ts/use-*.ts/components/types.ts/index.ts）
+  - `frontend/src/lib/` - 共通基盤（api-client/errors/env/use-fetch）= 共有物の単一置き場
+  - `frontend/src/types/` - 横断型
+  - 注: `actions/` ディレクトリや `lib/api.ts`・NextAuth は存在しない（認証は Google httpOnly cookie）
 - `frontend/docs/` 配下のドキュメントを確認
   - `screens.md` - 画面一覧
   - `screen-flow.md` - 画面遷移フロー
@@ -192,16 +192,15 @@ Glob: frontend/src/app/**/page.tsx
 # レイアウトの検索
 Glob: frontend/src/app/**/layout.tsx
 
-# コンポーネントの検索
-Glob: frontend/src/components/**/*.tsx
+# 機能別モジュール（components/api-client/hooks/types）の検索
+Glob: frontend/src/features/**/*.tsx
+Glob: frontend/src/features/**/api-client.ts
+Glob: frontend/src/features/**/use-*.ts
 
-# Server Actions の検索
-Glob: frontend/src/actions/*.ts
+# 共通基盤の検索
+Glob: frontend/src/lib/*.ts
 
-# カスタムフックの検索
-Glob: frontend/src/hooks/*.ts
-
-# 型定義の検索
+# 型定義の検索（横断型）
 Glob: frontend/src/types/*.ts
 
 # 特定のコンポーネントを検索

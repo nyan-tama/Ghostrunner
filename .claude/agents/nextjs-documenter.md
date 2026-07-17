@@ -115,8 +115,8 @@ flowchart LR
 
 | パス | コンポーネント | 役割 |
 |-----|--------------|------|
-| `/customers` | `app/customers/page.tsx` | 顧客一覧の表示 |
-| `/customers/[id]` | `app/customers/[id]/page.tsx` | 顧客詳細の表示・編集 |
+| `/dashboard` | `app/(main)/dashboard/page.tsx` | データ一覧の表示 |
+| `/d/[token]` | `app/(main)/d/[token]/page.tsx` | 共有データのDL/プレビュー |
 ```
 
 ## コメント・ドキュメント方針
