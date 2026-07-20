@@ -28,7 +28,7 @@ printf '%s' "$S" | jq -r '
       "\(.kanban.waiting)/\(.kanban.running)/\(.kanban.done)",
       (.unanswered|length),
       (.idle.timestamp // ""),
-      (if .idle then (.idle.preview // "" | gsub("[\n\r\t]+";" ") | .[0:44]) else "" end)
+      (if .idle then ((if (.idle.summary // "") != "" then .idle.summary else (.idle.preview // "") end) | gsub("[\n\r\t]+";" ") | .[0:48]) else "" end)
     ] | @tsv
 ' | while IFS=$'\t' read -r att name kanban unans idlets preview; do
   case "$att" in
