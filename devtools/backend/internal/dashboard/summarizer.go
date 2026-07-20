@@ -13,9 +13,10 @@ import (
 const (
 	// summarizerInterval は滞留マーカーの要約ジョブの実行間隔です
 	summarizerInterval = 30 * time.Second
-	// idleSummarizeDelay はこの時間以上滞留したマーカーのみ要約対象とします
-	// （短時間で解消する質問への無駄な要約を避けるため）
-	idleSummarizeDelay = 2 * time.Minute
+	// idleSummarizeDelay はこの時間以上滞留したマーカーのみ要約対象とします。
+	// 表示閾値(idleMinAge=60秒)の少し手前に設定し、質問待ちカードが表示される頃には
+	// 要約が済んでいる状態を狙います（短時間で解消する質問への無駄打ちは避ける）。
+	idleSummarizeDelay = 45 * time.Second
 	// summarizeConcurrency は要約の並列実行数（CLIコストを抑えるため小さくします）
 	summarizeConcurrency = 2
 	// summarizeCooldown は同一sessionへの再要約の最小間隔です。

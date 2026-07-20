@@ -107,7 +107,7 @@ func TestSelectSummarizeTargets(t *testing.T) {
 
 	// クロック固定。idleSummarizeDelay=2分 を境界に判定。
 	stale := now.Add(-3 * time.Minute).Unix()                         // 滞留（3分）
-	fresh := now.Add(-1 * time.Minute).Unix()                         // 滞留前（1分）
+	fresh := now.Add(-30 * time.Second).Unix()                        // 滞留前（30秒 < idleSummarizeDelay 45秒）
 	summarizedAt := time.Unix(stale+30, 0).UTC().Format(time.RFC3339) // stale timestamp より後
 
 	markers := []idle.Marker{
