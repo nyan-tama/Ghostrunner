@@ -65,6 +65,18 @@ type OpsEntry struct {
 	RawExtra          map[string]any `json:"rawExtra,omitempty"`
 }
 
+// IdleState は1プロジェクトの質問待ち状態を表します。
+// このフィールドが存在すること自体が「質問待ち」を意味します
+// （非待機時はキーごと欠落し、waiting bool は持ちません）。
+// 経過分はサーバーに載せず、Timestamp からフロントが算出します。
+type IdleState struct {
+	Timestamp    string `json:"timestamp"`    // RFC3339。バッジの「N分」はフロントが now - timestamp で算出
+	Preview      string `json:"preview"`      // rawTail.lastAssistant 先頭80字（要約前の暫定）
+	SessionCount int    `json:"sessionCount"` // 同プロジェクトの質問待ちセッション数（代表1件＋件数）
+	Summary      string `json:"summary"`      // 「何を待っているか」の日本語1行要約（Phase 1a では空）
+	SummarizedAt string `json:"summarizedAt"` // 要約生成時刻（RFC3339・Phase 1a では空）
+}
+
 // ProjectState は1つのプロジェクトの集約状態を表します
 type ProjectState struct {
 	Name       string               `json:"name"`
@@ -76,6 +88,7 @@ type ProjectState struct {
 	Ops        []OpsEntry           `json:"ops"`
 	OpsOptedIn bool                 `json:"opsOptedIn"`
 	Warnings   []string             `json:"warnings"`
+	Idle       *IdleState           `json:"idle,omitempty"`
 }
 
 // State はダッシュボード全体の状態を表します

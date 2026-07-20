@@ -231,7 +231,11 @@ func scanOps(projectPath string, now time.Time, warnings *[]string) []OpsEntry {
 
 // determineAttention はプロジェクトの注目度を判定します
 func determineAttention(state ProjectState) Attention {
-	// required: 未回答あり、またはops異常
+	// required: 質問待ち（Idle付与済み）、未回答あり、またはops異常
+	// Idleはservice.goのattachIdleStateで付与された後に再評価される（C1）
+	if state.Idle != nil {
+		return AttentionRequired
+	}
 	if len(state.Unanswered) > 0 {
 		return AttentionRequired
 	}

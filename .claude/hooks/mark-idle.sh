@@ -28,7 +28,8 @@ jq -n \
   --arg cwd "$CWD" --arg sid "$SID" --arg tp "$TP" --argjson ts "$NOW" \
   --arg la "$LAST_ASSISTANT" --arg lp "$LAST_PROMPT" \
   '{cwd:$cwd, session_id:$sid, transcript_path:$tp, timestamp:$ts,
-    lastAssistant:($la[0:400]), lastPrompt:($lp[0:400])}' \
+    rawTail:{lastAssistant:($la[0:400]), lastPrompt:($lp[0:400])},
+    summary:"", summarizedAt:""}' \
   > "$MARKER_DIR/${SID}.idle" 2>/dev/null
 
 exit 0

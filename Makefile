@@ -372,6 +372,11 @@ health:
 	@curl -s http://localhost:8888/api/health || echo "Backend: NG"
 	@curl -s http://localhost:3333 > /dev/null && echo "Frontend: OK" || echo "Frontend: NG"
 
+# 統括ライブ把握(CLI) - 2秒ごとに横断ボードを再描画(質問待ちを最上段に表示)。Ctrl-Cで終了。
+.PHONY: grasp
+grasp:
+	@while true; do clear; bash $(DEVTOOLS_ROOT)/tools/grasp.sh; sleep 2; done
+
 # ログ確認
 .PHONY: logs-backend logs-frontend logs
 

@@ -9,6 +9,7 @@ import (
 
 	"ghostrunner/backend/internal/dashboard"
 	"ghostrunner/backend/internal/handler"
+	"ghostrunner/backend/internal/idle"
 	"ghostrunner/backend/internal/service"
 	"ghostrunner/backend/internal/tts"
 
@@ -44,8 +45,16 @@ func main() {
 	patrolService := service.NewPatrolService(claudeService, ntfyService, patrolConfigPath)
 	patrolHandler := handler.NewPatrolHandler(patrolService)
 
-	// ダッシュボードサービスの依存性組み立て
-	dashboardService := dashboard.NewService(patrolConfigPath, ghostrunnerRoot)
+	// ホームディレクトリ解決（質問待ちマーカー・プロジェクト生成で共用）
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalf("[Server] Failed to get home directory: %v", err)
+	}
+
+	// ダッシュボードサービスの依存性組み立て（質問待ちマーカーを注入）
+	markerDir := filepath.Join(homeDir, ".claude", "gr-idle-markers")
+	idleReader := idle.NewReader(markerDir)
+	dashboardService := dashboard.NewService(patrolConfigPath, ghostrunnerRoot, idleReader)
 	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 
 	// TTS (VOICEVOX) の依存性組み立て
@@ -54,10 +63,6 @@ func main() {
 
 	// プロジェクト生成関連の依存性組み立て
 	templateService := service.NewTemplateService(ghostrunnerRoot)
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		log.Fatalf("[Server] Failed to get home directory: %v", err)
-	}
 	createService := service.NewCreateService(templateService, homeDir)
 	createHandler := handler.NewCreateHandler(createService)
 

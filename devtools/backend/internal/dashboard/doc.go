@@ -14,6 +14,7 @@
 //   - KanbanCounts: カンバン各レーン（レビュー/実装待ち/実行中/完了）の.mdファイル数
 //   - UnansweredQuestion: 計画書内の未回答確認事項（ファイルパス、行番号、質問文）
 //   - OpsEntry: 運用/状態/ 配下のJSONから読み取った1エントリ（stale検知付き）
+//   - IdleState: 質問待ち状態（Claude Codeフックのマーカー由来。キー存在＝質問待ち）
 //   - AnswerRequest: 回答書き戻しリクエスト（プロジェクトパス、計画書パス、行番号、回答文）
 //
 // # 主要な関数・インターフェース
@@ -33,4 +34,19 @@
 //   - AnswerQuestionはwrite-to-temp + renameパターンで安全にファイルを更新
 //   - 回答対象の計画書は開発/実装/実装待ち/ または 開発/実装/実行中/ 配下の.mdのみ許可
 //   - プロジェクトパスはpatrol_projects.jsonの登録済みリストで検証
+//
+// # 質問待ち(Idle)の集約
+//
+// GetStateは各プロジェクトのScanProject結果に対し、idleパッケージが読み取った
+// 質問待ちマーカーを後段で付与する(attachIdleState)。idleReaderがnilの場合はこの
+// 付与を丸ごとスキップする。集約の要点は以下のとおり。
+//
+//   - TTL(idleTTL=6時間)を超過した失効マーカーは除外する(実ファイルの削除はしない・読み取り専用)
+//   - マーカーのcwdはidle.MatchProjectで登録済みプロジェクトへパス前方一致で紐付ける
+//   - 1プロジェクトに複数の質問待ちセッションがある場合はtimestampが最古(最長待機)の1件を
+//     代表とし、SessionCountに該当件数を保持する
+//   - 質問待ちを付与したプロジェクトはAttentionをrequiredへ再評価する(determineAttention・C1)
+//   - プロジェクトのソートは質問待ち(Idle!=nil)の有無を第1キーとし、未回答由来のrequiredより
+//     質問待ちを優先する(C2)。以降はattention優先度、質問待ちの経過時間(内部計算・非露出)、
+//     isSelf、名前の順で安定ソートする
 package dashboard

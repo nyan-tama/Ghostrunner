@@ -1546,7 +1546,14 @@ GET /api/dashboard/state
             ],
             "ops": [],
             "opsOptedIn": false,
-            "warnings": []
+            "warnings": [],
+            "idle": {
+                "timestamp": "2026-07-20T12:00:00+09:00",
+                "preview": "認証情報が見つかりません。どちらのキーを使いますか？",
+                "sessionCount": 1,
+                "summary": "",
+                "summarizedAt": ""
+            }
         }
     ],
     "generatedAt": "2026-05-26T12:00:00+09:00"
@@ -1557,7 +1564,7 @@ GET /api/dashboard/state
 
 | フィールド | 型 | 説明 |
 |-----------|-----|------|
-| `projects` | array | ProjectState の配列（attention優先度順） |
+| `projects` | array | ProjectState の配列（質問待ち優先→attention優先度順。詳細は下記「ソート順」参照） |
 | `generatedAt` | string | 集約時刻（RFC3339形式） |
 
 #### ProjectState オブジェクト
@@ -1573,6 +1580,23 @@ GET /api/dashboard/state
 | `ops` | array | 運用エントリの配列 |
 | `opsOptedIn` | boolean | `運用/` ディレクトリの有無（運用対象かどうか） |
 | `warnings` | array | スキャン中に発生した警告メッセージの配列 |
+| `idle` | object | 質問待ち状態。キーの存在自体が「質問待ち」を意味する。非質問待ち時はキーごと省略される（下記 IdleState 参照） |
+
+#### IdleState オブジェクト
+
+Claude Code のフックが検知した「セッションがユーザーの入力を待って止まっている（質問待ち）」状態を表す。
+このキーが存在すること自体が質問待ちを意味し、`waiting` 等の真偽フラグは持たない。非質問待ちのプロジェクトでは
+`idle` キーごと省略される。1プロジェクトに複数の質問待ちセッションがある場合は最長待機（最古）を代表として集約する。
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `timestamp` | string | 質問待ち開始時刻（RFC3339）。バッジの「N分」はフロントが `now - timestamp` で算出する |
+| `preview` | string | 代表マーカーのアシスタント末尾テキスト先頭80字（要約前の暫定表示） |
+| `sessionCount` | number | 同プロジェクトの質問待ちセッション数（代表1件＋件数） |
+| `summary` | string | 「何を待っているか」の日本語1行要約。Phase 1a では空文字（Phase 1b で生成） |
+| `summarizedAt` | string | 要約生成時刻（RFC3339）。Phase 1a では空文字 |
+
+タイムスタンプが6時間以上古いマーカーは失効扱いとして無視される（マーカーファイルは削除されない・読み取り専用）。
 
 #### KanbanCounts オブジェクト
 
@@ -1614,15 +1638,17 @@ GET /api/dashboard/state
 
 | 注目度 | 条件 |
 |--------|------|
-| `required` | 未回答確認事項がある、またはops異常（blocked/stale/連続エラー3回以上） |
+| `required` | 質問待ち（`idle` あり）、未回答確認事項がある、またはops異常（blocked/stale/連続エラー3回以上） |
 | `progress` | カンバンにrunning/waitingがある、またはops正常稼働中 |
 | `watching` | 上記以外 |
 
 #### ソート順
 
-1. attention優先度: required -> progress -> watching
-2. isSelf: false が先（Ghostrunner自身は後方）
-3. name: アルファベット昇順
+1. 質問待ち（`idle` あり）を最優先（未回答由来の `required` と分離）
+2. attention優先度: required -> progress -> watching
+3. 質問待ちの経過時間: 長く待たせているものが先（内部計算・レスポンスには非露出）
+4. isSelf: false が先（Ghostrunner自身は後方）
+5. name: アルファベット昇順
 
 #### HTTPステータスコード
 

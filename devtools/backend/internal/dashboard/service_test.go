@@ -5,9 +5,63 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"ghostrunner/backend/internal/idle"
 )
+
+// fakeIdleReader は idle.Reader を満たすテスト用スタブです
+type fakeIdleReader struct {
+	markers []idle.Marker
+	err     error
+}
+
+func (f *fakeIdleReader) List(ctx context.Context) ([]idle.Marker, error) {
+	return f.markers, f.err
+}
+
+// makeConfig はproject設定JSONを書き込みconfigPathを返します
+func makeConfig(t *testing.T, dir string, entries []map[string]string) string {
+	t.Helper()
+	config := map[string]any{"projects": entries}
+	configData, err := json.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(configPath, configData, 0644); err != nil {
+		t.Fatal(err)
+	}
+	return configPath
+}
+
+// mkProjectDir はプロジェクトの実装待ちディレクトリを作成し、pathを返します
+func mkProjectDir(t *testing.T, base, name string) string {
+	t.Helper()
+	p := filepath.Join(base, name)
+	if err := os.MkdirAll(filepath.Join(p, "開発", "実装", "実装待ち"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// writeUnanswered はプロジェクトに未回答確認事項の計画書を配置します（attention=required化）
+func writeUnanswered(t *testing.T, projPath string) {
+	t.Helper()
+	content := "### Q1: test\nquestion\n**ステータス**: 未回答\n"
+	f := filepath.Join(projPath, "開発", "実装", "実装待ち", "plan.md")
+	if err := os.WriteFile(f, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+var fixedNow = time.Date(2026, 7, 20, 12, 0, 0, 0, time.UTC)
+
+func epochAgo(d time.Duration) int64 {
+	return fixedNow.Add(-d).Unix()
+}
 
 func TestGetState_EmptyConfig(t *testing.T) {
 	dir := t.TempDir()
@@ -15,7 +69,7 @@ func TestGetState_EmptyConfig(t *testing.T) {
 
 	// ファイルが存在しない場合
 	fixedNow := time.Date(2026, 5, 26, 12, 0, 0, 0, time.UTC)
-	svc := NewServiceWithClock(configPath, dir, func() time.Time { return fixedNow })
+	svc := NewServiceWithClock(configPath, dir, nil, func() time.Time { return fixedNow })
 
 	state, err := svc.GetState(context.Background())
 	if err != nil {
@@ -64,7 +118,7 @@ func TestGetState_WithProjects(t *testing.T) {
 	}
 
 	fixedNow := time.Date(2026, 5, 26, 12, 0, 0, 0, time.UTC)
-	svc := NewServiceWithClock(configPath, "/other", func() time.Time { return fixedNow })
+	svc := NewServiceWithClock(configPath, "/other", nil, func() time.Time { return fixedNow })
 
 	state, err := svc.GetState(context.Background())
 	if err != nil {
@@ -103,10 +157,299 @@ func TestGetState_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // 即キャンセル
 
-	svc := NewService(configPath, dir)
+	svc := NewService(configPath, dir, nil)
 
 	_, err := svc.GetState(ctx)
 	if err == nil {
 		t.Error("expected error from cancelled context")
+	}
+}
+
+// findProject はstate.Projectsから名前で探します
+func findProject(t *testing.T, state State, name string) ProjectState {
+	t.Helper()
+	for _, p := range state.Projects {
+		if p.Name == name {
+			return p
+		}
+	}
+	t.Fatalf("project %q not found in state", name)
+	return ProjectState{}
+}
+
+// TestGetState_IdleAttachedAndAttentionReeval は、マッチしたマーカーがIdleとして付与され、
+// 付与後にAttentionがrequiredへ再評価されることを検証します（C1）。
+func TestGetState_IdleAttachedAndAttentionReeval(t *testing.T) {
+	dir := t.TempDir()
+	projA := mkProjectDir(t, dir, "project-a")
+
+	configPath := makeConfig(t, dir, []map[string]string{
+		{"path": projA, "name": "project-a"},
+	})
+
+	reader := &fakeIdleReader{markers: []idle.Marker{
+		{
+			Cwd:       projA,
+			SessionID: "s1",
+			Timestamp: epochAgo(12 * time.Minute),
+			RawTail:   idle.RawTail{LastAssistant: "この方針で進めてよいですか"},
+		},
+	}}
+
+	svc := NewServiceWithClock(configPath, "/other", reader, func() time.Time { return fixedNow })
+	state, err := svc.GetState(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	p := findProject(t, state, "project-a")
+	if p.Idle == nil {
+		t.Fatal("expected Idle to be attached")
+	}
+	if p.Attention != AttentionRequired {
+		t.Errorf("expected attention=required after idle attach, got %s", p.Attention)
+	}
+	if p.Idle.SessionCount != 1 {
+		t.Errorf("expected sessionCount=1, got %d", p.Idle.SessionCount)
+	}
+	if p.Idle.Preview != "この方針で進めてよいですか" {
+		t.Errorf("unexpected preview: %q", p.Idle.Preview)
+	}
+	// Timestamp は RFC3339 文字列であること
+	if _, err := time.Parse(time.RFC3339, p.Idle.Timestamp); err != nil {
+		t.Errorf("Idle.Timestamp is not RFC3339: %q (%v)", p.Idle.Timestamp, err)
+	}
+}
+
+// TestGetState_IdleSortsAboveRequired は、idle有りプロジェクトがidle無しのrequiredより
+// 上位にソートされることを検証します（C2・idle存在が第1キー）。
+func TestGetState_IdleSortsAboveRequired(t *testing.T) {
+	dir := t.TempDir()
+	// 名前はidle側をアルファベット後方にし、idle第1キーがname副キーに勝つことを示す
+	projReq := mkProjectDir(t, dir, "a-required")
+	projIdle := mkProjectDir(t, dir, "z-idle")
+	writeUnanswered(t, projReq) // a-required は未回答由来required
+
+	configPath := makeConfig(t, dir, []map[string]string{
+		{"path": projReq, "name": "a-required"},
+		{"path": projIdle, "name": "z-idle"},
+	})
+
+	reader := &fakeIdleReader{markers: []idle.Marker{
+		{Cwd: projIdle, SessionID: "s1", Timestamp: epochAgo(3 * time.Minute), RawTail: idle.RawTail{LastAssistant: "待機中"}},
+	}}
+
+	svc := NewServiceWithClock(configPath, "/other", reader, func() time.Time { return fixedNow })
+	state, err := svc.GetState(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(state.Projects) != 2 {
+		t.Fatalf("expected 2 projects, got %d", len(state.Projects))
+	}
+	if state.Projects[0].Name != "z-idle" {
+		t.Errorf("expected idle project first, got %s", state.Projects[0].Name)
+	}
+	// 両者ともrequiredだがidleが独立第1キーで先
+	if state.Projects[0].Attention != AttentionRequired || state.Projects[1].Attention != AttentionRequired {
+		t.Errorf("both should be required: %s, %s", state.Projects[0].Attention, state.Projects[1].Attention)
+	}
+}
+
+// TestGetState_IdleSortByElapsedDesc は、idle同士は経過時間（timestamp古い=待機長い）が
+// 上位になることを検証します（C2・同点経過降順）。
+func TestGetState_IdleSortByElapsedDesc(t *testing.T) {
+	dir := t.TempDir()
+	projShort := mkProjectDir(t, dir, "short-wait")
+	projLong := mkProjectDir(t, dir, "long-wait")
+
+	configPath := makeConfig(t, dir, []map[string]string{
+		{"path": projShort, "name": "short-wait"},
+		{"path": projLong, "name": "long-wait"},
+	})
+
+	reader := &fakeIdleReader{markers: []idle.Marker{
+		{Cwd: projShort, SessionID: "s1", Timestamp: epochAgo(10 * time.Minute), RawTail: idle.RawTail{LastAssistant: "10分"}},
+		{Cwd: projLong, SessionID: "s2", Timestamp: epochAgo(30 * time.Minute), RawTail: idle.RawTail{LastAssistant: "30分"}},
+	}}
+
+	svc := NewServiceWithClock(configPath, "/other", reader, func() time.Time { return fixedNow })
+	state, err := svc.GetState(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if state.Projects[0].Name != "long-wait" {
+		t.Errorf("expected longest-waiting (30min) first, got %s", state.Projects[0].Name)
+	}
+}
+
+// TestGetState_IdleRepresentativeOldest は、1プロジェクト複数マーカーで最古timestampが
+// 代表になり、SessionCountが件数を保持することを検証します（代表選択）。
+func TestGetState_IdleRepresentativeOldest(t *testing.T) {
+	dir := t.TempDir()
+	projA := mkProjectDir(t, dir, "project-a")
+
+	configPath := makeConfig(t, dir, []map[string]string{
+		{"path": projA, "name": "project-a"},
+	})
+
+	reader := &fakeIdleReader{markers: []idle.Marker{
+		{Cwd: projA, SessionID: "newer", Timestamp: epochAgo(5 * time.Minute), RawTail: idle.RawTail{LastAssistant: "新しい"}},
+		{Cwd: projA, SessionID: "older", Timestamp: epochAgo(40 * time.Minute), RawTail: idle.RawTail{LastAssistant: "古い(代表)"}},
+	}}
+
+	svc := NewServiceWithClock(configPath, "/other", reader, func() time.Time { return fixedNow })
+	state, err := svc.GetState(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	p := findProject(t, state, "project-a")
+	if p.Idle == nil {
+		t.Fatal("expected Idle attached")
+	}
+	if p.Idle.SessionCount != 2 {
+		t.Errorf("expected sessionCount=2, got %d", p.Idle.SessionCount)
+	}
+	if p.Idle.Preview != "古い(代表)" {
+		t.Errorf("expected oldest marker as representative, preview=%q", p.Idle.Preview)
+	}
+	// 代表timestampは最古(40分前)であること
+	want := time.Unix(epochAgo(40*time.Minute), 0).Format(time.RFC3339)
+	if p.Idle.Timestamp != want {
+		t.Errorf("expected representative timestamp %q, got %q", want, p.Idle.Timestamp)
+	}
+}
+
+// TestGetState_IdleExpiredExcluded は、TTL(6h)を超えた失効マーカーがIdle付与されない
+// （除外・削除しない）ことを検証します。
+func TestGetState_IdleExpiredExcluded(t *testing.T) {
+	dir := t.TempDir()
+	projA := mkProjectDir(t, dir, "project-a")
+
+	configPath := makeConfig(t, dir, []map[string]string{
+		{"path": projA, "name": "project-a"},
+	})
+
+	reader := &fakeIdleReader{markers: []idle.Marker{
+		{Cwd: projA, SessionID: "expired", Timestamp: epochAgo(7 * time.Hour), RawTail: idle.RawTail{LastAssistant: "失効"}},
+	}}
+
+	svc := NewServiceWithClock(configPath, "/other", reader, func() time.Time { return fixedNow })
+	state, err := svc.GetState(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	p := findProject(t, state, "project-a")
+	if p.Idle != nil {
+		t.Errorf("expected expired marker to be excluded, but Idle attached: %+v", p.Idle)
+	}
+	// Attentionは既存挙動(watching)のまま
+	if p.Attention != AttentionWatching {
+		t.Errorf("expected attention=watching (no idle), got %s", p.Attention)
+	}
+}
+
+// TestGetState_PreviewTruncatedToRunes は、previewがLastAssistantの先頭80字(rune境界)に
+// 切り詰められることを検証します。
+func TestGetState_PreviewTruncatedToRunes(t *testing.T) {
+	dir := t.TempDir()
+	projLong := mkProjectDir(t, dir, "long-preview")
+	projShort := mkProjectDir(t, dir, "short-preview")
+
+	configPath := makeConfig(t, dir, []map[string]string{
+		{"path": projLong, "name": "long-preview"},
+		{"path": projShort, "name": "short-preview"},
+	})
+
+	longText := strings.Repeat("あ", 100) // 100 runes
+	shortText := "短い本文"
+
+	reader := &fakeIdleReader{markers: []idle.Marker{
+		{Cwd: projLong, SessionID: "s1", Timestamp: epochAgo(1 * time.Minute), RawTail: idle.RawTail{LastAssistant: longText}},
+		{Cwd: projShort, SessionID: "s2", Timestamp: epochAgo(1 * time.Minute), RawTail: idle.RawTail{LastAssistant: shortText}},
+	}}
+
+	svc := NewServiceWithClock(configPath, "/other", reader, func() time.Time { return fixedNow })
+	state, err := svc.GetState(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	pl := findProject(t, state, "long-preview")
+	if pl.Idle == nil {
+		t.Fatal("expected Idle attached (long)")
+	}
+	gotRunes := []rune(pl.Idle.Preview)
+	if len(gotRunes) != 80 {
+		t.Errorf("expected preview truncated to 80 runes, got %d", len(gotRunes))
+	}
+	if pl.Idle.Preview != strings.Repeat("あ", 80) {
+		t.Errorf("unexpected truncated preview: %q", pl.Idle.Preview)
+	}
+
+	ps := findProject(t, state, "short-preview")
+	if ps.Idle == nil {
+		t.Fatal("expected Idle attached (short)")
+	}
+	if ps.Idle.Preview != shortText {
+		t.Errorf("short preview should be unchanged, got %q", ps.Idle.Preview)
+	}
+}
+
+// TestGetState_NilIdleReader は、NewServiceにnilを渡してもpanicせず、idle付与をスキップし
+// 既存挙動が保たれることを検証します（W5）。
+func TestGetState_NilIdleReader(t *testing.T) {
+	dir := t.TempDir()
+	projA := mkProjectDir(t, dir, "project-a")
+	writeUnanswered(t, projA)
+
+	configPath := makeConfig(t, dir, []map[string]string{
+		{"path": projA, "name": "project-a"},
+	})
+
+	// idleReader = nil
+	svc := NewServiceWithClock(configPath, "/other", nil, func() time.Time { return fixedNow })
+	state, err := svc.GetState(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error (nil reader must not panic): %v", err)
+	}
+
+	p := findProject(t, state, "project-a")
+	if p.Idle != nil {
+		t.Errorf("expected no Idle with nil reader, got %+v", p.Idle)
+	}
+	// 未回答由来のrequiredは既存どおり
+	if p.Attention != AttentionRequired {
+		t.Errorf("expected attention=required (unanswered), got %s", p.Attention)
+	}
+}
+
+// TestGetState_IdleOmitemptyInJSON は、idle無しプロジェクトはJSONにidleキーが出ないこと
+// （omitempty・後方互換）を検証します。
+func TestGetState_IdleOmitemptyInJSON(t *testing.T) {
+	dir := t.TempDir()
+	projA := mkProjectDir(t, dir, "project-a")
+
+	configPath := makeConfig(t, dir, []map[string]string{
+		{"path": projA, "name": "project-a"},
+	})
+
+	reader := &fakeIdleReader{markers: []idle.Marker{}}
+	svc := NewServiceWithClock(configPath, "/other", reader, func() time.Time { return fixedNow })
+	state, err := svc.GetState(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "\"idle\"") {
+		t.Errorf("expected no idle key for non-waiting project, got: %s", data)
 	}
 }

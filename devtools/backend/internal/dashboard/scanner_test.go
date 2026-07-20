@@ -159,6 +159,25 @@ func TestScanProject_Attention(t *testing.T) {
 			},
 			expected: AttentionWatching,
 		},
+		{
+			// C1: Idle付与済みなら他の条件が無くてもrequiredに昇格する
+			name: "required: 質問待ち(Idleあり)",
+			state: ProjectState{
+				Unanswered: []UnansweredQuestion{},
+				Idle:       &IdleState{Timestamp: "2026-07-20T12:00:00Z"},
+			},
+			expected: AttentionRequired,
+		},
+		{
+			// C1: Idleが最優先。progress相当の状態でもrequiredになる
+			name: "required: 質問待ちはprogress相当より優先",
+			state: ProjectState{
+				Unanswered: []UnansweredQuestion{},
+				Kanban:     KanbanCounts{Running: 1},
+				Idle:       &IdleState{Timestamp: "2026-07-20T12:00:00Z"},
+			},
+			expected: AttentionRequired,
+		},
 	}
 
 	for _, tt := range tests {

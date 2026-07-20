@@ -506,7 +506,7 @@
 //	patrol.POST("/polling/stop", patrolHandler.HandlePollingStop)
 //
 //	// DashboardHandler
-//	dashboardService := dashboard.NewService(patrolConfigPath, ghostrunnerRoot)
+//	dashboardService := dashboard.NewService(patrolConfigPath, ghostrunnerRoot, idleReader)
 //	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 //	dash := api.Group("/dashboard")
 //	dash.GET("/state", dashboardHandler.HandleState)
