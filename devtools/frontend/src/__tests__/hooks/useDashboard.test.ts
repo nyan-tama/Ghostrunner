@@ -1,14 +1,33 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
+import type { DashboardState } from "@/types/dashboard";
+import type { DashboardConnectionState } from "@/hooks/useDashboardSSE";
+import { LOCAL_STORAGE_POLLING_ENABLED_KEY } from "@/lib/constants";
 
-// Mock dashboardApi
+// dashboardApi モック
 const mockFetchDashboardState = vi.fn();
 vi.mock("@/lib/dashboardApi", () => ({
   fetchDashboardState: (...args: unknown[]) => mockFetchDashboardState(...args),
   submitAnswer: vi.fn(),
 }));
 
-import type { DashboardState } from "@/types/dashboard";
+// useDashboardSSE モック（connectionState を制御し onSnapshot を捕捉）
+// 名前は "mock" 接頭辞で vi.mock ホイスティングの参照制約を満たす
+const mockSSE: {
+  connectionState: DashboardConnectionState;
+  onSnapshot: ((s: DashboardState) => void) | null;
+} = { connectionState: "live", onSnapshot: null };
+
+vi.mock("@/hooks/useDashboardSSE", () => ({
+  useDashboardSSE: ({
+    onSnapshot,
+  }: {
+    onSnapshot: (s: DashboardState) => void;
+  }) => {
+    mockSSE.onSnapshot = onSnapshot;
+    return { connectionState: mockSSE.connectionState, reconnect: vi.fn() };
+  },
+}));
 
 const MOCK_STATE: DashboardState = {
   projects: [
@@ -16,7 +35,7 @@ const MOCK_STATE: DashboardState = {
       name: "TestProject",
       path: "/test/path",
       isSelf: false,
-      attention: "watching" as const,
+      attention: "watching",
       kanban: { reviewing: 0, waiting: 1, running: 0, done: 5 },
       unanswered: [],
       ops: [],
@@ -24,10 +43,41 @@ const MOCK_STATE: DashboardState = {
       warnings: [],
     },
   ],
-  generatedAt: "2026-05-26T00:00:00Z",
+  generatedAt: "2026-07-20T00:00:00Z",
 };
 
-// Helper to flush pending promises (microtask queue)
+const SNAPSHOT_STATE: DashboardState = {
+  projects: [],
+  generatedAt: "2026-07-20T01:00:00Z",
+};
+
+// jsdom がこの環境で localStorage を提供しないため、最小スタブを注入
+function createLocalStorageStub() {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (k: string) => (k in store ? store[k] : null),
+    setItem: (k: string, v: string) => {
+      store[k] = String(v);
+    },
+    removeItem: (k: string) => {
+      delete store[k];
+    },
+    clear: () => {
+      store = {};
+    },
+    key: () => null,
+    length: 0,
+  };
+}
+
+function setVisibility(value: "visible" | "hidden") {
+  Object.defineProperty(document, "visibilityState", {
+    value,
+    configurable: true,
+  });
+  document.dispatchEvent(new Event("visibilitychange"));
+}
+
 function flushPromises() {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, 0);
@@ -35,156 +85,202 @@ function flushPromises() {
   });
 }
 
+async function mountDashboard() {
+  const { useDashboard } = await import("@/hooks/useDashboard");
+  const rendered = renderHook(() => useDashboard());
+  await act(async () => {
+    await flushPromises();
+  });
+  return rendered;
+}
+
 describe("useDashboard", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    localStorage.clear();
+    vi.stubGlobal("localStorage", createLocalStorageStub());
+    mockSSE.connectionState = "live";
+    mockSSE.onSnapshot = null;
+    mockFetchDashboardState.mockReset();
     mockFetchDashboardState.mockResolvedValue(MOCK_STATE);
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-  });
-
-  it("fetches once on mount", async () => {
-    const { useDashboard } = await import("@/hooks/useDashboard");
-    const { result } = renderHook(() => useDashboard());
-
-    // Flush mount effect + fetch promise
-    await act(async () => {
-      await flushPromises();
-    });
-
-    expect(mockFetchDashboardState).toHaveBeenCalledTimes(1);
-  });
-
-  it("polls every 15 seconds", async () => {
-    const { useDashboard } = await import("@/hooks/useDashboard");
-    renderHook(() => useDashboard());
-
-    // Flush mount
-    await act(async () => {
-      await flushPromises();
-    });
-
-    const initialCalls = mockFetchDashboardState.mock.calls.length;
-
-    // Advance 15 seconds
-    await act(async () => {
-      vi.advanceTimersByTime(15000);
-      await flushPromises();
-    });
-
-    expect(mockFetchDashboardState.mock.calls.length).toBeGreaterThan(initialCalls);
-  });
-
-  it("stops polling when visibilityState becomes hidden", async () => {
-    const { useDashboard } = await import("@/hooks/useDashboard");
-    renderHook(() => useDashboard());
-
-    await act(async () => {
-      await flushPromises();
-    });
-
-    // Go hidden
-    act(() => {
-      Object.defineProperty(document, "visibilityState", {
-        value: "hidden",
-        configurable: true,
-      });
-      document.dispatchEvent(new Event("visibilitychange"));
-    });
-
-    const callsBeforeAdvance = mockFetchDashboardState.mock.calls.length;
-
-    // Advance 15s - should NOT trigger additional fetches
-    await act(async () => {
-      vi.advanceTimersByTime(15000);
-      await flushPromises();
-    });
-
-    expect(mockFetchDashboardState.mock.calls.length).toBe(callsBeforeAdvance);
-
-    // Restore visibility
     Object.defineProperty(document, "visibilityState", {
       value: "visible",
       configurable: true,
     });
   });
 
-  it("resumes with immediate fetch when visibilityState becomes visible", async () => {
-    const { useDashboard } = await import("@/hooks/useDashboard");
-    renderHook(() => useDashboard());
-
-    await act(async () => {
-      await flushPromises();
-    });
-
-    // Go hidden
-    act(() => {
-      Object.defineProperty(document, "visibilityState", {
-        value: "hidden",
-        configurable: true,
-      });
-      document.dispatchEvent(new Event("visibilitychange"));
-    });
-
-    const callsBefore = mockFetchDashboardState.mock.calls.length;
-
-    // Go visible
-    await act(async () => {
-      Object.defineProperty(document, "visibilityState", {
-        value: "visible",
-        configurable: true,
-      });
-      document.dispatchEvent(new Event("visibilitychange"));
-      await flushPromises();
-    });
-
-    // Should have fetched immediately on visible
-    expect(mockFetchDashboardState.mock.calls.length).toBeGreaterThan(callsBefore);
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
-  it("refresh() triggers an immediate fetch", async () => {
-    const { useDashboard } = await import("@/hooks/useDashboard");
-    const { result } = renderHook(() => useDashboard());
-
-    await act(async () => {
-      await flushPromises();
-    });
-
-    const callsBefore = mockFetchDashboardState.mock.calls.length;
-
-    await act(async () => {
-      result.current.refresh();
-      await flushPromises();
-    });
-
-    expect(mockFetchDashboardState.mock.calls.length).toBeGreaterThan(callsBefore);
+  it("fetches once on mount (SSE 初回 push 前の白画面防止)", async () => {
+    // live のときはポーリングしないので mount fetch のみ
+    await mountDashboard();
+    expect(mockFetchDashboardState).toHaveBeenCalledTimes(1);
   });
 
-  it("sets error string on fetch failure while preserving previous state", async () => {
-    const { useDashboard } = await import("@/hooks/useDashboard");
-    const { result } = renderHook(() => useDashboard());
+  describe("shouldPoll 状態機械 (FC2)", () => {
+    it("SSE 接続 (live) の間はポーリングしない", async () => {
+      mockSSE.connectionState = "live";
+      await mountDashboard();
 
-    // First successful fetch
-    await act(async () => {
-      await flushPromises();
+      const afterMount = mockFetchDashboardState.mock.calls.length;
+      await act(async () => {
+        vi.advanceTimersByTime(60000);
+        await flushPromises();
+      });
+
+      // 周期 fetch が発生しない
+      expect(mockFetchDashboardState.mock.calls.length).toBe(afterMount);
     });
 
-    expect(result.current.state).toEqual(MOCK_STATE);
+    it("切断 (reconnecting) かつ polling ON かつ visible でフォールバック起動", async () => {
+      mockSSE.connectionState = "reconnecting";
+      await mountDashboard();
 
-    // Make next fetch fail
-    mockFetchDashboardState.mockRejectedValueOnce(new Error("Network error"));
+      const afterMount = mockFetchDashboardState.mock.calls.length;
+      await act(async () => {
+        vi.advanceTimersByTime(15000);
+        await flushPromises();
+      });
 
-    await act(async () => {
-      result.current.refresh();
-      await flushPromises();
+      expect(mockFetchDashboardState.mock.calls.length).toBeGreaterThan(
+        afterMount
+      );
     });
 
-    expect(result.current.error).toBe("Network error");
-    // Previous state is preserved
-    expect(result.current.state).toEqual(MOCK_STATE);
+    it("offline でもフォールバック起動する", async () => {
+      mockSSE.connectionState = "offline";
+      await mountDashboard();
+
+      const afterMount = mockFetchDashboardState.mock.calls.length;
+      await act(async () => {
+        vi.advanceTimersByTime(15000);
+        await flushPromises();
+      });
+
+      expect(mockFetchDashboardState.mock.calls.length).toBeGreaterThan(
+        afterMount
+      );
+    });
+
+    it("polling OFF なら切断中でもフォールバックしない", async () => {
+      mockSSE.connectionState = "reconnecting";
+      const { result } = await mountDashboard();
+
+      await act(async () => {
+        result.current.setPolling(false);
+        await flushPromises();
+      });
+
+      const base = mockFetchDashboardState.mock.calls.length;
+      await act(async () => {
+        vi.advanceTimersByTime(45000);
+        await flushPromises();
+      });
+
+      expect(mockFetchDashboardState.mock.calls.length).toBe(base);
+    });
+
+    it("visibility hidden で停止し visible 復帰で再開する", async () => {
+      mockSSE.connectionState = "reconnecting";
+      await mountDashboard();
+
+      // hidden にする → shouldPoll false で停止
+      await act(async () => {
+        setVisibility("hidden");
+        await flushPromises();
+      });
+      const whileHidden = mockFetchDashboardState.mock.calls.length;
+      await act(async () => {
+        vi.advanceTimersByTime(45000);
+        await flushPromises();
+      });
+      expect(mockFetchDashboardState.mock.calls.length).toBe(whileHidden);
+
+      // visible 復帰 → 即時 fetch で再開
+      await act(async () => {
+        setVisibility("visible");
+        await flushPromises();
+      });
+      expect(mockFetchDashboardState.mock.calls.length).toBeGreaterThan(
+        whileHidden
+      );
+    });
+
+    it("interval は高々1本（1 tick で fetch は +1 のみ・二重起動しない）", async () => {
+      mockSSE.connectionState = "reconnecting";
+      await mountDashboard();
+
+      const base = mockFetchDashboardState.mock.calls.length;
+      await act(async () => {
+        vi.advanceTimersByTime(15000);
+        await flushPromises();
+      });
+
+      // interval が二重なら +2 になる
+      expect(mockFetchDashboardState.mock.calls.length - base).toBe(1);
+    });
+  });
+
+  describe("SSE 受信", () => {
+    it("snapshot 受信で state を更新し connectionState を公開する", async () => {
+      mockSSE.connectionState = "live";
+      const { result } = await mountDashboard();
+
+      expect(result.current.connectionState).toBe("live");
+
+      await act(async () => {
+        mockSSE.onSnapshot?.(SNAPSHOT_STATE);
+        await flushPromises();
+      });
+
+      expect(result.current.state).toEqual(SNAPSHOT_STATE);
+    });
+  });
+
+  describe("既存の基本挙動", () => {
+    it("refresh() で即時 fetch する", async () => {
+      const { result } = await mountDashboard();
+
+      const base = mockFetchDashboardState.mock.calls.length;
+      await act(async () => {
+        result.current.refresh();
+        await flushPromises();
+      });
+
+      expect(mockFetchDashboardState.mock.calls.length).toBeGreaterThan(base);
+    });
+
+    it("fetch 失敗時は error をセットしつつ直前の state を保持する", async () => {
+      const { result } = await mountDashboard();
+
+      // mount fetch 成功で state が入っている
+      expect(result.current.state).toEqual(MOCK_STATE);
+
+      mockFetchDashboardState.mockRejectedValueOnce(new Error("Network error"));
+      await act(async () => {
+        result.current.refresh();
+        await flushPromises();
+      });
+
+      expect(result.current.error).toBe("Network error");
+      expect(result.current.state).toEqual(MOCK_STATE);
+    });
+
+    it("setPolling(false) は localStorage に永続化する", async () => {
+      const { result } = await mountDashboard();
+
+      await act(async () => {
+        result.current.setPolling(false);
+        await flushPromises();
+      });
+
+      expect(
+        localStorage.getItem(LOCAL_STORAGE_POLLING_ENABLED_KEY)
+      ).toBe("false");
+      expect(result.current.polling).toBe(false);
+    });
   });
 });

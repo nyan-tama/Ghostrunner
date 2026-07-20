@@ -4,6 +4,7 @@ import AccentBar from "./AccentBar";
 import DevSummary from "./DevSummary";
 import OpsEntryComponent from "./OpsEntryComponent";
 import UnansweredList from "./UnansweredList";
+import WaitingBadge from "./WaitingBadge";
 import type { ProjectCardData } from "@/types/dashboard";
 
 interface DashboardCardProps {
@@ -12,11 +13,19 @@ interface DashboardCardProps {
 }
 
 export default function DashboardCard({ project, onAnswered }: DashboardCardProps) {
+  // 質問待ちは独立軸（fe-W6）。undefined/null 安全に判定する
+  const hasWaiting = !!project.idle;
+
   return (
-    <div className="relative pl-3 border border-gray-200 rounded-lg p-3 bg-white shadow-sm">
+    <div
+      className={`relative pl-3 border rounded-lg p-3 bg-white shadow-sm ${
+        hasWaiting ? "border-red-300 ring-1 ring-red-300" : "border-gray-200"
+      }`}
+    >
       <AccentBar
         attention={project.attention}
         hasUnanswered={project.unanswered.length > 0}
+        hasWaiting={hasWaiting}
       />
 
       <div className="flex items-center justify-between mb-2">
@@ -27,6 +36,8 @@ export default function DashboardCard({ project, onAnswered }: DashboardCardProp
           )}
         </h3>
       </div>
+
+      {project.idle && <WaitingBadge idle={project.idle} />}
 
       <DevSummary kanban={project.kanban} />
 

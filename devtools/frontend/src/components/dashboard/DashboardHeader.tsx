@@ -22,6 +22,8 @@ interface DashboardHeaderProps {
   onSessionPickerOpen?: () => void;
   sessionSwitchDisabled?: boolean;
   connectionState: "live" | "reconnecting" | "offline";
+  // dashboard SSE の接続状態（chat 用とは別系統・FC1）
+  dashboardConnectionState: "live" | "reconnecting" | "offline";
 }
 
 export default function DashboardHeader({
@@ -38,6 +40,7 @@ export default function DashboardHeader({
   onSessionPickerOpen,
   sessionSwitchDisabled,
   connectionState,
+  dashboardConnectionState,
 }: DashboardHeaderProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
@@ -57,7 +60,8 @@ export default function DashboardHeader({
         <PollingToggle polling={polling} onToggle={onPollingToggle} />
         <TTSToggle enabled={ttsEnabled} onToggle={onTTSToggle} />
         <ProgressGraspButton onGrasp={onGrasp} disabled={graspDisabled} />
-        <ConnectionIndicator state={connectionState} />
+        <ConnectionIndicator state={dashboardConnectionState} caption="盤" />
+        <ConnectionIndicator state={connectionState} caption="chat" />
       </div>
     </div>
   );

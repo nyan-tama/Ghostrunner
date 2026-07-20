@@ -42,6 +42,8 @@ export const LOCAL_STORAGE_ACTIVE_SESSION_ID_KEY =
   "ghostrunner_active_session_id";
 export const LOCAL_STORAGE_POLLING_ENABLED_KEY = "ghostrunner_polling_enabled";
 export const DASHBOARD_POLL_INTERVAL_MS = 15000;
+// dashboard SSE エンドポイント（catch-all /api/:path* で 8888 へプロキシ・fe-W8）
+export const DASHBOARD_SSE_PATH = "/api/dashboard/stream";
 
 // サーバー再起動機能用（開発環境のみ）
 // NEXT_PUBLIC_API_BASE が設定されている場合はそれを使用（外部アクセス時）

@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchDashboardState } from "@/lib/dashboardApi";
 import {
+  useDashboardSSE,
+  type DashboardConnectionState,
+} from "@/hooks/useDashboardSSE";
+import {
   DASHBOARD_POLL_INTERVAL_MS,
   LOCAL_STORAGE_POLLING_ENABLED_KEY,
 } from "@/lib/constants";
@@ -15,29 +19,35 @@ interface UseDashboardReturn {
   polling: boolean;
   setPolling: (v: boolean) => void;
   refresh: () => void;
+  connectionState: DashboardConnectionState;
 }
 
 export function useDashboard(): UseDashboardReturn {
   const [state, setState] = useState<DashboardState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // polling は「フォールバック自動更新の可否」に意味変更（SSE 接続中は休眠・fe-W7）
   const [polling, setPollingState] = useState(true);
+  // visibility を state 化して shouldPoll の再評価トリガにする（stale closure 回避）
+  const [visible, setVisible] = useState(true);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pollingRef = useRef(true);
+
+  // SSE スナップショット受信で state を更新
+  const handleSnapshot = useCallback((snapshot: DashboardState) => {
+    setState(snapshot);
+    setError(null);
+    setLoading(false);
+  }, []);
+
+  const { connectionState } = useDashboardSSE({ onSnapshot: handleSnapshot });
 
   // localStorage から復元（SSR セーフ）
   useEffect(() => {
     const stored = localStorage.getItem(LOCAL_STORAGE_POLLING_ENABLED_KEY);
     if (stored === "false") {
       setPollingState(false);
-      pollingRef.current = false;
     }
   }, []);
-
-  // pollingRef を同期
-  useEffect(() => {
-    pollingRef.current = polling;
-  }, [polling]);
 
   const doFetch = useCallback(async () => {
     try {
@@ -53,74 +63,57 @@ export function useDashboard(): UseDashboardReturn {
     }
   }, []);
 
-  // インターバルの開始・停止
-  const startInterval = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-    intervalRef.current = setInterval(doFetch, DASHBOARD_POLL_INTERVAL_MS);
-  }, [doFetch]);
-
-  const stopInterval = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  }, []);
-
-  // マウント時: 必ず1回 fetch（白画面防止）
+  // マウント時: 必ず1回 fetch（SSE 初回 push 前の白画面防止）
   useEffect(() => {
     doFetch();
   }, [doFetch]);
 
-  // polling 状態に応じたインターバル管理
-  useEffect(() => {
-    if (polling) {
-      startInterval();
-    } else {
-      stopInterval();
-    }
-    return stopInterval;
-  }, [polling, startInterval, stopInterval]);
-
-  // visibilitychange 連動（polling ON の時のみ）
+  // visibility を state に反映（shouldPoll の再評価トリガ）
   useEffect(() => {
     function handleVisibility() {
-      if (!pollingRef.current) return;
-
-      if (document.visibilityState === "hidden") {
-        stopInterval();
-      } else {
-        doFetch();
-        startInterval();
-      }
+      setVisible(document.visibilityState === "visible");
     }
-
     document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [doFetch, startInterval, stopInterval]);
+  }, []);
 
-  const setPolling = useCallback(
-    (v: boolean) => {
-      setPollingState(v);
-      pollingRef.current = v;
-      localStorage.setItem(LOCAL_STORAGE_POLLING_ENABLED_KEY, String(v));
-      if (!v) {
-        stopInterval();
+  // 単一の派生値（FC2）: フォールバック有効 かつ SSE 未接続 かつ 可視 のときだけポーリング
+  const shouldPoll = polling && connectionState !== "live" && visible;
+
+  // interval を start/stop する useEffect を1本に集約（FC2・常に高々1本）
+  useEffect(() => {
+    if (!shouldPoll) {
+      return;
+    }
+    // フォールバック開始時に即時取得してから周期実行（SSE 切断直後の 15 秒待ちを避ける）
+    doFetch();
+    intervalRef.current = setInterval(doFetch, DASHBOARD_POLL_INTERVAL_MS);
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
-    },
-    [stopInterval]
-  );
+    };
+  }, [shouldPoll, doFetch]);
+
+  const setPolling = useCallback((v: boolean) => {
+    setPollingState(v);
+    localStorage.setItem(LOCAL_STORAGE_POLLING_ENABLED_KEY, String(v));
+  }, []);
 
   const refresh = useCallback(() => {
     doFetch();
-    // polling 中ならインターバルをリセット
-    if (pollingRef.current) {
-      startInterval();
-    }
-  }, [doFetch, startInterval]);
+  }, [doFetch]);
 
-  return { state, error, loading, polling, setPolling, refresh };
+  return {
+    state,
+    error,
+    loading,
+    polling,
+    setPolling,
+    refresh,
+    connectionState,
+  };
 }

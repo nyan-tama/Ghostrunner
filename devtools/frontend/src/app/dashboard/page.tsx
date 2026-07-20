@@ -68,6 +68,7 @@ export default function DashboardPage() {
         onSessionPickerOpen={chat.fetchSessions}
         sessionSwitchDisabled={chat.status === "busy"}
         connectionState={chat.connectionState}
+        dashboardConnectionState={dashboard.connectionState}
       />
 
       {dashboard.loading && !dashboard.state && (
