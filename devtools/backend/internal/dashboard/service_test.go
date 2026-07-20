@@ -221,6 +221,37 @@ func TestGetState_IdleAttachedAndAttentionReeval(t *testing.T) {
 	}
 }
 
+// TestGetState_IdleYoungerThanMinAgeExcluded は、滞留が idleMinAge(60秒)未満のマーカー（応答直後で
+// まだユーザーが読んでいる可能性が高い）は質問待ちに含めない（ノイズ抑制）ことを検証します。
+func TestGetState_IdleYoungerThanMinAgeExcluded(t *testing.T) {
+	dir := t.TempDir()
+	projA := mkProjectDir(t, dir, "project-a")
+
+	configPath := makeConfig(t, dir, []map[string]string{
+		{"path": projA, "name": "project-a"},
+	})
+
+	reader := &fakeIdleReader{markers: []idle.Marker{
+		{
+			Cwd:       projA,
+			SessionID: "s1",
+			Timestamp: epochAgo(30 * time.Second), // 閾値60秒未満
+			RawTail:   idle.RawTail{LastAssistant: "応答直後"},
+		},
+	}}
+
+	svc := NewServiceWithClock(configPath, "/other", reader, func() time.Time { return fixedNow })
+	state, err := svc.GetState(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	p := findProject(t, state, "project-a")
+	if p.Idle != nil {
+		t.Errorf("expected no Idle for marker younger than idleMinAge, got %+v", p.Idle)
+	}
+}
+
 // TestGetState_IdleSortsAboveRequired は、idle有りプロジェクトがidle無しのrequiredより
 // 上位にソートされることを検証します（C2・idle存在が第1キー）。
 func TestGetState_IdleSortsAboveRequired(t *testing.T) {

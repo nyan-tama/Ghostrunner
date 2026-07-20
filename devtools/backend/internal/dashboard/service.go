@@ -16,6 +16,10 @@ import (
 // （読み取り専用のため実ファイルの削除はしません）。
 const idleTTL = 6 * time.Hour
 
+// idleMinAge は質問待ちと見なす最小滞留時間です。これ未満のマーカー（Claudeが応答し終えた直後で、
+// まだユーザーが読んでいる／返信しようとしている可能性が高い）は質問待ちに含めません（ノイズ抑制）。
+const idleMinAge = 60 * time.Second
+
 // Service はダッシュボードの状態集約と回答書き戻しを提供します
 type Service interface {
 	// GetState は全プロジェクトの集約状態を返します
@@ -179,6 +183,10 @@ func attachIdleState(states []ProjectState, markers []idle.Marker, now time.Time
 	grouped := make(map[string][]idle.Marker)
 	for _, m := range markers {
 		if idle.IsExpired(m, now, idleTTL) {
+			continue
+		}
+		// 滞留が idleMinAge 未満（応答直後）は質問待ちに含めない（ノイズ抑制）
+		if now.Sub(time.Unix(m.Timestamp, 0)) < idleMinAge {
 			continue
 		}
 		matched, ok := idle.MatchProject(m.Cwd, projs)

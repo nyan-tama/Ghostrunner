@@ -15,12 +15,23 @@ NOW=$(date +%s)
 # 観測用: 発火のたびに追記(本当にidle_promptが飛ぶかの証拠)
 printf '%s\tevent=%s\tsid=%s\tcwd=%s\ttp=%s\n' "$NOW" "$EV" "$SID" "$CWD" "$TP" >> "$MARKER_DIR/_debug.log"
 
-# rawTail抽出(best-effort。フォーマット変更やロックで失敗しても空でよい)
+# rawTail抽出(best-effort)。行単位で fromjson? し壊れ行(Stop時に書き込み途中の最終行含む)をskip。
+extract_last_assistant() {
+  jq -sRr '[ split("\n")[] | fromjson? // empty | select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text ] | last // ""' "$1" 2>/dev/null
+}
+extract_last_prompt() {
+  jq -sRr '[ split("\n")[] | fromjson? // empty | select(.type=="last-prompt") | .lastPrompt ] | last // ""' "$1" 2>/dev/null
+}
 LAST_ASSISTANT=""
 LAST_PROMPT=""
 if [ -n "$TP" ] && [ -f "$TP" ]; then
-  LAST_ASSISTANT=$(jq -rs '([.[]|select(.type=="assistant")|.message.content[]?|select(.type=="text")|.text]|last) // ""' "$TP" 2>/dev/null)
-  LAST_PROMPT=$(jq -rs '([.[]|select(.type=="last-prompt")|.lastPrompt]|last) // ""' "$TP" 2>/dev/null)
+  # Stop発火時は最終assistant行がまだ書き込み中のことがある。空なら短時間リトライ。
+  for _try in 1 2 3; do
+    LAST_ASSISTANT=$(extract_last_assistant "$TP")
+    [ -n "$LAST_ASSISTANT" ] && break
+    sleep 0.4
+  done
+  LAST_PROMPT=$(extract_last_prompt "$TP")
 fi
 
 # マーカー書き込み(先頭400字に切るのはjq内で。UTF-8境界を壊さない)
