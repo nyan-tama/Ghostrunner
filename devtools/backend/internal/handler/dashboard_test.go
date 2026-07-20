@@ -38,7 +38,7 @@ func (m *mockDashboardService) Answer(ctx context.Context, req dashboard.AnswerR
 func setupDashboardRouter(svc dashboard.Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	h := NewDashboardHandler(svc)
+	h := NewDashboardHandler(svc, nil)
 	r.GET("/api/dashboard/state", h.HandleState)
 	r.POST("/api/dashboard/answer", h.HandleAnswer)
 	return r

@@ -206,8 +206,8 @@ func attachIdleState(states []ProjectState, markers []idle.Marker, now time.Time
 			Timestamp:    time.Unix(rep.Timestamp, 0).Format(time.RFC3339),
 			Preview:      truncateRunes(rep.RawTail.LastAssistant, 80),
 			SessionCount: len(ms),
-			Summary:      "",
-			SummarizedAt: "",
+			Summary:      rep.Summary,
+			SummarizedAt: rep.SummarizedAt,
 		}
 
 		// Idle付与後にAttentionを再評価（C1）

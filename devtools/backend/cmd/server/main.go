@@ -2,10 +2,12 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"ghostrunner/backend/internal/dashboard"
 	"ghostrunner/backend/internal/handler"
@@ -54,8 +56,21 @@ func main() {
 	// ダッシュボードサービスの依存性組み立て（質問待ちマーカーを注入）
 	markerDir := filepath.Join(homeDir, ".claude", "gr-idle-markers")
 	idleReader := idle.NewReader(markerDir)
+	idleWriter := idle.NewWriter(markerDir)
 	dashboardService := dashboard.NewService(patrolConfigPath, ghostrunnerRoot, idleReader)
-	dashboardHandler := handler.NewDashboardHandler(dashboardService)
+
+	// 質問待ちマーカーの要約ジョブ（滞留マーカーを haiku で1行要約し書き戻す）
+	summarizeService := service.NewSummarizeService()
+	summarizer := dashboard.NewSummarizer(idleReader, idleWriter, summarizeService, time.Now)
+
+	// ダッシュボード状態のSSE配信サービス
+	dashboardStream := dashboard.NewStreamService(dashboardService)
+	dashboardHandler := handler.NewDashboardHandler(dashboardService, dashboardStream)
+
+	// バックグラウンドジョブを起動（サーバー稼働中は動き続ける）
+	bgCtx := context.Background()
+	summarizer.Start(bgCtx)
+	dashboardStream.Start(bgCtx)
 
 	// TTS (VOICEVOX) の依存性組み立て
 	ttsService := tts.NewService()
@@ -145,6 +160,7 @@ func main() {
 		{
 			dashGroup.GET("/state", dashboardHandler.HandleState)
 			dashGroup.POST("/answer", dashboardHandler.HandleAnswer)
+			dashGroup.GET("/stream", dashboardHandler.HandleStream)
 		}
 
 		// 巡回API

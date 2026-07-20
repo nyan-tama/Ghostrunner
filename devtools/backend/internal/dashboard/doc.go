@@ -24,6 +24,20 @@
 //   - NewServiceWithClock: clock注入付きコンストラクタ（テスト用）
 //   - ScanProject: 1プロジェクトのカンバン/未回答/運用を読み取り専用で収集する
 //   - AnswerQuestion: 計画書の未回答行を「回答済」に更新し回答文を挿入する（アトミック書き込み）
+//   - StreamService: ダッシュボード状態のSSE配信（変化時のみStateスナップショットをbroadcast）
+//   - Summarizer: 滞留した質問待ちマーカーを検出しSummarizeServiceで要約してマーカーへ書き戻す
+//
+// # 質問待ち要約とSSE配信（Phase 1b）
+//
+// Summarizerはtickerで滞留（約2分以上）かつ未要約のマーカーを抽出し、会話末尾を
+// service.SummarizeService（claude -p --model haiku）で日本語1行に要約してidle.Writerで
+// マーカーへ書き戻す。書き戻しはフックによる削除/更新を rename 直前に再確認し、解消済みの
+// 質問待ちを復活させない（compare-and-swap）。並列数は小さく抑えCLIコストを制御する。
+//
+// StreamServiceは短間隔でGetStateをスキャンし、前回と実変化があった場合のみStateスナップ
+// ショット全体をsubscriberへbroadcastする。generatedAtや経過時間は差分判定に含めず、projects
+// の実変化のみをトリガーとする（時間経過だけでは再送しない）。subscriberチャネルは最新優先の
+// 小バッファで、満杯時は古い値を捨てて最新を入れる（coalesce）。
 //
 // # 設計方針
 //

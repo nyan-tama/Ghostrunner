@@ -106,12 +106,14 @@
 // # DashboardHandler
 //
 // 統括GUIダッシュボードのエンドポイント群を処理するハンドラー。
-// dashboardパッケージのServiceインターフェースに依存し、
-// 全プロジェクトの状態集約と確認事項への回答書き戻しの2エンドポイントを提供する。
+// dashboardパッケージのServiceインターフェース（状態集約・回答書き戻し）と
+// Streamインターフェース（SSE配信）に依存し、状態集約・回答書き戻し・SSEストリーミングの
+// 3エンドポイントを提供する。
 //
 // エンドポイント:
 //   - GET /api/dashboard/state: 全プロジェクトの集約状態取得
 //   - POST /api/dashboard/answer: 確認事項への回答書き戻し
+//   - GET /api/dashboard/stream: ダッシュボード状態のSSEストリーミング（Stateスナップショット配信）
 //
 // # TTSHandler
 //
@@ -356,6 +358,12 @@
 //	    "success": true
 //	}
 //
+// GET /api/dashboard/stream - ダッシュボード状態のSSEストリーミング
+//
+// 状態に実変化があるたびに State スナップショット全体（/api/dashboard/state と同一構造）を
+// text/event-stream で配信する。generatedAt や経過時間は差分判定に含めず、projects の実変化のみを
+// トリガーとする。15秒ごとにキープアライブコメントを送る。
+//
 // ## TTS API (テキスト音声合成)
 //
 // POST /api/tts - テキストをVOICEVOXで音声合成
@@ -507,10 +515,12 @@
 //
 //	// DashboardHandler
 //	dashboardService := dashboard.NewService(patrolConfigPath, ghostrunnerRoot, idleReader)
-//	dashboardHandler := handler.NewDashboardHandler(dashboardService)
+//	dashboardStream := dashboard.NewStreamService(dashboardService)
+//	dashboardHandler := handler.NewDashboardHandler(dashboardService, dashboardStream)
 //	dash := api.Group("/dashboard")
 //	dash.GET("/state", dashboardHandler.HandleState)
 //	dash.POST("/answer", dashboardHandler.HandleAnswer)
+//	dash.GET("/stream", dashboardHandler.HandleStream)
 //
 //	// HealthHandler
 //	healthHandler := handler.NewHealthHandler()
