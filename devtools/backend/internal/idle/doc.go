@@ -22,9 +22,18 @@
 //
 //   - NewReader: markerDir 配下の *.idle を読む Reader を生成する。
 //     壊れたファイルや読み取り失敗はスキップし、markerDir 不在時は空スライスを返す。
-//   - NewWriter: 既存マーカーへ要約を書き戻す Writer を生成する。
+//   - NewWriter: 既存マーカーへ要約を書き戻す Writer を生成する（フック方式）。
 //     WriteSummary は List 時点（T0）の timestamp を基準に compare-and-swap で
 //     temp+rename する。不在/不一致（同session新timestamp含む）なら書き戻しを破棄する。
+//   - NewSummaryCacheWriter: 要約を独立キャッシュ（~/.claude/gr-idle-summaries）へ書き戻す
+//     Writer を生成する（会話ログ直読み方式）。.idle マーカーを持たない transcript 方式の
+//     ため、key <sessionID>_<timestamp>.json の timestamp（=待機開始 entry-time）で
+//     compare-and-swap を担保し、待機が変われば別 key となり旧要約が復活しない。
+//     Writer 実装はマーカー / キャッシュの2種が並存する（配線側で一方を注入する）。
+//   - MergeSummaries: marker 群に対応するキャッシュを読み Summary/SummarizedAt を反映した
+//     新スライスをイミュータブルに返す（reader の List 内で呼び Summary 込み Marker を返す契約）。
+//   - PruneSummaryCache: 現存 marker 以外の孤児キャッシュを掃除する。
+//   - CacheKey: 要約キャッシュのファイル名キー（<sessionID>_<timestamp>）を生成する。
 //   - MatchProject: cwd がどの登録プロジェクトに属するかをパス前方一致で判定する。
 //     複数一致時は最長一致（最も深いパス）を優先し、セグメント境界を担保する。
 //   - IsExpired: マーカーが TTL を超過して失効しているかを判定する。

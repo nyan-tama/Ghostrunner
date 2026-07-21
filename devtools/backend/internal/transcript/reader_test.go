@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"ghostrunner/backend/internal/idle"
 	"ghostrunner/backend/internal/projects"
 )
 
@@ -43,7 +44,7 @@ func TestTranscriptReaderList_WaitingSessionToMarker(t *testing.T) {
 	ts := "2026-07-20T10:00:00Z"
 	writeSession(t, home, "-Users-x-app", "sess-1", asstAsk(ts, appPath, "案Aと案Bどちら?"))
 
-	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"))
+	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"), filepath.Join(home, "summaries"))
 	markers, err := r.List(context.Background())
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -64,9 +65,90 @@ func TestTranscriptReaderList_WaitingSessionToMarker(t *testing.T) {
 	if m.RawTail.LastAssistant != "案Aと案Bどちら?" {
 		t.Errorf("RawTail.LastAssistant = %q", m.RawTail.LastAssistant)
 	}
-	// Phase A: 要約は空（MergeSummaries は Phase B）
+	// キャッシュ無しなら Summary は空（MergeSummaries が該当キャッシュを見つけられない）
 	if m.Summary != "" || m.SummarizedAt != "" {
-		t.Errorf("Phase A expects empty summary, got Summary=%q SummarizedAt=%q", m.Summary, m.SummarizedAt)
+		t.Errorf("no-cache expects empty summary, got Summary=%q SummarizedAt=%q", m.Summary, m.SummarizedAt)
+	}
+}
+
+// TestTranscriptReaderList_MergesSummaryFromCache は cacheDir に対応キャッシュを置いた待機セッションが、
+// List の返す Marker に Summary/SummarizedAt 込みで返ること（C3・MergeSummaries 内包・契約3-8）を検証します。
+// キャッシュ無しの別セッションは Summary 空のままであることも同時に確認します。
+func TestTranscriptReaderList_MergesSummaryFromCache(t *testing.T) {
+	home := t.TempDir()
+	cacheDir := filepath.Join(home, "summaries")
+	appPath := "/Users/x/app"
+	ts := "2026-07-20T10:00:00Z"
+	entryTime := epoch(t, ts)
+	at := time.Date(2026, 7, 20, 10, 5, 0, 0, time.UTC)
+
+	// 待機セッション2つ: withcache にだけ要約キャッシュを用意する。
+	writeSession(t, home, "-Users-x-app", "withcache", asstAsk(ts, appPath, "案Aと案Bどちら?"))
+	writeSession(t, home, "-Users-x-app", "nocache", asstText(ts, appPath, "no cache waiting"))
+
+	// entry-time(=marker.Timestamp) を key にキャッシュを書く。
+	cw := idle.NewSummaryCacheWriter(cacheDir)
+	if err := cw.WriteSummary("withcache", entryTime, "A案かB案の選択を待っている", at); err != nil {
+		t.Fatalf("WriteSummary: %v", err)
+	}
+
+	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"), cacheDir)
+	markers, err := r.List(context.Background())
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(markers) != 2 {
+		t.Fatalf("markers = %d, want 2", len(markers))
+	}
+
+	got := map[string]idle.Marker{}
+	for _, m := range markers {
+		got[m.SessionID] = m
+	}
+	if got["withcache"].Summary != "A案かB案の選択を待っている" {
+		t.Errorf("withcache Summary = %q, want 反映済み", got["withcache"].Summary)
+	}
+	if got["withcache"].SummarizedAt != at.Format(time.RFC3339) {
+		t.Errorf("withcache SummarizedAt = %q", got["withcache"].SummarizedAt)
+	}
+	if got["nocache"].Summary != "" || got["nocache"].SummarizedAt != "" {
+		t.Errorf("nocache は空のはず: Summary=%q SummarizedAt=%q", got["nocache"].Summary, got["nocache"].SummarizedAt)
+	}
+}
+
+// TestTranscriptReaderList_PrunesOrphanCache は List が孤児キャッシュ（現存 marker が指さない *.json）を
+// prune し、現存 marker のキャッシュは保持することを検証します（W5・List が PruneSummaryCache を内包）。
+func TestTranscriptReaderList_PrunesOrphanCache(t *testing.T) {
+	home := t.TempDir()
+	cacheDir := filepath.Join(home, "summaries")
+	appPath := "/Users/x/app"
+	ts := "2026-07-20T10:00:00Z"
+	entryTime := epoch(t, ts)
+	at := time.Date(2026, 7, 20, 10, 5, 0, 0, time.UTC)
+
+	writeSession(t, home, "-Users-x-app", "live", asstText(ts, appPath, "waiting"))
+
+	cw := idle.NewSummaryCacheWriter(cacheDir)
+	// 現存 marker(live, entryTime) のキャッシュ + 孤児キャッシュ
+	if err := cw.WriteSummary("live", entryTime, "生きている要約", at); err != nil {
+		t.Fatalf("WriteSummary live: %v", err)
+	}
+	if err := cw.WriteSummary("gone", 12345, "孤児要約", at); err != nil {
+		t.Fatalf("WriteSummary gone: %v", err)
+	}
+
+	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"), cacheDir)
+	if _, err := r.List(context.Background()); err != nil {
+		t.Fatalf("List: %v", err)
+	}
+
+	livePath := filepath.Join(cacheDir, idle.CacheKey("live", entryTime)+".json")
+	if _, err := os.Stat(livePath); err != nil {
+		t.Errorf("現存 marker のキャッシュが誤削除された: %v", err)
+	}
+	orphanPath := filepath.Join(cacheDir, idle.CacheKey("gone", 12345)+".json")
+	if _, err := os.Stat(orphanPath); !os.IsNotExist(err) {
+		t.Errorf("孤児キャッシュが prune されていない: err=%v", err)
 	}
 }
 
@@ -81,7 +163,7 @@ func TestTranscriptReaderList_SiblingProjectNoMismatch(t *testing.T) {
 	writeSession(t, home, "-Users-x-app", "app-sess", asstText(ts, appPath, "app waiting"))
 	writeSession(t, home, "-Users-x-app-backend", "backend-sess", asstText(ts, backendPath, "backend waiting"))
 
-	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"))
+	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"), filepath.Join(home, "summaries"))
 	markers, err := r.List(context.Background())
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -102,7 +184,7 @@ func TestTranscriptReaderList_Subdirectory(t *testing.T) {
 	ts := "2026-07-20T10:00:00Z"
 	writeSession(t, home, "-Users-x-app-sub", "sub-sess", asstText(ts, subCwd, "waiting in sub"))
 
-	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"))
+	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"), filepath.Join(home, "summaries"))
 	markers, err := r.List(context.Background())
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -123,7 +205,7 @@ func TestTranscriptReaderList_MultipleWaiting(t *testing.T) {
 	writeSession(t, home, "-Users-x-app", "old-sess", asstText("2026-07-20T09:00:00Z", appPath, "older"))
 	writeSession(t, home, "-Users-x-app", "new-sess", asstText("2026-07-20T10:00:00Z", appPath, "newer"))
 
-	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"))
+	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"), filepath.Join(home, "summaries"))
 	markers, err := r.List(context.Background())
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -157,7 +239,7 @@ func TestTranscriptReaderList_TTLExcluded(t *testing.T) {
 		t.Fatalf("chtimes: %v", err)
 	}
 
-	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), func() time.Time { return now })
+	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), func() time.Time { return now }, filepath.Join(home, "summaries"))
 	markers, err := r.List(context.Background())
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -176,7 +258,7 @@ func TestTranscriptReaderList_NonWaitingNoMarker(t *testing.T) {
 	writeSession(t, home, "-Users-x-app", "answered", asstAsk("2026-07-20T10:00:00Z", appPath, "Q?"), userEntry(appPath))
 	writeSession(t, home, "-Users-x-app", "prompt", asstText("2026-07-20T10:00:00Z", appPath, "hi"), lastPromptEntry(appPath, "user replied"))
 
-	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"))
+	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"), filepath.Join(home, "summaries"))
 	markers, err := r.List(context.Background())
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -193,7 +275,7 @@ func TestTranscriptReaderList_GlobFallback(t *testing.T) {
 	// deriveProjectID(appPath)=-Users-x-app と一致しない dir 名に配置（lossy 変換ミスマッチ想定）
 	writeSession(t, home, "totally-unrelated-dirname", "sess", asstText("2026-07-20T10:00:00Z", appPath, "waiting"))
 
-	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"))
+	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"), filepath.Join(home, "summaries"))
 	markers, err := r.List(context.Background())
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -213,7 +295,7 @@ func TestTranscriptReaderList_BrokenSessionSkipped(t *testing.T) {
 	writeSession(t, home, "-Users-x-app", "broken", `{"type":"assist`, `not json at all`)
 	writeSession(t, home, "-Users-x-app", "good", asstText("2026-07-20T10:00:00Z", appPath, "waiting"))
 
-	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"))
+	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"), filepath.Join(home, "summaries"))
 	markers, err := r.List(context.Background())
 	if err != nil {
 		t.Fatalf("List should not fail wholesale: %v", err)
@@ -229,7 +311,7 @@ func TestTranscriptReaderList_BrokenSessionSkipped(t *testing.T) {
 // TestTranscriptReaderList_NoProjects はプロジェクト0件で空を返すことを検証します。
 func TestTranscriptReaderList_NoProjects(t *testing.T) {
 	home := t.TempDir()
-	r := NewReader(home, provider(), fixedNow("2026-07-20T10:30:00Z"))
+	r := NewReader(home, provider(), fixedNow("2026-07-20T10:30:00Z"), filepath.Join(home, "summaries"))
 	markers, err := r.List(context.Background())
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -252,7 +334,7 @@ func TestParseCache_MtimeUnchangedSkipsReparse(t *testing.T) {
 	}
 	origMod := info.ModTime()
 
-	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"))
+	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"), filepath.Join(home, "summaries"))
 
 	first, err := r.List(context.Background())
 	if err != nil {
@@ -299,7 +381,7 @@ func TestTranscriptReaderList_ConcurrentRace(t *testing.T) {
 	writeSession(t, home, "-Users-x-app", "s1", asstText("2026-07-20T10:00:00Z", appPath, "waiting"))
 	writeSession(t, home, "-Users-x-app", "s2", asstAsk("2026-07-20T10:01:00Z", appPath, "Q?"))
 
-	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"))
+	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"), filepath.Join(home, "summaries"))
 
 	var wg sync.WaitGroup
 	for i := 0; i < 16; i++ {

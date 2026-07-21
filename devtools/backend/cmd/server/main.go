@@ -11,6 +11,7 @@ import (
 
 	"ghostrunner/backend/internal/dashboard"
 	"ghostrunner/backend/internal/handler"
+	"ghostrunner/backend/internal/idle"
 	"ghostrunner/backend/internal/projects"
 	"ghostrunner/backend/internal/service"
 	"ghostrunner/backend/internal/transcript"
@@ -54,24 +55,37 @@ func main() {
 		log.Fatalf("[Server] Failed to get home directory: %v", err)
 	}
 
+	// 要約キャッシュの格納先（~/.claude/gr-idle-summaries）。transcript 方式のセッションには
+	// .idle マーカーが無いため、要約は独立キャッシュに保存し reader の List が読み戻す。
+	summaryCacheDir := filepath.Join(homeDir, ".claude", "gr-idle-summaries")
+	if err := os.MkdirAll(summaryCacheDir, 0755); err != nil {
+		log.Fatalf("[Server] Failed to create summary cache dir: %v", err)
+	}
+
 	// ダッシュボードサービスの依存性組み立て（質問待ちを会話ログ直読みで検出）。
 	// フックのマーカー方式は環境（VS Code 拡張）で AskUserQuestion を取りこぼすため、
 	// 各セッションの会話ログ JSONL を直読みする transcriptReader を idle.Reader として注入する。
 	idleReader := transcript.NewReader(homeDir, func() ([]projects.Project, error) {
 		return projects.LoadProjects(patrolConfigPath)
-	}, time.Now)
+	}, time.Now, summaryCacheDir)
 	dashboardService := dashboard.NewService(patrolConfigPath, ghostrunnerRoot, idleReader)
 
 	// ダッシュボード状態のSSE配信サービス
 	dashboardStream := dashboard.NewStreamService(dashboardService)
 	dashboardHandler := handler.NewDashboardHandler(dashboardService, dashboardStream)
 
+	// 質問待ちの要約ジョブ（滞留セッションを haiku で1行要約し要約キャッシュへ書き戻す）。
+	// W3 解除: Phase B で要約キャッシュ writer（summaryCacheWriter）を注入して起動する。
+	// reader は transcriptReader（idleReader と同一構成）を共有し、Summarizer は
+	// m.Timestamp（entry-time）を expectedTimestamp として WriteSummary する既存挙動のまま。
+	// key の timestamp=entry-time（C1）で CAS が担保され、待機が変われば別 key となり churn しない。
+	summarizeService := service.NewSummarizeService()
+	summaryWriter := idle.NewSummaryCacheWriter(summaryCacheDir)
+	summarizer := dashboard.NewSummarizer(idleReader, summaryWriter, summarizeService, time.Now)
+
 	// バックグラウンドジョブを起動（サーバー稼働中は動き続ける）。
-	// W3: 要約ジョブ（Summarizer）は Phase A では起動しない。transcript セッションには
-	// マーカー(.idle)が無く、marker writer では WriteSummary が毎回破棄される一方、
-	// その前に haiku を実行済みで永久 churn するため。要約は Phase B（要約キャッシュ writer）で有効化する。
-	// SSE 配信（StreamService）は Phase A でも維持する。
 	bgCtx := context.Background()
+	summarizer.Start(bgCtx)
 	dashboardStream.Start(bgCtx)
 
 	// TTS (VOICEVOX) の依存性組み立て

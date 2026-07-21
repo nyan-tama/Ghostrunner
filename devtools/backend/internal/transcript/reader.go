@@ -22,13 +22,16 @@ type transcriptReader struct {
 	homeDir          string
 	projectsProvider func() ([]projects.Project, error)
 	now              func() time.Time
+	cacheDir         string
 	cache            *parseCache
 }
 
 // NewReader は会話ログ直読みの idle.Reader を生成します。
 // projectsProvider は走査対象の登録プロジェクトを都度取得します。
+// cacheDir は要約キャッシュ（~/.claude/gr-idle-summaries）の格納先で、List が
+// MergeSummaries / PruneSummaryCache に用います。
 // now が nil の場合は time.Now を使います。
-func NewReader(homeDir string, projectsProvider func() ([]projects.Project, error), now func() time.Time) idle.Reader {
+func NewReader(homeDir string, projectsProvider func() ([]projects.Project, error), now func() time.Time, cacheDir string) idle.Reader {
 	if now == nil {
 		now = time.Now
 	}
@@ -36,6 +39,7 @@ func NewReader(homeDir string, projectsProvider func() ([]projects.Project, erro
 		homeDir:          homeDir,
 		projectsProvider: projectsProvider,
 		now:              now,
+		cacheDir:         cacheDir,
 		cache:            newParseCache(),
 	}
 }
@@ -107,9 +111,21 @@ func (r *transcriptReader) List(ctx context.Context) ([]idle.Marker, error) {
 
 	r.cache.prune(alive)
 
-	// C3: 要約マージのフック位置。Phase A は要約キャッシュを持たないため常に空 Summary のまま返す。
-	// Phase B で idle.MergeSummaries(markers, cacheDir) をここで呼び、Summary 込みの完成 Marker を返す
-	// 契約にする（下流 attachIdleState/Summarizer は Summary 込み Marker を前提とするため List 内で実行）。
+	// W5: 現存 marker に対応しない孤児キャッシュを掃除する。aliveKeys は今回返す marker の
+	// CacheKey 集合。prune 失敗は致命でないため log のみ（要約反映は継続する）。
+	aliveKeys := make(map[string]bool, len(markers))
+	for _, m := range markers {
+		aliveKeys[idle.CacheKey(m.SessionID, m.Timestamp)] = true
+	}
+	if err := idle.PruneSummaryCache(r.cacheDir, aliveKeys); err != nil {
+		log.Printf("[transcript] prune summary cache failed: error=%v", err)
+	}
+
+	// C3: 要約マージは List 内で実行し、reader は Summary 込みの完成 Marker を返す契約にする。
+	// 下流 attachIdleState/Summarizer は Summary 込み Marker を前提とするため、ここで反映する。
+	// key の timestamp=entry-time（C1）なので、要約中にノイズ追記で mtime が動いても同じ key で
+	// キャッシュを引ける（mtime ベースなら孤児化する所を回避）。
+	markers = idle.MergeSummaries(markers, r.cacheDir)
 
 	return markers, nil
 }
