@@ -30,9 +30,10 @@ printf '%s' "$S" | jq -r '
       (.unanswered|length),
       (.idle.timestamp // ""),
       (if .idle then ((if (.idle.summary // "") != "" then .idle.summary else (.idle.preview // "") end) | gsub("[\n\r\t]+";" ") | .[0:48]) else "" end),
-      (if .running then (.running.preview // "" | gsub("[\n\r\t]+";" ") | .[0:48]) else "" end)
-    ] | @tsv
-' | while IFS=$'\t' read -r att name kanban unans idlets preview runprev; do
+      (if .running then "R" else "" end),
+      (.running.preview // "" | gsub("[\n\r\t]+";" ") | .[0:48])
+    ] | map(tostring) | join("")
+' | while IFS=$'\037' read -r att name kanban unans idlets preview isrun runprev; do
   case "$att" in
     required) mk="${R}●${Z}"; lab="${R}要対応${Z}" ;;
     progress) mk="${Y}◐${Z}"; lab="${Y}進行  ${Z}" ;;
@@ -52,9 +53,13 @@ printf '%s' "$S" | jq -r '
       badge="  ${R}${B}[質問待ち]${Z} ${DIM}${preview}${Z}"
     fi
     mk="${R}●${Z}"; lab="${R}要対応${Z}"
-  elif [ -n "$runprev" ]; then
-    # 動作中: 青。Claudeが今作業中(自分待ちではない)。
-    badge="  ${C}${B}[動作中]${Z} ${DIM}${runprev}${Z}"
+  elif [ -n "$isrun" ]; then
+    # 動作中: 青。Claudeが今作業中(自分待ちではない)。previewは空のこともある(best-effort)。
+    if [ -n "$runprev" ]; then
+      badge="  ${C}${B}[動作中]${Z} ${DIM}${runprev}${Z}"
+    else
+      badge="  ${C}${B}[動作中]${Z}"
+    fi
     mk="${C}◐${Z}"; lab="${C}動作中${Z}"
   fi
 

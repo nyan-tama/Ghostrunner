@@ -134,16 +134,44 @@ func TestParseTail_Classification(t *testing.T) {
 			wantKind:    kindMidTurn,
 		},
 		{
+			// 実バグ再現: assistant text と tool_use が別エントリで、末尾が user(tool_result)。
+			// running preview は直近の assistant テキストを出す（空にならない）。
+			name: "作業中(text→別tool_use→user tool_result)=midTurn・preview=直近text",
+			lines: []string{
+				asstText("2026-07-20T10:00:00Z", cwd, "grasp.sh を commit し backend を再起動する"),
+				asstBash("2026-07-20T10:00:05Z", cwd),
+				userEntry(cwd),
+			},
+			wantParseOK:       true,
+			wantKind:          kindMidTurn,
+			wantLastAssistant: "grasp.sh を commit し backend を再起動する",
+		},
+		{
+			// 末尾 assistant が [text, tool_use] の複合ブロック。midTurn だが同一メッセージ内 text を preview に。
+			name: "text+末尾tool_use複合=midTurn・preview=同一メッセージ内text",
+			lines: []string{j(map[string]any{
+				"type": "assistant", "cwd": cwd, "timestamp": "2026-07-20T10:00:00Z",
+				"message": map[string]any{"role": "assistant", "content": []any{
+					map[string]any{"type": "text", "text": "ビルドして確認する"},
+					map[string]any{"type": "tool_use", "name": "Bash", "input": map[string]any{"command": "go build"}},
+				}},
+			})},
+			wantParseOK:       true,
+			wantKind:          kindMidTurn,
+			wantLastAssistant: "ビルドして確認する",
+		},
+		{
 			name:        "AskUserQuestionにuser(tool_result)が続く=user末尾=midTurn",
 			lines:       []string{asstAsk("2026-07-20T10:00:00Z", cwd, "案Aと案Bどちら?"), userEntry(cwd)},
 			wantParseOK: true,
 			wantKind:    kindMidTurn,
 		},
 		{
-			name:        "末尾userはmidTurn",
-			lines:       []string{asstText("2026-07-20T10:00:00Z", cwd, "hello"), userEntry(cwd)},
-			wantParseOK: true,
-			wantKind:    kindMidTurn,
+			name:              "末尾userはmidTurn・preview=直近assistantテキスト",
+			lines:             []string{asstText("2026-07-20T10:00:00Z", cwd, "hello"), userEntry(cwd)},
+			wantParseOK:       true,
+			wantKind:          kindMidTurn,
+			wantLastAssistant: "hello",
 		},
 		{
 			name:              "末尾last-prompt帳簿は無視し直前assistant textで待機・LastPrompt抽出(allowlist)",
