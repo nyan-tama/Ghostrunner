@@ -11,8 +11,9 @@ import (
 
 	"ghostrunner/backend/internal/dashboard"
 	"ghostrunner/backend/internal/handler"
-	"ghostrunner/backend/internal/idle"
+	"ghostrunner/backend/internal/projects"
 	"ghostrunner/backend/internal/service"
+	"ghostrunner/backend/internal/transcript"
 	"ghostrunner/backend/internal/tts"
 
 	"github.com/gin-contrib/cors"
@@ -53,23 +54,24 @@ func main() {
 		log.Fatalf("[Server] Failed to get home directory: %v", err)
 	}
 
-	// ダッシュボードサービスの依存性組み立て（質問待ちマーカーを注入）
-	markerDir := filepath.Join(homeDir, ".claude", "gr-idle-markers")
-	idleReader := idle.NewReader(markerDir)
-	idleWriter := idle.NewWriter(markerDir)
+	// ダッシュボードサービスの依存性組み立て（質問待ちを会話ログ直読みで検出）。
+	// フックのマーカー方式は環境（VS Code 拡張）で AskUserQuestion を取りこぼすため、
+	// 各セッションの会話ログ JSONL を直読みする transcriptReader を idle.Reader として注入する。
+	idleReader := transcript.NewReader(homeDir, func() ([]projects.Project, error) {
+		return projects.LoadProjects(patrolConfigPath)
+	}, time.Now)
 	dashboardService := dashboard.NewService(patrolConfigPath, ghostrunnerRoot, idleReader)
-
-	// 質問待ちマーカーの要約ジョブ（滞留マーカーを haiku で1行要約し書き戻す）
-	summarizeService := service.NewSummarizeService()
-	summarizer := dashboard.NewSummarizer(idleReader, idleWriter, summarizeService, time.Now)
 
 	// ダッシュボード状態のSSE配信サービス
 	dashboardStream := dashboard.NewStreamService(dashboardService)
 	dashboardHandler := handler.NewDashboardHandler(dashboardService, dashboardStream)
 
-	// バックグラウンドジョブを起動（サーバー稼働中は動き続ける）
+	// バックグラウンドジョブを起動（サーバー稼働中は動き続ける）。
+	// W3: 要約ジョブ（Summarizer）は Phase A では起動しない。transcript セッションには
+	// マーカー(.idle)が無く、marker writer では WriteSummary が毎回破棄される一方、
+	// その前に haiku を実行済みで永久 churn するため。要約は Phase B（要約キャッシュ writer）で有効化する。
+	// SSE 配信（StreamService）は Phase A でも維持する。
 	bgCtx := context.Background()
-	summarizer.Start(bgCtx)
 	dashboardStream.Start(bgCtx)
 
 	// TTS (VOICEVOX) の依存性組み立て
