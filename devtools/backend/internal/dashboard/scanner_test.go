@@ -178,6 +178,44 @@ func TestScanProject_Attention(t *testing.T) {
 			},
 			expected: AttentionRequired,
 		},
+		{
+			// Running!=nil のみ → progress（動作中は required 要因が無ければ progress）
+			name: "progress: Running(動作中)のみ",
+			state: ProjectState{
+				Unanswered: []UnansweredQuestion{},
+				Running:    &RunningState{Preview: "ビルド中"},
+			},
+			expected: AttentionProgress,
+		},
+		{
+			// Running かつ未回答あり → required 優先（running は required の後段）
+			name: "required: Runningでも未回答があればrequired優先",
+			state: ProjectState{
+				Unanswered: []UnansweredQuestion{{PlanPath: "test.md"}},
+				Running:    &RunningState{Preview: "ビルド中"},
+			},
+			expected: AttentionRequired,
+		},
+		{
+			// Running かつ Idle あり → Idle 優先で required（順序確認）
+			name: "required: RunningでもIdleがあればrequired優先",
+			state: ProjectState{
+				Unanswered: []UnansweredQuestion{},
+				Running:    &RunningState{Preview: "ビルド中"},
+				Idle:       &IdleState{Timestamp: "2026-07-20T12:00:00Z"},
+			},
+			expected: AttentionRequired,
+		},
+		{
+			// Running かつ ops異常 → required 優先
+			name: "required: Runningでもops異常があればrequired優先",
+			state: ProjectState{
+				Unanswered: []UnansweredQuestion{},
+				Running:    &RunningState{Preview: "ビルド中"},
+				Ops:        []OpsEntry{{Status: "blocked"}},
+			},
+			expected: AttentionRequired,
+		},
 	}
 
 	for _, tt := range tests {

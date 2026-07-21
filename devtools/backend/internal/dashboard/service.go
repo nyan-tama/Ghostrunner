@@ -12,13 +12,8 @@ import (
 	"ghostrunner/backend/internal/projects"
 )
 
-// idleTTL は質問待ちマーカーの有効期限です。これを超えたマーカーは失効扱いとして無視します
-// （読み取り専用のため実ファイルの削除はしません）。
-const idleTTL = 6 * time.Hour
-
-// idleMinAge は質問待ちと見なす最小滞留時間です。これ未満のマーカー（Claudeが応答し終えた直後で、
-// まだユーザーが読んでいる／返信しようとしている可能性が高い）は質問待ちに含めません（ノイズ抑制）。
-const idleMinAge = 60 * time.Second
+// 失効・ノイズ抑制のしきい値（idle.TTL / idle.MinAge）は idle パッケージに集約しています（SSOT）。
+// transcript の分類しきい値と重複させないため、dashboard も idle の定数を参照します。
 
 // Service はダッシュボードの状態集約と回答書き戻しを提供します
 type Service interface {
@@ -117,23 +112,29 @@ func (s *serviceImpl) GetState(ctx context.Context) (State, error) {
 		if ii != ij {
 			return ii // Idleありが先
 		}
-		// 第2キー: attention優先度ASC
+		// 第2キー: 動作中(Running!=nil)を次に優先（質問待ちの次・既存attentionより上）
+		ri := states[i].Running != nil
+		rj := states[j].Running != nil
+		if ri != rj {
+			return ri // Runningありが先
+		}
+		// 第3キー: attention優先度ASC
 		pi := attentionPriority(states[i].Attention)
 		pj := attentionPriority(states[j].Attention)
 		if pi != pj {
 			return pi < pj
 		}
-		// 第3キー: 経過時間DESC（長く待たせているものを先に・露出しない内部計算）
+		// 第4キー: 経過時間DESC（長く待たせているものを先に・露出しない内部計算）
 		ei := idleElapsed(states[i], now)
 		ej := idleElapsed(states[j], now)
 		if ei != ej {
 			return ei > ej
 		}
-		// 第4キー: isSelf ASC（isSelf=falseが先）
+		// 第5キー: isSelf ASC（isSelf=falseが先）
 		if states[i].IsSelf != states[j].IsSelf {
 			return !states[i].IsSelf
 		}
-		// 第5キー: name ASC
+		// 第6キー: name ASC
 		return states[i].Name < states[j].Name
 	})
 
@@ -168,10 +169,13 @@ func (s *serviceImpl) Answer(ctx context.Context, req AnswerRequest) error {
 	return nil
 }
 
-// attachIdleState は質問待ちマーカーを各プロジェクトへ付与します。
-// TTL(idleTTL)を超えた失効マーカーは除外します（削除はしない・読み取り専用）。
-// 1プロジェクトに複数マーカーがある場合は最長待機（timestampが最小＝最古）を代表とし、
-// SessionCount に該当件数を保持します。Idleを付与したプロジェクトはAttentionを再評価します（C1）。
+// attachIdleState は reader が返す代表マーカー（プロジェクト毎1件・Status/SessionCount 込み）を
+// 各プロジェクトへ付与します。reader が既に per-project 代表へ collapse 済みのため、ここでは
+// MatchProject で割り当て → Marker.Status で Idle(waiting)/Running(running) へディスパッチするのみです（C-1）。
+// TTL(idle.TTL)を超えた失効マーカーは除外します（削除はしない・読み取り専用）。
+// idleMinAge(idle.MinAge)ゲートは waiting のみに適用し、running には適用しません
+// （適用すると age<60s の fresh な running が落ち、動作中が一切表示されなくなる・C-1）。
+// 付与後は Attention を再評価します（C1）。
 func attachIdleState(states []ProjectState, markers []idle.Marker, now time.Time) {
 	// MatchProject 用にプロジェクト一覧を組み立てる
 	projs := make([]projects.Project, len(states))
@@ -179,46 +183,52 @@ func attachIdleState(states []ProjectState, markers []idle.Marker, now time.Time
 		projs[i] = projects.Project{Path: s.Path, Name: s.Name}
 	}
 
-	// マッチしたプロジェクトパス（Clean済み）ごとにマーカーをグルーピング
-	grouped := make(map[string][]idle.Marker)
+	// マッチしたプロジェクトパス（Clean済み）ごとに代表マーカーを1件割り当てる。
+	// reader が既に代表1件に collapse しているため通常は1件。防御的に先着優先で1件に保つ。
+	matched := make(map[string]idle.Marker)
 	for _, m := range markers {
-		if idle.IsExpired(m, now, idleTTL) {
+		if idle.IsExpired(m, now, idle.TTL) {
 			continue
 		}
-		// 滞留が idleMinAge 未満（応答直後）は質問待ちに含めない（ノイズ抑制）
-		if now.Sub(time.Unix(m.Timestamp, 0)) < idleMinAge {
-			continue
-		}
-		matched, ok := idle.MatchProject(m.Cwd, projs)
+		proj, ok := idle.MatchProject(m.Cwd, projs)
 		if !ok {
 			continue
 		}
-		grouped[matched] = append(grouped[matched], m)
+		if _, exists := matched[proj]; !exists {
+			matched[proj] = m
+		}
 	}
 
 	for i := range states {
-		ms := grouped[filepath.Clean(states[i].Path)]
-		if len(ms) == 0 {
+		m, ok := matched[filepath.Clean(states[i].Path)]
+		if !ok {
 			continue
 		}
 
-		// 代表 = 最長待機（timestamp最小＝最古）
-		rep := ms[0]
-		for _, m := range ms[1:] {
-			if m.Timestamp < rep.Timestamp {
-				rep = m
+		switch m.Status {
+		case idle.StatusWaiting:
+			// waiting のみ idleMinAge ゲートを適用（応答直後のノイズ抑制）
+			if now.Sub(time.Unix(m.Timestamp, 0)) < idle.MinAge {
+				continue
 			}
+			states[i].Idle = &IdleState{
+				Timestamp:    time.Unix(m.Timestamp, 0).Format(time.RFC3339),
+				Preview:      truncateRunes(m.RawTail.LastAssistant, 80),
+				SessionCount: m.SessionCount,
+				Summary:      m.Summary,
+				SummarizedAt: m.SummarizedAt,
+			}
+		case idle.StatusRunning:
+			// running は idleMinAge ゲートを通さない（fresh running を落とさない・C-1）
+			states[i].Running = &RunningState{
+				Preview:      truncateRunes(m.RawTail.LastAssistant, 80),
+				SessionCount: m.SessionCount,
+			}
+		default:
+			continue
 		}
 
-		states[i].Idle = &IdleState{
-			Timestamp:    time.Unix(rep.Timestamp, 0).Format(time.RFC3339),
-			Preview:      truncateRunes(rep.RawTail.LastAssistant, 80),
-			SessionCount: len(ms),
-			Summary:      rep.Summary,
-			SummarizedAt: rep.SummarizedAt,
-		}
-
-		// Idle付与後にAttentionを再評価（C1）
+		// 付与後に Attention を再評価（C1）
 		states[i].Attention = determineAttention(states[i])
 	}
 }

@@ -101,7 +101,7 @@ func TestParseTail_Classification(t *testing.T) {
 		name              string
 		lines             []string
 		wantParseOK       bool
-		wantWaiting       bool
+		wantKind          tailKind
 		wantLastAssistant string
 		wantLastPrompt    string
 	}{
@@ -109,7 +109,7 @@ func TestParseTail_Classification(t *testing.T) {
 			name:              "末尾assistant textで待機",
 			lines:             []string{lastPromptEntry(cwd, "start"), asstText("2026-07-20T10:00:00Z", cwd, "hello")},
 			wantParseOK:       true,
-			wantWaiting:       true,
+			wantKind:          kindWaiting,
 			wantLastAssistant: "hello",
 			wantLastPrompt:    "start",
 		},
@@ -117,39 +117,39 @@ func TestParseTail_Classification(t *testing.T) {
 			name:              "assistant textの改行保持",
 			lines:             []string{asstText("2026-07-20T10:00:00Z", cwd, "line1\nline2")},
 			wantParseOK:       true,
-			wantWaiting:       true,
+			wantKind:          kindWaiting,
 			wantLastAssistant: "line1\nline2",
 		},
 		{
 			name:              "末尾AskUserQuestion未応答で待機・質問文preview",
 			lines:             []string{asstAsk("2026-07-20T10:00:00Z", cwd, "案Aと案Bどちら?", "追加で確認したい点は?")},
 			wantParseOK:       true,
-			wantWaiting:       true,
+			wantKind:          kindWaiting,
 			wantLastAssistant: "案Aと案Bどちら?\n追加で確認したい点は?",
 		},
 		{
-			name:        "通常tool_use(Bash)結果未着=busy=非待機",
+			name:        "通常tool_use(Bash)結果未着=midTurn",
 			lines:       []string{asstBash("2026-07-20T10:00:00Z", cwd)},
 			wantParseOK: true,
-			wantWaiting: false,
+			wantKind:    kindMidTurn,
 		},
 		{
-			name:        "AskUserQuestionにuser(tool_result)が続く=応答済=非待機",
+			name:        "AskUserQuestionにuser(tool_result)が続く=user末尾=midTurn",
 			lines:       []string{asstAsk("2026-07-20T10:00:00Z", cwd, "案Aと案Bどちら?"), userEntry(cwd)},
 			wantParseOK: true,
-			wantWaiting: false,
+			wantKind:    kindMidTurn,
 		},
 		{
-			name:        "末尾userは非待機",
+			name:        "末尾userはmidTurn",
 			lines:       []string{asstText("2026-07-20T10:00:00Z", cwd, "hello"), userEntry(cwd)},
 			wantParseOK: true,
-			wantWaiting: false,
+			wantKind:    kindMidTurn,
 		},
 		{
 			name:              "末尾last-prompt帳簿は無視し直前assistant textで待機・LastPrompt抽出(allowlist)",
 			lines:             []string{asstText("2026-07-20T10:00:00Z", cwd, "hello"), lastPromptEntry(cwd, "私の質問")},
 			wantParseOK:       true,
-			wantWaiting:       true,
+			wantKind:          kindWaiting,
 			wantLastAssistant: "hello",
 			wantLastPrompt:    "私の質問",
 		},
@@ -161,7 +161,7 @@ func TestParseTail_Classification(t *testing.T) {
 				lastPromptEntry(cwd, "私の質問"),
 			},
 			wantParseOK:       true,
-			wantWaiting:       true,
+			wantKind:          kindWaiting,
 			wantLastAssistant: "案Aと案Bどちら?",
 			wantLastPrompt:    "私の質問",
 		},
@@ -174,14 +174,14 @@ func TestParseTail_Classification(t *testing.T) {
 				noiseEntry("worktree-state", cwd),
 			},
 			wantParseOK:       true,
-			wantWaiting:       true,
+			wantKind:          kindWaiting,
 			wantLastAssistant: "hello",
 		},
 		{
-			name:        "assistant thinking途中は非待機",
+			name:        "assistant thinking途中はmidTurn",
 			lines:       []string{asstThinking("2026-07-20T10:00:00Z", cwd)},
 			wantParseOK: true,
-			wantWaiting: false,
+			wantKind:    kindMidTurn,
 		},
 		{
 			name: "壊れ行skip・直前完全エントリで判定",
@@ -190,24 +190,24 @@ func TestParseTail_Classification(t *testing.T) {
 				`{"type":"assistant","message":{"role":"assist`, // partial JSON(生成途中の最終行想定)
 			},
 			wantParseOK:       true,
-			wantWaiting:       true,
+			wantKind:          kindWaiting,
 			wantLastAssistant: "keep\nme",
 		},
 		{
-			name: "content非配列(公式非サポート形式)は保守的に非待機",
+			name: "content非配列(公式非サポート形式)は保守的にnone",
 			lines: []string{
 				`{"type":"assistant","timestamp":"2026-07-20T10:00:00Z","message":{"role":"assistant","content":"just a string"}}`,
 			},
 			wantParseOK: false,
-			wantWaiting: false,
+			wantKind:    kindNone,
 		},
 		{
-			name: "message欠落assistantは保守的に非待機",
+			name: "message欠落assistantは保守的にnone",
 			lines: []string{
 				`{"type":"assistant","timestamp":"2026-07-20T10:00:00Z"}`,
 			},
 			wantParseOK: false,
-			wantWaiting: false,
+			wantKind:    kindNone,
 		},
 		{
 			name: "未知の帳簿type末尾は無視し直前assistantで待機(allowlist)",
@@ -216,7 +216,7 @@ func TestParseTail_Classification(t *testing.T) {
 				j(map[string]any{"type": "brand-new-unknown-type", "cwd": cwd}),
 			},
 			wantParseOK:       true,
-			wantWaiting:       true,
+			wantKind:          kindWaiting,
 			wantLastAssistant: "hello",
 		},
 		{
@@ -226,7 +226,7 @@ func TestParseTail_Classification(t *testing.T) {
 				noiseEntry("system", cwd),
 			},
 			wantParseOK: false,
-			wantWaiting: false,
+			wantKind:    kindNone,
 		},
 	}
 
@@ -240,8 +240,8 @@ func TestParseTail_Classification(t *testing.T) {
 			if tail.ParseOK != tt.wantParseOK {
 				t.Errorf("ParseOK = %v, want %v", tail.ParseOK, tt.wantParseOK)
 			}
-			if tail.IsWaiting != tt.wantWaiting {
-				t.Errorf("IsWaiting = %v, want %v", tail.IsWaiting, tt.wantWaiting)
+			if tail.Kind != tt.wantKind {
+				t.Errorf("Kind = %v, want %v", tail.Kind, tt.wantKind)
 			}
 			if tail.LastAssistant != tt.wantLastAssistant {
 				t.Errorf("LastAssistant = %q, want %q", tail.LastAssistant, tt.wantLastAssistant)
@@ -264,8 +264,8 @@ func TestParseTail_EmptyFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseTail error: %v", err)
 	}
-	if tail.ParseOK || tail.IsWaiting {
-		t.Errorf("empty file: ParseOK=%v IsWaiting=%v, want both false", tail.ParseOK, tail.IsWaiting)
+	if tail.ParseOK || tail.Kind != kindNone {
+		t.Errorf("empty file: ParseOK=%v Kind=%v, want ParseOK=false Kind=kindNone", tail.ParseOK, tail.Kind)
 	}
 }
 
@@ -303,8 +303,8 @@ func TestParseTail_FullReadFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseTail error: %v", err)
 	}
-	if !tail.ParseOK || !tail.IsWaiting {
-		t.Fatalf("full-read fallback failed: ParseOK=%v IsWaiting=%v", tail.ParseOK, tail.IsWaiting)
+	if !tail.ParseOK || tail.Kind != kindWaiting {
+		t.Fatalf("full-read fallback failed: ParseOK=%v Kind=%v", tail.ParseOK, tail.Kind)
 	}
 	if !strings.HasPrefix(tail.LastAssistant, needle) {
 		t.Errorf("LastAssistant did not start with needle; got prefix %q", tail.LastAssistant[:min(len(tail.LastAssistant), 20)])
@@ -354,7 +354,7 @@ func TestParseTail_EntryTimeStability(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parseTail 2: %v", err)
 		}
-		if !second.IsWaiting {
+		if second.Kind != kindWaiting {
 			t.Errorf("still waiting expected after noise append")
 		}
 		if second.LastAssistantAt != e0 {

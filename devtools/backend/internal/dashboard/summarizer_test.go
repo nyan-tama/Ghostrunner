@@ -111,9 +111,10 @@ func TestSelectSummarizeTargets(t *testing.T) {
 	summarizedAt := time.Unix(stale+30, 0).UTC().Format(time.RFC3339) // stale timestamp より後
 
 	markers := []idle.Marker{
-		{SessionID: "fresh", Timestamp: fresh, Summary: ""},                                         // 滞留前 → 対象外
-		{SessionID: "stale-unsummarized", Timestamp: stale, Summary: ""},                            // 滞留かつ未要約 → 対象
-		{SessionID: "stale-summarized", Timestamp: stale, Summary: "済", SummarizedAt: summarizedAt}, // 滞留だが要約済み → 対象外
+		{SessionID: "fresh", Timestamp: fresh, Status: idle.StatusWaiting, Summary: ""},                                         // 滞留前 → 対象外
+		{SessionID: "stale-unsummarized", Timestamp: stale, Status: idle.StatusWaiting, Summary: ""},                            // 滞留かつ未要約 → 対象
+		{SessionID: "stale-summarized", Timestamp: stale, Status: idle.StatusWaiting, Summary: "済", SummarizedAt: summarizedAt}, // 滞留だが要約済み → 対象外
+		{SessionID: "stale-running", Timestamp: stale, Status: idle.StatusRunning, Summary: ""},                                 // 滞留かつ未要約だが running → 対象外(haiku無駄打ち回避)
 	}
 
 	got := selectSummarizeTargets(markers, now)
@@ -126,6 +127,22 @@ func TestSelectSummarizeTargets(t *testing.T) {
 	}
 }
 
+// TestSelectSummarizeTargets_RunningExcluded は、Status=running のマーカーが滞留かつ未要約でも
+// 要約対象外（動作中は内容が刻々変わるため haiku を無駄打ちしない）ことを単独で固定します。
+func TestSelectSummarizeTargets_RunningExcluded(t *testing.T) {
+	now := time.Unix(10000, 0).UTC()
+	stale := now.Add(-3 * time.Minute).Unix() // idleSummarizeDelay(45s)超
+
+	markers := []idle.Marker{
+		{SessionID: "running-only", Timestamp: stale, Status: idle.StatusRunning, Summary: ""},
+	}
+
+	got := selectSummarizeTargets(markers, now)
+	if len(got) != 0 {
+		t.Fatalf("targets: got %d, want 0 (running は要約対象外)", len(got))
+	}
+}
+
 // W-a: 要約が空/失敗を返すケースで、claimAttempts/lastAttempt により
 // 5分以内は再試行されないこと（runOnceを複数回叩き、cooldown内は exec が呼ばれない）。
 func TestSummarizer_クールダウンで5分以内は再試行しない(t *testing.T) {
@@ -134,7 +151,7 @@ func TestSummarizer_クールダウンで5分以内は再試行しない(t *test
 	now := func() time.Time { return clock }
 
 	reader := &fakeIdleReader{markers: []idle.Marker{
-		{SessionID: "s1", Timestamp: base.Add(-3 * time.Minute).Unix(), Summary: ""},
+		{SessionID: "s1", Timestamp: base.Add(-3 * time.Minute).Unix(), Status: idle.StatusWaiting, Summary: ""},
 	}}
 	writer := &fakeIdleWriter{}
 	svc := &fakeSummarizeService{result: ""} // 空要約（要約できず summary は "" のまま）
@@ -174,7 +191,7 @@ func TestSummarizer_要約成功でtimestampを基準に書き戻す(t *testing.
 	ts := base.Add(-3 * time.Minute).Unix()
 
 	reader := &fakeIdleReader{markers: []idle.Marker{
-		{SessionID: "s1", Timestamp: ts, Summary: "", RawTail: idle.RawTail{LastAssistant: "選んで"}},
+		{SessionID: "s1", Timestamp: ts, Status: idle.StatusWaiting, Summary: "", RawTail: idle.RawTail{LastAssistant: "選んで"}},
 	}}
 	writer := &fakeIdleWriter{}
 	svc := &fakeSummarizeService{result: "A案かB案の選択を待っている"}

@@ -245,6 +245,12 @@ func determineAttention(state ProjectState) Attention {
 		}
 	}
 
+	// progress: 動作中(ランタイム稼働セッション)は required 要因が無ければ progress 扱い。
+	// required 判定(Idle/未回答/ops異常)の後段に置き、それらを上書きしない。
+	if state.Running != nil {
+		return AttentionProgress
+	}
+
 	// progress: カンバンにrunning/waitingあり、またはops正常稼働中
 	if state.Kanban.Running > 0 || state.Kanban.Waiting > 0 {
 		return AttentionProgress

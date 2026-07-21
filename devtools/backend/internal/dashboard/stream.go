@@ -157,6 +157,28 @@ func sendCoalesce(ch chan State, state State) {
 // statesDiffer は2つのStateに表示上の実変化があるかを判定します。
 // GeneratedAt は毎スキャン更新されるため比較対象から除外し、Projects のみを比較します。
 // 経過時間はStateに露出していないため差分判定に含まれません（W1）。
+//
+// Running.Preview は動作中の生 preview が2秒毎に揮発するため差分判定から除外します（W-3）。
+// 手動フィールド列挙は比較漏れを生むため、正規化コピー方式で Running.Preview のみゼロ化して
+// DeepEqual します。これにより running の出現/消滅・SessionCount 変化・running→waiting 遷移は
+// 自動検出され、preview の刻々の変化のみ非broadcast になります。
 func statesDiffer(a, b State) bool {
-	return !reflect.DeepEqual(a.Projects, b.Projects)
+	return !reflect.DeepEqual(normalizeForDiff(a.Projects), normalizeForDiff(b.Projects))
+}
+
+// normalizeForDiff は差分判定用に Projects をディープコピーし、揮発フィールド（Running.Preview）を
+// ゼロ化した正規化スライスを返します。元の State は破壊しません（Running は新しいポインタに差し替え、
+// 他のフィールド・スライスは読み取りのみで共有します）。
+func normalizeForDiff(projects []ProjectState) []ProjectState {
+	out := make([]ProjectState, len(projects))
+	for i, p := range projects {
+		cp := p
+		if p.Running != nil {
+			r := *p.Running
+			r.Preview = ""
+			cp.Running = &r
+		}
+		out[i] = cp
+	}
+	return out
 }
