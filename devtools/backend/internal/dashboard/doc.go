@@ -14,7 +14,9 @@
 //   - KanbanCounts: カンバン各レーン（レビュー/実装待ち/実行中/完了）の.mdファイル数
 //   - UnansweredQuestion: 計画書内の未回答確認事項（ファイルパス、行番号、質問文）
 //   - OpsEntry: 運用/状態/ 配下のJSONから読み取った1エントリ（stale検知付き）
-//   - IdleState: 質問待ち状態（Claude Codeフックのマーカー由来。キー存在＝質問待ち）
+//   - IdleState: 質問待ち状態（会話ログ由来の代表マーカー。キー存在＝質問待ち）
+//   - RunningState: 動作中状態（会話ログ上で Claude が処理中の代表セッション。キー存在＝動作中。
+//     kanban.running 件数・ops status="running" とは別概念のランタイム動作中）
 //   - AnswerRequest: 回答書き戻しリクエスト（プロジェクトパス、計画書パス、行番号、回答文）
 //
 // # 主要な関数・インターフェース
@@ -49,18 +51,24 @@
 //   - 回答対象の計画書は開発/実装/実装待ち/ または 開発/実装/実行中/ 配下の.mdのみ許可
 //   - プロジェクトパスはpatrol_projects.jsonの登録済みリストで検証
 //
-// # 質問待ち(Idle)の集約
+// # 質問待ち(Idle)・動作中(Running)の集約
 //
-// GetStateは各プロジェクトのScanProject結果に対し、idleパッケージが読み取った
-// 質問待ちマーカーを後段で付与する(attachIdleState)。idleReaderがnilの場合はこの
-// 付与を丸ごとスキップする。集約の要点は以下のとおり。
+// GetStateは各プロジェクトのScanProject結果に対し、idleパッケージ(reader)が読み取った
+// 代表マーカーを後段で付与する(attachIdleState)。idleReaderがnilの場合はこの付与を丸ごと
+// スキップする。readerは各プロジェクトの最新mtimeセッション1件をStatus付き(waiting/running)で
+// 返すため、dashboardは代表選定をせずStatusでディスパッチするのみ(C-1)。集約の要点は以下のとおり。
 //
-//   - TTL(idleTTL=6時間)を超過した失効マーカーは除外する(実ファイルの削除はしない・読み取り専用)
+//   - しきい値(TTL=6時間・MinAge=60秒)はidleパッケージに集約(SSOT)。transcriptの分類しきい値と
+//     重複させないため、dashboardもidleの定数を参照する
+//   - TTL(idle.TTL)を超過した失効マーカーは除外する(実ファイルの削除はしない・読み取り専用)
 //   - マーカーのcwdはidle.MatchProjectで登録済みプロジェクトへパス前方一致で紐付ける
-//   - 1プロジェクトに複数の質問待ちセッションがある場合はtimestampが最古(最長待機)の1件を
-//     代表とし、SessionCountに該当件数を保持する
-//   - 質問待ちを付与したプロジェクトはAttentionをrequiredへ再評価する(determineAttention・C1)
-//   - プロジェクトのソートは質問待ち(Idle!=nil)の有無を第1キーとし、未回答由来のrequiredより
-//     質問待ちを優先する(C2)。以降はattention優先度、質問待ちの経過時間(内部計算・非露出)、
+//   - Marker.Statusで分岐: waiting→IdleState、running→RunningStateを付与。SessionCountは
+//     rep.SessionCount(reader集計の同一status数)をそのまま採用する
+//   - idleMinAgeゲート(応答直後ノイズ抑制)はwaitingのみに適用し、runningには適用しない(fresh runningを
+//     落とすと動作中が一切表示されないため・C-1)
+//   - 付与したプロジェクトはAttentionを再評価する(determineAttention・C1)。質問待ちはrequired、
+//     動作中はrequired要因が無ければprogressになる
+//   - プロジェクトのソートは質問待ち(Idle!=nil)を第1キー、動作中(Running!=nil)を第2キーとし、
+//     未回答由来のrequiredより優先する。以降はattention優先度、質問待ちの経過時間(内部計算・非露出)、
 //     isSelf、名前の順で安定ソートする
 package dashboard

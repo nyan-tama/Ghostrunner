@@ -189,10 +189,12 @@ func TestGetState_IdleAttachedAndAttentionReeval(t *testing.T) {
 
 	reader := &fakeIdleReader{markers: []idle.Marker{
 		{
-			Cwd:       projA,
-			SessionID: "s1",
-			Timestamp: epochAgo(12 * time.Minute),
-			RawTail:   idle.RawTail{LastAssistant: "この方針で進めてよいですか"},
+			Cwd:          projA,
+			SessionID:    "s1",
+			Timestamp:    epochAgo(12 * time.Minute),
+			Status:       idle.StatusWaiting,
+			SessionCount: 1,
+			RawTail:      idle.RawTail{LastAssistant: "この方針で進めてよいですか"},
 		},
 	}}
 
@@ -233,10 +235,12 @@ func TestGetState_IdleYoungerThanMinAgeExcluded(t *testing.T) {
 
 	reader := &fakeIdleReader{markers: []idle.Marker{
 		{
-			Cwd:       projA,
-			SessionID: "s1",
-			Timestamp: epochAgo(30 * time.Second), // 閾値60秒未満
-			RawTail:   idle.RawTail{LastAssistant: "応答直後"},
+			Cwd:          projA,
+			SessionID:    "s1",
+			Timestamp:    epochAgo(30 * time.Second), // 閾値60秒未満
+			Status:       idle.StatusWaiting,
+			SessionCount: 1,
+			RawTail:      idle.RawTail{LastAssistant: "応答直後"},
 		},
 	}}
 
@@ -267,7 +271,7 @@ func TestGetState_IdleSortsAboveRequired(t *testing.T) {
 	})
 
 	reader := &fakeIdleReader{markers: []idle.Marker{
-		{Cwd: projIdle, SessionID: "s1", Timestamp: epochAgo(3 * time.Minute), RawTail: idle.RawTail{LastAssistant: "待機中"}},
+		{Cwd: projIdle, SessionID: "s1", Timestamp: epochAgo(3 * time.Minute), Status: idle.StatusWaiting, SessionCount: 1, RawTail: idle.RawTail{LastAssistant: "待機中"}},
 	}}
 
 	svc := NewServiceWithClock(configPath, "/other", reader, func() time.Time { return fixedNow })
@@ -301,8 +305,8 @@ func TestGetState_IdleSortByElapsedDesc(t *testing.T) {
 	})
 
 	reader := &fakeIdleReader{markers: []idle.Marker{
-		{Cwd: projShort, SessionID: "s1", Timestamp: epochAgo(10 * time.Minute), RawTail: idle.RawTail{LastAssistant: "10分"}},
-		{Cwd: projLong, SessionID: "s2", Timestamp: epochAgo(30 * time.Minute), RawTail: idle.RawTail{LastAssistant: "30分"}},
+		{Cwd: projShort, SessionID: "s1", Timestamp: epochAgo(10 * time.Minute), Status: idle.StatusWaiting, SessionCount: 1, RawTail: idle.RawTail{LastAssistant: "10分"}},
+		{Cwd: projLong, SessionID: "s2", Timestamp: epochAgo(30 * time.Minute), Status: idle.StatusWaiting, SessionCount: 1, RawTail: idle.RawTail{LastAssistant: "30分"}},
 	}}
 
 	svc := NewServiceWithClock(configPath, "/other", reader, func() time.Time { return fixedNow })
@@ -316,9 +320,10 @@ func TestGetState_IdleSortByElapsedDesc(t *testing.T) {
 	}
 }
 
-// TestGetState_IdleRepresentativeOldest は、1プロジェクト複数マーカーで最古timestampが
-// 代表になり、SessionCountが件数を保持することを検証します（代表選択）。
-func TestGetState_IdleRepresentativeOldest(t *testing.T) {
+// TestGetState_IdleUsesRepSessionCount は、reader が既に代表1件へ collapse 済みの契約下で、
+// attachIdleState が rep.SessionCount をそのまま採用し（len(ms) を捨てる）、代表の内容を Idle へ
+// 反映することを検証します（C-1）。
+func TestGetState_IdleUsesRepSessionCount(t *testing.T) {
 	dir := t.TempDir()
 	projA := mkProjectDir(t, dir, "project-a")
 
@@ -326,9 +331,9 @@ func TestGetState_IdleRepresentativeOldest(t *testing.T) {
 		{"path": projA, "name": "project-a"},
 	})
 
+	// reader は per-project 代表1件を返す。SessionCount は代表と同一 status のセッション数。
 	reader := &fakeIdleReader{markers: []idle.Marker{
-		{Cwd: projA, SessionID: "newer", Timestamp: epochAgo(5 * time.Minute), RawTail: idle.RawTail{LastAssistant: "新しい"}},
-		{Cwd: projA, SessionID: "older", Timestamp: epochAgo(40 * time.Minute), RawTail: idle.RawTail{LastAssistant: "古い(代表)"}},
+		{Cwd: projA, SessionID: "rep", Timestamp: epochAgo(40 * time.Minute), Status: idle.StatusWaiting, SessionCount: 3, RawTail: idle.RawTail{LastAssistant: "代表"}},
 	}}
 
 	svc := NewServiceWithClock(configPath, "/other", reader, func() time.Time { return fixedNow })
@@ -341,13 +346,12 @@ func TestGetState_IdleRepresentativeOldest(t *testing.T) {
 	if p.Idle == nil {
 		t.Fatal("expected Idle attached")
 	}
-	if p.Idle.SessionCount != 2 {
-		t.Errorf("expected sessionCount=2, got %d", p.Idle.SessionCount)
+	if p.Idle.SessionCount != 3 {
+		t.Errorf("expected sessionCount=3 (rep.SessionCount), got %d", p.Idle.SessionCount)
 	}
-	if p.Idle.Preview != "古い(代表)" {
-		t.Errorf("expected oldest marker as representative, preview=%q", p.Idle.Preview)
+	if p.Idle.Preview != "代表" {
+		t.Errorf("expected representative preview, got %q", p.Idle.Preview)
 	}
-	// 代表timestampは最古(40分前)であること
 	want := time.Unix(epochAgo(40*time.Minute), 0).Format(time.RFC3339)
 	if p.Idle.Timestamp != want {
 		t.Errorf("expected representative timestamp %q, got %q", want, p.Idle.Timestamp)
@@ -365,7 +369,7 @@ func TestGetState_IdleExpiredExcluded(t *testing.T) {
 	})
 
 	reader := &fakeIdleReader{markers: []idle.Marker{
-		{Cwd: projA, SessionID: "expired", Timestamp: epochAgo(7 * time.Hour), RawTail: idle.RawTail{LastAssistant: "失効"}},
+		{Cwd: projA, SessionID: "expired", Timestamp: epochAgo(7 * time.Hour), Status: idle.StatusWaiting, SessionCount: 1, RawTail: idle.RawTail{LastAssistant: "失効"}},
 	}}
 
 	svc := NewServiceWithClock(configPath, "/other", reader, func() time.Time { return fixedNow })
@@ -400,8 +404,8 @@ func TestGetState_PreviewTruncatedToRunes(t *testing.T) {
 	shortText := "短い本文"
 
 	reader := &fakeIdleReader{markers: []idle.Marker{
-		{Cwd: projLong, SessionID: "s1", Timestamp: epochAgo(1 * time.Minute), RawTail: idle.RawTail{LastAssistant: longText}},
-		{Cwd: projShort, SessionID: "s2", Timestamp: epochAgo(1 * time.Minute), RawTail: idle.RawTail{LastAssistant: shortText}},
+		{Cwd: projLong, SessionID: "s1", Timestamp: epochAgo(2 * time.Minute), Status: idle.StatusWaiting, SessionCount: 1, RawTail: idle.RawTail{LastAssistant: longText}},
+		{Cwd: projShort, SessionID: "s2", Timestamp: epochAgo(2 * time.Minute), Status: idle.StatusWaiting, SessionCount: 1, RawTail: idle.RawTail{LastAssistant: shortText}},
 	}}
 
 	svc := NewServiceWithClock(configPath, "/other", reader, func() time.Time { return fixedNow })
@@ -456,6 +460,123 @@ func TestGetState_NilIdleReader(t *testing.T) {
 	// 未回答由来のrequiredは既存どおり
 	if p.Attention != AttentionRequired {
 		t.Errorf("expected attention=required (unanswered), got %s", p.Attention)
+	}
+}
+
+// TestGetState_RunningAttachedNotDroppedByMinAge は、Status=running のマーカーが age<60s でも
+// idleMinAge ゲートで落ちず ProjectState.Running へ付与されることを検証します（C-1・最重要）。
+// running にゲートを効かせると fresh な動作中が一切表示されなくなる回帰を防ぎます。
+func TestGetState_RunningAttachedNotDroppedByMinAge(t *testing.T) {
+	dir := t.TempDir()
+	projA := mkProjectDir(t, dir, "project-a")
+
+	configPath := makeConfig(t, dir, []map[string]string{
+		{"path": projA, "name": "project-a"},
+	})
+
+	reader := &fakeIdleReader{markers: []idle.Marker{
+		{
+			Cwd:          projA,
+			SessionID:    "run",
+			Timestamp:    epochAgo(30 * time.Second), // idleMinAge(60s)未満
+			Status:       idle.StatusRunning,
+			SessionCount: 2,
+			RawTail:      idle.RawTail{LastAssistant: "ビルド中"},
+		},
+	}}
+
+	svc := NewServiceWithClock(configPath, "/other", reader, func() time.Time { return fixedNow })
+	state, err := svc.GetState(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	p := findProject(t, state, "project-a")
+	if p.Running == nil {
+		t.Fatal("expected Running attached (idleMinAge gate must not apply to running)")
+	}
+	if p.Idle != nil {
+		t.Errorf("running marker must not set Idle, got %+v", p.Idle)
+	}
+	if p.Running.SessionCount != 2 {
+		t.Errorf("expected sessionCount=2 (rep.SessionCount), got %d", p.Running.SessionCount)
+	}
+	if p.Running.Preview != "ビルド中" {
+		t.Errorf("unexpected preview: %q", p.Running.Preview)
+	}
+	// 付与後 attention は progress（required 要因なし）
+	if p.Attention != AttentionProgress {
+		t.Errorf("expected attention=progress after running attach, got %s", p.Attention)
+	}
+}
+
+// TestGetState_RunningOmitemptyInJSON は、running無しプロジェクトはJSONにrunningキーが出ないこと
+// （omitempty・後方互換）を検証します。
+func TestGetState_RunningOmitemptyInJSON(t *testing.T) {
+	dir := t.TempDir()
+	projA := mkProjectDir(t, dir, "project-a")
+
+	configPath := makeConfig(t, dir, []map[string]string{
+		{"path": projA, "name": "project-a"},
+	})
+
+	reader := &fakeIdleReader{markers: []idle.Marker{}}
+	svc := NewServiceWithClock(configPath, "/other", reader, func() time.Time { return fixedNow })
+	state, err := svc.GetState(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "\"running\":{") {
+		t.Errorf("expected no running object for non-running project, got: %s", data)
+	}
+}
+
+// TestGetState_SortSecondKeyRunning は複合ソートの第2キー（Running）を固定します（section6 case3）。
+// idle(waiting)有り > running有り > idle/running無しの required、の順。
+// running が「未回答由来の required」より上位（第2キー Running が第3キー attention に勝つ）ことを明示します。
+func TestGetState_SortSecondKeyRunning(t *testing.T) {
+	dir := t.TempDir()
+	// 名前で並ばないよう、期待順と逆のアルファベットにする
+	projIdle := mkProjectDir(t, dir, "z-idle")
+	projRunning := mkProjectDir(t, dir, "y-running")
+	projRequired := mkProjectDir(t, dir, "a-required")
+	writeUnanswered(t, projRequired) // a-required は未回答由来 required（idle/running 無し）
+
+	configPath := makeConfig(t, dir, []map[string]string{
+		{"path": projRequired, "name": "a-required"},
+		{"path": projRunning, "name": "y-running"},
+		{"path": projIdle, "name": "z-idle"},
+	})
+
+	reader := &fakeIdleReader{markers: []idle.Marker{
+		{Cwd: projIdle, SessionID: "i1", Timestamp: epochAgo(3 * time.Minute), Status: idle.StatusWaiting, SessionCount: 1, RawTail: idle.RawTail{LastAssistant: "質問待ち"}},
+		{Cwd: projRunning, SessionID: "r1", Timestamp: epochAgo(20 * time.Second), Status: idle.StatusRunning, SessionCount: 1, RawTail: idle.RawTail{LastAssistant: "動作中"}},
+	}}
+
+	svc := NewServiceWithClock(configPath, "/other", reader, func() time.Time { return fixedNow })
+	state, err := svc.GetState(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(state.Projects) != 3 {
+		t.Fatalf("expected 3 projects, got %d", len(state.Projects))
+	}
+	wantOrder := []string{"z-idle", "y-running", "a-required"}
+	for i, want := range wantOrder {
+		if state.Projects[i].Name != want {
+			t.Errorf("sort position %d = %s, want %s (idle > running > required)", i, state.Projects[i].Name, want)
+		}
+	}
+	// running が未回答 required より上位であること（第2キー Running > 第3キー attention）
+	running := findProject(t, state, "y-running")
+	if running.Running == nil {
+		t.Error("expected y-running to have Running attached")
 	}
 }
 

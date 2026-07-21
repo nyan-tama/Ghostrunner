@@ -181,12 +181,16 @@ func (s *Summarizer) pruneLastAttempt(markers []idle.Marker) {
 	}
 }
 
-// selectSummarizeTargets は滞留かつ未要約のマーカーを抽出します（純粋関数）。
+// selectSummarizeTargets は滞留かつ未要約の質問待ちマーカーを抽出します（純粋関数）。
+// 対象は Status==waiting のみ。動作中(running)は内容が刻々変わるため要約せず、haiku を無駄打ちしません。
 // 滞留: now - timestamp >= idleSummarizeDelay
 // 未要約: Summary が空、または RawTail が SummarizedAt 以降に更新された
 func selectSummarizeTargets(markers []idle.Marker, now time.Time) []idle.Marker {
 	targets := make([]idle.Marker, 0, len(markers))
 	for _, m := range markers {
+		if m.Status != idle.StatusWaiting {
+			continue
+		}
 		elapsed := now.Sub(time.Unix(m.Timestamp, 0))
 		if elapsed < idleSummarizeDelay {
 			continue

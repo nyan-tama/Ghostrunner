@@ -39,6 +39,13 @@ func TestStatesDiffer(t *testing.T) {
 		}
 		return State{Projects: []ProjectState{p}, GeneratedAt: "2026-07-20T12:00:00Z"}
 	}
+	withRunning := func(running *RunningState) State {
+		p := ProjectState{
+			Name: "proj", Path: "/a/b", Attention: AttentionProgress,
+			Kanban: KanbanCounts{Running: 1}, Running: running,
+		}
+		return State{Projects: []ProjectState{p}, GeneratedAt: "2026-07-20T12:00:00Z"}
+	}
 
 	tests := []struct {
 		name string
@@ -94,6 +101,37 @@ func TestStatesDiffer(t *testing.T) {
 			}}, GeneratedAt: "2026-07-20T12:00:00Z"},
 			want: true,
 		},
+		{
+			// W-3: Running.Preview のみ揮発する変化は非broadcast（2秒毎の暴発抑制）
+			name: "Running.Previewのみ変化は差分なし(W-3)",
+			a:    withRunning(&RunningState{Preview: "旧preview", SessionCount: 1}),
+			b:    withRunning(&RunningState{Preview: "新preview", SessionCount: 1}),
+			want: false,
+		},
+		{
+			name: "running出現は差分あり(W-3)",
+			a:    base,
+			b:    withRunning(&RunningState{Preview: "動作中", SessionCount: 1}),
+			want: true,
+		},
+		{
+			name: "running消滅は差分あり(W-3)",
+			a:    withRunning(&RunningState{Preview: "動作中", SessionCount: 1}),
+			b:    base,
+			want: true,
+		},
+		{
+			name: "SessionCount変化は差分あり(W-3・Preview同一でも検出)",
+			a:    withRunning(&RunningState{Preview: "同じ", SessionCount: 1}),
+			b:    withRunning(&RunningState{Preview: "同じ", SessionCount: 2}),
+			want: true,
+		},
+		{
+			name: "running→waiting遷移は差分あり(W-3)",
+			a:    withRunning(&RunningState{Preview: "動作中", SessionCount: 1}),
+			b:    withIdle(&IdleState{Timestamp: "2026-07-20T11:58:00Z", Preview: "質問待ち"}),
+			want: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -102,6 +140,32 @@ func TestStatesDiffer(t *testing.T) {
 				t.Errorf("statesDiffer: got %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestStatesDiffer_元Stateを破壊しない は、正規化コピー方式（W-3）が比較のために Running.Preview を
+// ゼロ化しても、比較後の元 State の Running.Preview が残っていることを検証します。
+func TestStatesDiffer_元Stateを破壊しない(t *testing.T) {
+	mkState := func(preview string) State {
+		return State{Projects: []ProjectState{{
+			Name: "proj", Path: "/a/b", Attention: AttentionProgress,
+			Running: &RunningState{Preview: preview, SessionCount: 1},
+		}}, GeneratedAt: "2026-07-20T12:00:00Z"}
+	}
+	a := mkState("元preview-A")
+	b := mkState("元preview-B")
+
+	// preview のみ差 → 差分なし判定
+	if statesDiffer(a, b) {
+		t.Errorf("expected no diff for preview-only change")
+	}
+
+	// 比較後も元 State の Running.Preview がゼロ化されていない
+	if a.Projects[0].Running.Preview != "元preview-A" {
+		t.Errorf("a の Running.Preview が破壊された: %q", a.Projects[0].Running.Preview)
+	}
+	if b.Projects[0].Running.Preview != "元preview-B" {
+		t.Errorf("b の Running.Preview が破壊された: %q", b.Projects[0].Running.Preview)
 	}
 }
 

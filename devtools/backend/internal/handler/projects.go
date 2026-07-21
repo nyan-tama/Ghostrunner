@@ -51,8 +51,8 @@ type DestroyRequest struct {
 // HomeDir はプロジェクト削除時のパス制限に使用するホームディレクトリ。
 // テスト時にディレクトリを差し替え可能にするために公開フィールドとしている。
 type ProjectsHandler struct {
-	BaseDir         string
-	HomeDir         string
+	BaseDir          string
+	HomeDir          string
 	PatrolConfigPath string
 }
 

@@ -77,6 +77,20 @@ type IdleState struct {
 	SummarizedAt string `json:"summarizedAt"` // 要約生成時刻（RFC3339・Phase 1a では空）
 }
 
+// RunningState は1プロジェクトの動作中（ランタイム）セッション状態を表します。
+// このフィールドが存在すること自体が「動作中（青）」を意味します（IdleState=質問待ちとは排他扱い）。
+//
+// 注意: 名前は同じでも以下の3つの running は別概念です。
+//   - KanbanCounts.Running: 開発/実装/実行中/ 配下の .md ファイル件数（カンバンのレーン）
+//   - OpsEntry.Status == "running": 運用ジョブが稼働中
+//   - ProjectState.Running（本型）: 会話ログ上で Claude が今まさに処理中の代表セッション
+//
+// 動作中は内容が刻々変わるため要約せず、生 preview のみ保持します（Summary/Timestamp は持たない・W-6）。
+type RunningState struct {
+	Preview      string `json:"preview"`      // rawTail.lastAssistant 先頭80字（要約前の生text）
+	SessionCount int    `json:"sessionCount"` // 同プロジェクトの動作中セッション数（代表1件＋件数）
+}
+
 // ProjectState は1つのプロジェクトの集約状態を表します
 type ProjectState struct {
 	Name       string               `json:"name"`
@@ -89,6 +103,7 @@ type ProjectState struct {
 	OpsOptedIn bool                 `json:"opsOptedIn"`
 	Warnings   []string             `json:"warnings"`
 	Idle       *IdleState           `json:"idle,omitempty"`
+	Running    *RunningState        `json:"running,omitempty"`
 }
 
 // State はダッシュボード全体の状態を表します
