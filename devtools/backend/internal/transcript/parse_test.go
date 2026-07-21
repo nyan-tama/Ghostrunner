@@ -146,11 +146,24 @@ func TestParseTail_Classification(t *testing.T) {
 			wantWaiting: false,
 		},
 		{
-			name:           "末尾last-promptは非待機・LastPrompt抽出",
-			lines:          []string{asstText("2026-07-20T10:00:00Z", cwd, "hello"), lastPromptEntry(cwd, "私の質問")},
-			wantParseOK:    true,
-			wantWaiting:    false,
-			wantLastPrompt: "私の質問",
+			name:              "末尾last-prompt帳簿は無視し直前assistant textで待機・LastPrompt抽出(allowlist)",
+			lines:             []string{asstText("2026-07-20T10:00:00Z", cwd, "hello"), lastPromptEntry(cwd, "私の質問")},
+			wantParseOK:       true,
+			wantWaiting:       true,
+			wantLastAssistant: "hello",
+			wantLastPrompt:    "私の質問",
+		},
+		{
+			name: "末尾ai-title/last-prompt帳簿を跨いで直前AskUserQuestionで待機(false-negative修正)",
+			lines: []string{
+				asstAsk("2026-07-20T10:00:00Z", cwd, "案Aと案Bどちら?"),
+				noiseEntry("ai-title", cwd),
+				lastPromptEntry(cwd, "私の質問"),
+			},
+			wantParseOK:       true,
+			wantWaiting:       true,
+			wantLastAssistant: "案Aと案Bどちら?",
+			wantLastPrompt:    "私の質問",
 		},
 		{
 			name: "ノイズ行を除外して直前assistantで待機判定(W1・permission-mode/worktree-state)",
@@ -197,13 +210,14 @@ func TestParseTail_Classification(t *testing.T) {
 			wantWaiting: false,
 		},
 		{
-			name: "未知typeは実質エントリ扱いで非待機に倒す(誤検知回避)",
+			name: "未知の帳簿type末尾は無視し直前assistantで待機(allowlist)",
 			lines: []string{
 				asstText("2026-07-20T10:00:00Z", cwd, "hello"),
 				j(map[string]any{"type": "brand-new-unknown-type", "cwd": cwd}),
 			},
-			wantParseOK: true,
-			wantWaiting: false,
+			wantParseOK:       true,
+			wantWaiting:       true,
+			wantLastAssistant: "hello",
 		},
 		{
 			name: "全行ノイズは実質エントリ0でParseOK=false",

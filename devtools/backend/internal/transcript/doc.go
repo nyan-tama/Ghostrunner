@@ -5,8 +5,9 @@
 //
 // フック（Stop/Notification 等）は環境（VS Code 拡張 / CLI）でイベント挙動が異なり、
 // AskUserQuestion の回答待ちを取りこぼす。本パッケージはフックに依存せず、backend が
-// ~/.claude/projects/<project-id>/<session-id>.jsonl を直接読み、「ノイズ行除外後の最終実質
-// エントリが未応答の assistant」であるセッションを質問待ちとして idle.Marker 化する。
+// ~/.claude/projects/<project-id>/<session-id>.jsonl を直接読み、「最終実質エントリが未応答の
+// assistant」であるセッションを質問待ちとして idle.Marker 化する。実質エントリは user/assistant の
+// allowlist で判定し、末尾に追記される帳簿型（ai-title/last-prompt/*-mode/*-state 等）は自動で無視する。
 // これにより環境非依存で AskUserQuestion を含む全待機を捕捉する。
 //
 // # 主要な型・関数
@@ -22,8 +23,9 @@
 //   - 環境非依存: フックのイベント種別に依存せず会話ログから直接待機を検出する
 //   - best-effort: 会話ログは公式非サポート形式（バージョンで変わる）のため、抽出失敗時は
 //     ParseOK=false として保守的に非待機へ倒す（誤検知回避を優先し取りこぼす方に倒す）。
-//     新しい bookkeeping type（*-mode / *-state 等）が現れたら parse.go の noiseEntryTypes への
-//     追加が必要（未追加は「未知＝実質エントリ」扱いで待機取りこぼしに直結する）
+//     「最終実質エントリ」は parse.go の substantiveEntryTypes（user/assistant の allowlist）で判定し、
+//     新しい bookkeeping type（ai-title/last-prompt/*-mode/*-state 等）が現れても自動で無視される。
+//     denylist を保守し続ける必要はなく、列挙漏れによる待機取りこぼし（false-negative）が構造的に起きない
 //   - C1: Marker.Timestamp は最後の assistant エントリ自身の entry-time。mtime は age/同一性に
 //     使わず、parseCache の再パース抑制と終了セッションの粗い liveness ゲートにのみ用いる
 //   - C2: セッション帰属は実 cwd + idle.MatchProject。lossy な project-id glob は走査絞り込み専用

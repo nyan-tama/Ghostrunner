@@ -253,10 +253,11 @@ func TestTranscriptReaderList_TTLExcluded(t *testing.T) {
 func TestTranscriptReaderList_NonWaitingNoMarker(t *testing.T) {
 	home := t.TempDir()
 	appPath := "/Users/x/app"
-	// busy(Bash)・応答済(user末尾)・last-prompt末尾 の3セッション
+	// busy(Bash)・応答済(user末尾)・user返信後にlast-prompt帳簿追記 の3セッション
 	writeSession(t, home, "-Users-x-app", "busy", asstBash("2026-07-20T10:00:00Z", appPath))
 	writeSession(t, home, "-Users-x-app", "answered", asstAsk("2026-07-20T10:00:00Z", appPath, "Q?"), userEntry(appPath))
-	writeSession(t, home, "-Users-x-app", "prompt", asstText("2026-07-20T10:00:00Z", appPath, "hi"), lastPromptEntry(appPath, "user replied"))
+	// 最終実質は user（返信済）。後続の last-prompt 帳簿は allowlist で無視され待機に昇格しない。
+	writeSession(t, home, "-Users-x-app", "prompt", asstText("2026-07-20T10:00:00Z", appPath, "hi"), userEntry(appPath), lastPromptEntry(appPath, "user replied"))
 
 	r := NewReader(home, provider(projects.Project{Path: appPath, Name: "app"}), fixedNow("2026-07-20T10:30:00Z"), filepath.Join(home, "summaries"))
 	markers, err := r.List(context.Background())

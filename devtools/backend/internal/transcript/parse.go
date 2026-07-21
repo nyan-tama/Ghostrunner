@@ -17,25 +17,18 @@ import (
 // AskUserQuestion の長い input.questions を1エントリで含められるよう十分大きくします（W2）。
 const tailReadBytes = 128 * 1024
 
-// noiseEntryTypes は待機判定で無視する非実質エントリ（bookkeeping）の type 集合です。
-// これらは待機中でも追記されうる（file-history-snapshot・ユーザーの shift+tab による
-// permission-mode 切替等）ため、「最終実質エントリ」の判定から除外します。
-// noise 集合に無い type は「未知＝実質エントリ」扱いになり、text 待機中に追記されると
-// 非待機と誤判定して質問待ちカードが消える（false-negative）ため、実在する bookkeeping 型は
-// 漏れなく列挙します。
+// substantiveEntryTypes は会話ターンを構成する「実質エントリ」の type 集合（allowlist）です。
+// 会話ターンは user と assistant のみが実質で、待機判定はこの2種の「最終実質エントリ」だけで行います。
 //
-// 運用注記: 会話ログは公式非サポート形式（バージョンで変わる）。新しい bookkeeping type
-// （*-mode / *-state 等）が現れたら、本集合への追加が必要になる（未追加は待機取りこぼしに直結）。
-var noiseEntryTypes = map[string]struct{}{
-	"attachment":            {},
-	"queue-operation":       {},
-	"file-history-snapshot": {},
-	"file-history-delta":    {},
-	"system":                {},
-	"ai-title":              {},
-	"mode":                  {},
-	"permission-mode":       {},
-	"worktree-state":        {},
+// これ以外の type（attachment / queue-operation / file-history-snapshot / file-history-delta /
+// system / permission-mode / worktree-state / ai-title / last-prompt / その他未知の帳簿型）は
+// 全て bookkeeping として無視します。会話ログ末尾には実会話ターンの後に ai-title（自動タイトル）や
+// last-prompt（最終プロンプト記録）等の帳簿エントリが追記されうるため、denylist で個別に除外すると
+// 新しい帳簿型が増えるたびに列挙漏れ→「未知＝実質」誤判定で待機を取りこぼす（false-negative）。
+// allowlist なら新しい帳簿型が現れても自動で無視され、この種の取りこぼしが構造的に根絶されます。
+var substantiveEntryTypes = map[string]struct{}{
+	"user":      {},
+	"assistant": {},
 }
 
 // transcriptTail は会話ログ末尾の待機判定結果です。
@@ -142,7 +135,7 @@ func analyzeEntries(data []byte) (tail transcriptTail, found bool) {
 	lines := bytes.Split(data, []byte("\n"))
 
 	var (
-		lastSub    *logEntry // 最終実質エントリ（ノイズ除外後）
+		lastSub    *logEntry // 最終実質エントリ（allowlist=user/assistant のみ）
 		lastPrompt string
 		cwd        string
 	)
@@ -163,18 +156,19 @@ func analyzeEntries(data []byte) (tail transcriptTail, found bool) {
 			cwd = e.Cwd
 		}
 
+		// LastPrompt は last-prompt 帳簿エントリから抽出します（要約の材料）。
+		// これは「最終実質エントリ判定」とは独立で、last-prompt 自体は実質エントリではありません。
 		if e.Type == "last-prompt" {
 			lastPrompt = e.LastPrompt
-			entry := e
-			lastSub = &entry
 			continue
 		}
 
-		if _, noise := noiseEntryTypes[e.Type]; noise {
+		// allowlist: 会話ターンは user / assistant のみが実質エントリ。
+		// それ以外（ai-title / last-prompt / *-mode / *-state / 未知の帳簿型）は全て無視します。
+		if _, ok := substantiveEntryTypes[e.Type]; !ok {
 			continue
 		}
 
-		// assistant / user / 未知の非ノイズ type はすべて実質エントリ扱い
 		entry := e
 		lastSub = &entry
 	}
@@ -189,7 +183,7 @@ func analyzeEntries(data []byte) (tail transcriptTail, found bool) {
 	}
 
 	if lastSub.Type != "assistant" {
-		// user / last-prompt / 未知 type が最終 → 非待機（確定）
+		// 最終実質が user（実ユーザー返信 または tool_result による Claude 処理継続）→ 非待機（確定）
 		tail.ParseOK = true
 		tail.IsWaiting = false
 		return tail, true
