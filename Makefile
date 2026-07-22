@@ -377,6 +377,14 @@ health:
 grasp:
 	@while true; do clear; bash $(DEVTOOLS_ROOT)/tools/grasp.sh; sleep 2; done
 
+# スマホ直結操作 (案A: Blink + Tailscale + tmux) セッション管理
+# tmux-ls: 登録プロジェクトとセッション状態を一覧 / tmux-up: 全プロジェクトのセッションを作成
+.PHONY: tmux-ls tmux-up
+tmux-ls:
+	@bash $(DEVTOOLS_ROOT)/tools/gr-tmux.sh ls
+tmux-up:
+	@bash $(DEVTOOLS_ROOT)/tools/gr-tmux.sh up
+
 # ログ確認
 .PHONY: logs-backend logs-frontend logs
 

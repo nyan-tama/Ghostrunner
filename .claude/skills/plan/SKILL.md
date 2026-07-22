@@ -29,6 +29,7 @@ date +%s > /tmp/claude-timer-plan-start
 - **フルスタック（両方）** の実装計画 → `go-planner` + `nextjs-planner` を並行実行し、1つの計画ファイルにまとめる
 - **フルスタック + DB変更** の実装計画 → `go-planner` + `nextjs-planner` + `pg-planner` を並行実行
 - **Swift macOS アプリ** の実装計画 → `swift-planner` エージェント
+- **iOS / SwiftUI アプリ** の実装計画 → `ios-planner` エージェント
 - **CI/インフラ・本番検証ハーネス** の実装計画 → `ci-infra-planner` エージェント
 
 仕様書からどちらの実装が必要か判断できない場合は、ユーザーに確認する。
@@ -114,6 +115,7 @@ DB変更（テーブル追加・カラム変更等）が含まれる場合は `p
 - **Next.js フロントエンド** の計画 → `nextjs-plan-reviewer` エージェント
 - **フルスタック** の計画 → 両方のエージェントを並行して実行
 - **Swift macOS アプリ** の計画 → `swift-plan-reviewer` エージェント
+- **iOS / SwiftUI アプリ** の計画 → `ios-plan-reviewer` エージェント
 - **CI/インフラ・本番検証ハーネス** の計画 → `ci-infra-plan-reviewer` エージェント
 
 **レビュー観点:**
@@ -195,6 +197,7 @@ git push
 - 両方（フルスタック）: `/coding`
 - Go バックエンドのみ: `/go`
 - Next.js フロントエンドのみ: `/nextjs`
+- iOS / SwiftUI アプリのみ: `/ios`
 - CI/インフラ・本番検証ハーネス: `/coding`（フェーズ C を実行）
 
 ## 計測: 終了
